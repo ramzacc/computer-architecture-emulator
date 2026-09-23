@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Grid Canvas Prototype</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=7" />
 </head>
 <body>
   <header>
@@ -36,6 +36,9 @@
       <label id="selected-size-row" class="property" hidden>Selected size (bits)
         <input id="selected-size" type="number" min="1" max="32" step="1" disabled />
       </label>
+      <label id="constant-value-row" class="property" hidden>Constant value
+        <input id="constant-value" type="number" min="0" max="1" step="1" disabled />
+      </label>
       <div id="selected-value-row" class="property bus-value-row" hidden>
         <span>Selected bus value</span>
         <output id="selected-value" aria-live="polite">—</output>
@@ -49,6 +52,6 @@
     </section>
   </main>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=12"></script>
 </body>
 </html>
