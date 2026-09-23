@@ -96,18 +96,7 @@ function powerArt(color) {
 
 function ledArt() {
   const stroke = "rgba(255,255,255,.4)";
-  return `
-    <line x1="40" y1="0" x2="40" y2="12" stroke="${stroke}" stroke-width="2"/>
-    <polygon class="led-tri" points="28,12 52,12 40,28" fill="#5a5a7a" stroke="${stroke}" stroke-width="2"/>
-    <line class="led-bar" x1="28" y1="28" x2="52" y2="28" stroke="${stroke}" stroke-width="2"/>
-    <line x1="40" y1="28" x2="40" y2="36" stroke="${stroke}" stroke-width="2"/>
-    <line x1="32" y1="36" x2="48" y2="36" stroke="${stroke}" stroke-width="2"/>
-    <g class="led-rays" stroke="#ff4136" stroke-width="2" stroke-linecap="round">
-      <line x1="20" y1="6" x2="12" y2="0"/>
-      <line x1="60" y1="6" x2="68" y2="0"/>
-      <line x1="18" y1="20" x2="8" y2="20"/>
-      <line x1="62" y1="20" x2="72" y2="20"/>
-    </g>`;
+  return `<rect class="led-body" x="4" y="4" width="72" height="72" fill="#5a5a7a" stroke="${stroke}" stroke-width="2"/>`;
 }
 
 function gateArt(shape, color) {
