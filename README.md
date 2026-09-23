@@ -34,7 +34,8 @@ move, and zoom with `Ctrl`/`Cmd` + scroll, `Ctrl`/`Cmd` + `+`/`-` (plain
 `+`/`-` also work), or `Ctrl`/`Cmd` + `0` to reset the view to 100% centered on
 the content. Components and wires may be placed anywhere, including negative
 coordinates; the saved `grid` dimensions are legacy metadata and no longer
-bound placement.
+bound placement. Wires can start anywhere and run along component borders, but
+cannot pass through a component's interior.
 
 The code has three parts:
 

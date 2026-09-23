@@ -141,7 +141,15 @@ function edgeFromEvent(ev) {
   const vEdge = { o: "V", x: Math.round(fx), y: Math.floor(fy) };
   const hDist = Math.abs(fy - hEdge.y);
   const vDist = Math.abs(fx - vEdge.x);
-  return hDist <= vDist ? hEdge : vEdge;
+  const nearest = hDist <= vDist ? hEdge : vEdge;
+  const alternate = nearest === hEdge ? vEdge : hEdge;
+  const alternateDist = nearest === hEdge ? vDist : hDist;
+  // Near a component outline, the closest grid line can run through its body.
+  // Prefer the nearby border edge when the closest edge is blocked.
+  if (alternateDist <= 0.25 &&
+      edgePlacementError(state, { ...nearest, size: newWireSize }) === "Wire is blocked by a component." &&
+      edgePlacementError(state, { ...alternate, size: newWireSize }) === null) return alternate;
+  return nearest;
 }
 
 /* ---------- Rendering ---------- */

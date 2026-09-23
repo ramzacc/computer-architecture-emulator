@@ -147,7 +147,7 @@ main {
 
 .wire {
   position: absolute;
-  z-index: 1;
+  z-index: 3;
   border-radius: 2px;
   background: #2a6b78;
   cursor: pointer;
@@ -168,7 +168,7 @@ main {
 
 .wire-preview {
   position: absolute;
-  z-index: 4;
+  z-index: 5;
   border-radius: 2px;
   pointer-events: none;
 }
@@ -178,7 +178,7 @@ main {
 
 .pin {
   position: absolute;
-  z-index: 3;
+  z-index: 4;
   width: 8px;
   height: 8px;
   margin: -4px 0 0 -4px;
@@ -231,7 +231,7 @@ main {
 .comp .led-body { transition: fill .12s, stroke .12s; }
 .comp.lit .led-body { fill: #ff4136; stroke: #ffb0aa; filter: drop-shadow(0 0 6px #ff4136); }
 
-.comp.selected { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--accent); z-index: 5; }
+.comp.selected { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--accent); }
 .comp.invalid { box-shadow: 0 0 0 2px var(--danger); }
 .comp:active { cursor: grabbing; }
 
