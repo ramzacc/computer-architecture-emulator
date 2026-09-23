@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grid Canvas Prototype</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Grid Canvas</h1>
+    <div class="toolbar">
+      <button id="btn-wire" class="mode">Wire mode</button>
+      <button id="btn-pan" class="mode">Pan mode</button>
+      <span class="divider"></span>
+      <button id="btn-save">Save</button>
+      <button id="btn-load">Load</button>
+      <button id="btn-download">Download .json</button>
+      <label class="file-label">
+        <span>Import .json</span>
+        <input id="file-input" type="file" accept="application/json,.json" />
+      </label>
+      <button id="btn-clear-wires">Clear wires</button>
+      <button id="btn-clear" class="danger">Clear all</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Components</h2>
+      <div id="palette" class="palette"></div>
+      <p class="hint">Pick a known component, then click the grid to place it. Only its type + position are saved.</p>
+      <p class="hint">
+        <strong>Wire mode</strong> (top bar): start from a component pin, then
+        extend orthogonally. Click a wire to select its net, Delete to remove
+        it, right-click to remove one segment.
+      </p>
+      <p class="hint">
+        <strong>Pan mode</strong> (top bar): drag anywhere to move around the
+        canvas. In any other mode you can still scroll the canvas normally.
+      </p>
+      <p class="hint">
+        A net is <strong>ON</strong> (lighter) when it reaches a source
+        component's pin (CPU, GPU, Clock, Control). That energization is derived
+        live and never saved.
+      </p>
+
+      <h2>Selection</h2>
+      <div class="selection-box">
+        <div id="selection-info" class="muted">Nothing selected</div>
+        <div class="row">
+          <button id="btn-rotate" disabled>Rotate (R)</button>
+          <button id="btn-delete" disabled>Delete</button>
+        </div>
+      </div>
+
+      <h2>Serialized state</h2>
+      <textarea id="serialized" spellcheck="false"></textarea>
+      <div class="row">
+        <button id="btn-apply">Apply text</button>
+        <button id="btn-copy">Copy</button>
+      </div>
+    </section>
+
+    <section id="canvas-wrap" class="canvas-wrap">
+      <div id="grid" class="grid" tabindex="0"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
