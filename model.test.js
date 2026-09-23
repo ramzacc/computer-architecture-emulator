@@ -287,6 +287,34 @@ test("splitter rotation and size changes adjust its footprint", () => {
   assert.equal(isValidComponent(board, splitter), false);
 });
 
+test("descendant splitter order reverses branch bits and persists", () => {
+  const board = createBoard();
+  const source = { id: "k", t: "constant", x: 0, y: 0, r: 0, size: 4, value: 1 };
+  const splitter = { id: "s", t: "splitter", x: 0, y: 4, r: 0, size: 4, order: "descendant" };
+  assert.equal(addComponent(board, source), true);
+  assert.equal(addComponent(board, splitter), true);
+  assert.deepEqual(pinsFor(splitter).slice(1).map(({ py, bit }) => [py, bit]),
+    [[5, 3], [6, 2], [7, 1], [8, 0]]);
+  for (const wire of [
+    { o: "V", x: 1, y: 2, size: 4 }, { o: "V", x: 1, y: 3, size: 4 },
+    ...[5, 6, 7, 8].map((y) => ({ o: "H", x: 2, y, size: 1 })),
+  ]) assert.equal(addWireEdge(board, wire), true);
+  const nets = computeNets(board);
+  for (const y of [5, 6, 7, 8]) {
+    const net = [...nets.values()].find((item) => item.edges.some((edge) => edgeKey(edge) === `H:2,${y}`));
+    assert.equal(net.value, y === 8 ? 1 : 0);
+  }
+  const saved = JSON.parse(serialize(board));
+  assert.equal(saved.components.find((component) => component.t === "splitter").order, "descendant");
+  const { board: reloaded, skipped } = parseDocument(JSON.stringify(saved));
+  assert.deepEqual(skipped, { components: 0, wires: 0 });
+  assert.deepEqual(JSON.parse(serialize(reloaded)), saved);
+  splitter.order = "backward";
+  assert.equal(isValidComponent(board, splitter), false);
+  const legacy = parseDocument(JSON.stringify({ components: [{ t: "splitter", x: 0, y: 0, size: 2 }] }));
+  assert.equal(legacy.board.components[0].order, "ascendant");
+});
+
 
 test("a splitter combines one-bit power branches and drives LEDs through a gate", () => {
   const text = readFileSync(new URL("./examples/splitter-combine.json", import.meta.url), "utf8");

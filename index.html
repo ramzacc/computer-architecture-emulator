@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Grid Canvas Prototype</title>
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
 </head>
 <body>
   <header>
@@ -35,6 +35,12 @@
       </label>
       <label id="selected-size-row" class="property" hidden>Selected size (bits)
         <input id="selected-size" type="number" min="1" max="32" step="1" disabled />
+      </label>
+      <label id="splitter-order-row" class="property" hidden>Order
+        <select id="splitter-order" disabled>
+          <option value="ascendant">Ascendant</option>
+          <option value="descendant">Descendant</option>
+        </select>
       </label>
       <label id="constant-value-row" class="property" hidden>Constant value
         <input id="constant-value" type="number" min="0" max="1" step="1" disabled />

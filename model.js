@@ -1,4 +1,4 @@
-import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=13";
+import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validConstant, validSplitterOrder } from "./components.js?v=13";
 
 export const SCHEMA_VERSION = 8;
 export const DEFAULT_COLS = 64;
@@ -38,6 +38,7 @@ export function isValidComponent(board, component) {
   const size = dimsOf(component);
   if (!size || !Number.isInteger(component.x) || !Number.isInteger(component.y) ||
       !validBitWidth(bitWidth(component)) ||
+      (component.t === "splitter" && !validSplitterOrder(component.order ?? "ascendant")) ||
       (component.t === "constant" && !validConstant(component))) return false;
   for (let y = component.y; y < component.y + size.h; y++) {
     for (let x = component.x; x < component.x + size.w; x++) {
@@ -168,7 +169,8 @@ export function evaluateBoard(board) {
       splitter: !!entry.splitter,
       size: bitWidth(component),
       ins: pins.filter((pin) => pin.role === "in").map(netAt),
-      outs: pins.filter((pin) => pin.role === "out").map(netAt),
+      outs: pins.filter((pin) => pin.role === "out")
+        .sort((a, b) => (a.bit ?? 0) - (b.bit ?? 0)).map(netAt),
     };
   });
   const outputOf = (part, values) => {
@@ -262,10 +264,11 @@ export function serialize(board) {
   return JSON.stringify({
     version: SCHEMA_VERSION,
     grid: { ...board.grid },
-    components: board.components.map(({ t, x, y, r, size, value }) => {
+    components: board.components.map(({ t, x, y, r, size, value, order }) => {
       const q = normalizeRotation(r);
       return { t, x, y, ...(q ? { r: q } : {}), ...(isSizable({ t }) ? { size: size ?? 1 } : {}),
-        ...(t === "constant" ? { value: value ?? 0 } : {}) };
+        ...(t === "constant" ? { value: value ?? 0 } : {}),
+        ...(t === "splitter" ? { order: order ?? "ascendant" } : {}) };
     }),
     wires: [...board.wires.values()].map(({ o, x, y, size }) => ({ o, x, y, size: size ?? 1 })),
   }, null, 2);
@@ -291,6 +294,7 @@ export function parseDocument(text) {
     const component = {
       id: `c${board.components.length + 1}`, t: raw.t, r,
       ...(isSizable({ t: raw.t }) ? { size: raw.size ?? 1 } : {}),
+      ...(raw.t === "splitter" ? { order: raw.order ?? "ascendant" } : {}),
       ...(raw.t === "constant" ? { value: raw.value ?? 0 } : {}),
       x: clampInt(raw.x, -COORD_LIMIT, COORD_LIMIT, 0),
       y: clampInt(raw.y, -COORD_LIMIT, COORD_LIMIT, 0),
