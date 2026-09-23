@@ -14,15 +14,15 @@ Three example circuit documents are in [`examples/`](examples/). Import one with
 3. [Two-bit bus](examples/splitter-combine.json) — two power rails form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
 
 The catalog holds real logic-level parts: a 2×2 **Power** rail (always drives high),
-an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**
-and **NAND** gates, plus a **Splitter** and **Constant** source. Each pin declares an `in` or `out` role, and the board is
+an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,
+**NAND**, and 2×2 **NOT** gates, plus a **Splitter** and **Constant** source. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
 
 Wires carry buses of 1–32 bits (the size property). Set **New wire size** before drawing,
 or select a connected wire net or logic gate and edit **Selected size**. Connected
 wires and gate pins must have the same size; the editor reports a mismatch and
 rejects the change otherwise. Selecting a wire shows the current net value in
-decimal and binary under **Bus properties** (or HIGH/LOW for one bit). Gates compute AND, OR, XOR, and NAND bitwise
+decimal and binary under **Bus properties** (or HIGH/LOW for one bit). Gates compute AND, OR, XOR, NAND, and NOT bitwise
 across their configured size. A splitter has one bus connection and one 1-bit
 branch per bit, with bit 0 closest to the bus connection. It works in either
 direction: a bus can feed its branches, or powered branches can form a bus. Its height grows with its size

@@ -1,4 +1,4 @@
-import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=12";
+import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=13";
 
 export const SCHEMA_VERSION = 8;
 export const DEFAULT_COLS = 64;
@@ -113,6 +113,7 @@ const GATE_OPS = {
   or: (a, b) => a | b,
   xor: (a, b) => a ^ b,
   nand: (a, b) => ~(a & b),
+  not: (a) => ~a,
 };
 
 function bitMask(size) { return size === 32 ? 0xffffffff : (2 ** size - 1); }
