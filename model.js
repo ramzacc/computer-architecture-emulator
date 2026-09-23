@@ -1,4 +1,4 @@
-import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validConstant, validSplitterOrder } from "./components.js?v=13";
+import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validConstant, validSplitterOrder } from "./components.js";
 
 export const SCHEMA_VERSION = 8;
 export const DEFAULT_COLS = 64;
@@ -311,12 +311,7 @@ export function parseDocument(text) {
     for (const raw of data.wires) {
       if (!raw || (raw.o !== "H" && raw.o !== "V")) { skipped.wires++; continue; }
       const edge = { o: raw.o, x: Number(raw.x), y: Number(raw.y), size: raw.size ?? 1 };
-      if (!Number.isInteger(edge.x) || !Number.isInteger(edge.y) || !validBitWidth(edge.size) ||
-          board.wires.has(edgeKey(edge)) || !edgeInBounds(board, edge) ||
-          edgeBlocked(board, edge) ||
-          edgePoints(edge).some(([x, y]) => pinsAtPoint(board, x, y).some((size) => size !== edge.size)) ||
-          edgePoints(edge).some(([x, y]) => wiresAtPoint(board, x, y).some((wire) => wireSize(wire) !== edge.size))) { skipped.wires++; continue; }
-      board.wires.set(edgeKey(edge), edge);
+      if (!addWireEdge(board, edge)) skipped.wires++;
     }
   }
   return { board, skipped };
