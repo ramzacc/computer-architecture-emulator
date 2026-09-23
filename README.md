@@ -12,6 +12,12 @@ an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**
 and **NAND** gates. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
 
+Wires carry buses of 1–32 bits (the size property). Set **New wire size** before drawing,
+or select a connected wire net or logic gate and edit **Selected size**. Connected
+wires and gate pins must have the same size; the editor reports a mismatch and
+rejects the change otherwise. Gates compute AND, OR, XOR, and NAND bitwise
+across their configured size. Power and LEDs remain 1 bit.
+
 The canvas is an infinite, pannable lattice. Drag empty space to pan, scroll to
 move, and zoom with `Ctrl`/`Cmd` + scroll, `Ctrl`/`Cmd` + `+`/`-` (plain
 `+`/`-` also work), or `Ctrl`/`Cmd` + `0` to reset the view to 100% centered on
@@ -27,10 +33,10 @@ The code has three parts:
   document format.
 - `app.js` handles browser events, SVG rendering, and local storage.
 
-Saved documents use schema version 5. They contain grid dimensions, component
-types and positions, and wire segments. Pins, logic values, and wire power are
-derived from the catalog. Loading skips unknown or overlapping components and
-invalid wire segments; the browser console reports the number skipped.
+Saved documents use schema version 6. They contain grid dimensions, component
+types, positions, and gate sizes, plus sized wire segments. Pins, logic values, and wire power are
+derived from the catalog. Loading treats missing sizes in older documents as 1 bit and skips unknown or
+overlapping components and invalid or mismatched wire segments; the browser console reports the number skipped.
 
 Run the model checks with `npm test` (Node.js 18 or newer). No install step is
 needed.

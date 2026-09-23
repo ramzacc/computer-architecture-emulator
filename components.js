@@ -1,5 +1,4 @@
-// Fixed component registry. Characteristics live here, never in the saved file.
-// Instances only persist their type + position (+ orientation when rotated).
+// Fixed component registry. Gate instances may also persist a bit width.
 //
 // These are real logic-level parts: a power rail, an LED, and gates that read
 // their inputs and drive an output. Signal flow runs top-to-bottom (N inputs,
@@ -65,6 +64,16 @@ const DIRECTIONS = ["N", "E", "S", "W"];
 export function normalizeRotation(r) {
   const q = Math.trunc(Number(r) || 0) % 4;
   return q < 0 ? q + 4 : q;
+}
+
+export const MAX_BUS_WIDTH = 32;
+
+export function bitWidth(component) {
+  return spec(component.t)?.op ? (component.size ?? 1) : 1;
+}
+
+export function validBitWidth(size) {
+  return Number.isInteger(size) && size >= 1 && size <= MAX_BUS_WIDTH;
 }
 
 export function spec(type) {

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { dimsOf, pinsFor, spec } from "./components.js";
 import { addComponent, addWireEdge, canPlaceEdge, computeNets, createBoard,
-  edgeKey, evaluateBoard, isValidComponent, parseDocument, sanitizeWires, serialize } from "./model.js";
+  edgeKey, evaluateBoard, isValidComponent, parseDocument, resizeNet, sanitizeWires, serialize } from "./model.js";
 
 test("component geometry rotates pins and rejects overlap", () => {
   const board = createBoard(10, 10);
@@ -61,8 +61,8 @@ test("gates compute their output from the input nets", () => {
     { o: "V", x: 9, y: 1 }, { o: "V", x: 9, y: 2 },
   ]) assert.equal(addWireEdge(board, wire), true, `wire ${JSON.stringify(wire)}`);
   const { states } = evaluateBoard(board);
-  assert.equal(states.get("g").value, true);
-  assert.equal(states.get("h").value, false);
+  assert.equal(states.get("g").value, 1);
+  assert.equal(states.get("h").value, 0);
 });
 
 test("documents persist all four orientations", () => {
@@ -88,6 +88,46 @@ test("imports skip overlap and malformed wires without changing the schema", () 
   assert.equal(board.components.length, 3);
   assert.equal(board.wires.size, 1);
   const saved = JSON.parse(serialize(board));
-  assert.deepEqual(saved.wires, [{ o: "H", x: 0, y: 9 }]);
+  assert.deepEqual(saved.wires, [{ o: "H", x: 0, y: 9, size: 1 }]);
   assert.deepEqual(JSON.parse(serialize(parseDocument(serialize(board)).board)), saved);
+});
+
+
+test("bus sizes must match connected wires and gate pins", () => {
+  const board = createBoard();
+  addComponent(board, { id: "g", t: "and", x: 0, y: 2, r: 0, size: 8 });
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 1, size: 1 }), false);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 1, size: 8 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 0, size: 4 }), false);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 0, size: 8 }), true);
+  assert.equal(resizeNet(board, "V:1,1", 4), false);
+  assert.equal(board.wires.get("V:1,1").size, 8);
+  assert.equal(resizeNet(board, "V:1,1", 8), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 3, y: 1, size: 33 }), false);
+});
+
+test("32 bit NAND uses a full width mask and persists sizes", () => {
+  const board = createBoard();
+  addComponent(board, { id: "n", t: "nand", x: 0, y: 0, r: 0, size: 32 });
+  assert.equal(addWireEdge(board, { o: "V", x: 2, y: 2, size: 32 }), true);
+  const result = evaluateBoard(board);
+  assert.equal(result.states.get("n").value, 0xffffffff);
+  assert.equal([...result.nets.values()][0].value, 0xffffffff);
+  const saved = JSON.parse(serialize(board));
+  assert.equal(saved.version, 6);
+  assert.equal(saved.components[0].size, 32);
+  assert.equal(saved.wires[0].size, 32);
+  assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
+});
+
+test("imports reject mixed width connections", () => {
+  const data = { components: [{ t: "and", x: 0, y: 2, size: 8 }], wires: [
+    { o: "V", x: 1, y: 1, size: 8 },
+    { o: "V", x: 1, y: 0, size: 4 },
+    { o: "V", x: 3, y: 1, size: 1 },
+    { o: "V", x: 3, y: 0, size: 8 },
+  ] };
+  const { board, skipped } = parseDocument(JSON.stringify(data));
+  assert.equal(board.wires.size, 2);
+  assert.equal(skipped.wires, 2);
 });

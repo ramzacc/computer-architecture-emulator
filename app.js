@@ -1,6 +1,6 @@
-import { COMPONENT_TYPES, dimsOf, pinsFor, spec } from "./components.js";
-import { addComponent, addWireEdge, canPlaceEdge, createBoard, edgeKey,
-  evaluateBoard, isValidComponent, netContaining, parseDocument, sanitizeWires, serialize } from "./model.js";
+import { COMPONENT_TYPES, bitWidth, dimsOf, pinsFor, spec, validBitWidth } from "./components.js";
+import { addComponent, addWireEdge, createBoard, edgeKey,
+  edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, wireSize } from "./model.js";
 
 const CELL = 48;
 const GAP = 3;
@@ -27,6 +27,7 @@ let placingType = null;
 let drag = null;
 let pan = null;
 let idCounter = 1;
+let newWireSize = 1;
 
 const gridEl = document.getElementById("grid");
 const paletteEl = document.getElementById("palette");
@@ -34,6 +35,54 @@ const btnWire = document.getElementById("btn-wire");
 const btnPan = document.getElementById("btn-pan");
 const canvasWrapEl = document.getElementById("canvas-wrap");
 const zoomLabelEl = document.getElementById("zoom-level");
+const newWireSizeEl = document.getElementById("new-wire-size");
+const selectedSizeEl = document.getElementById("selected-size");
+const busStatusEl = document.getElementById("bus-status");
+
+function busStatus(message, error = false) {
+  busStatusEl.textContent = message;
+  busStatusEl.classList.toggle("error", error);
+}
+
+function renderProperties() {
+  const component = state.components.find((c) => c.id === selectedId);
+  const net = selectedWire ? netContaining(state, selectedWire) : null;
+  const size = component?.t && spec(component.t)?.op ? bitWidth(component) : net?.size;
+  selectedSizeEl.disabled = size === undefined;
+  selectedSizeEl.value = size === undefined ? "" : String(size);
+  if (size !== undefined && !busStatusEl.classList.contains("error")) {
+    busStatus(component ? `${spec(component.t).label} gate: ${size} bit${size === 1 ? "" : "s"}.` :
+      `Selected bus: ${size} bit${size === 1 ? "" : "s"}.`);
+  }
+}
+
+newWireSizeEl.addEventListener("change", () => {
+  const size = Number(newWireSizeEl.value);
+  if (!validBitWidth(size)) {
+    newWireSizeEl.value = String(newWireSize);
+    busStatus("Wire size must be a whole number from 1 to 32.", true);
+    return;
+  }
+  newWireSize = size;
+  busStatus(`New wires will carry ${size} bit${size === 1 ? "" : "s"}.`);
+});
+
+selectedSizeEl.addEventListener("change", () => {
+  const size = Number(selectedSizeEl.value);
+  const component = state.components.find((c) => c.id === selectedId);
+  let changed = false;
+  if (validBitWidth(size) && component && spec(component.t)?.op) {
+    const old = component.size ?? 1;
+    component.size = size;
+    changed = isValidComponent(state, component);
+    if (!changed) component.size = old;
+  } else if (validBitWidth(size) && selectedWire) {
+    changed = resizeNet(state, selectedWire, size);
+  }
+  if (!changed) busStatus("Bus size mismatch or invalid size (use 1–32 bits).", true);
+  else { busStatus(`Size set to ${size} bits.`); render(); }
+  renderProperties();
+});
 
 function nextId() {
   let id;
@@ -55,6 +104,8 @@ function sanitizeAfterComponentEdit() {
 function selectWire(key) {
   selectedWire = key;
   selectedId = null;
+  busStatus("Wire net selected.");
+  renderProperties();
 }
 
 function viewportFromEvent(ev) {
@@ -214,7 +265,7 @@ function renderComponents(logic = evaluateBoard(state)) {
     const st = logic.states.get(c.id);
     if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
     el.innerHTML = componentArt(c, s);
-    el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}${st && st.value ? "  ON" : ""}`;
+    el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${st && st.value ? "  value: " + st.value : ""}`;
     gridEl.appendChild(el);
   }
 }
@@ -233,18 +284,19 @@ function renderPins() {
 }
 
 function edgeBox(e) {
+  const width = wireSize(e) > 1 ? 7 : WIRE_W;
   if (e.o === "H") {
     return {
       left: e.x * CELL + "px",
-      top: e.y * CELL - WIRE_W / 2 + "px",
+      top: e.y * CELL - width / 2 + "px",
       width: CELL + "px",
-      height: WIRE_W + "px",
+      height: width + "px",
     };
   }
   return {
-    left: e.x * CELL - WIRE_W / 2 + "px",
+    left: e.x * CELL - width / 2 + "px",
     top: e.y * CELL + "px",
-    width: WIRE_W + "px",
+    width: width + "px",
     height: CELL + "px",
   };
 }
@@ -269,7 +321,8 @@ function renderWires(logic = evaluateBoard(state)) {
     const el = document.createElement("div");
     el.dataset.key = key;
     const selected = selNetId !== null && i.netId === selNetId;
-    el.className = "wire " + (i.on ? "on" : "off") + (selected ? " selected" : "");
+    el.className = "wire " + (i.on ? "on" : "off") + (wireSize(w) > 1 ? " bus" : "") + (selected ? " selected" : "");
+    el.title = `${wireSize(w)} bit(s), value ${i.value}`;
     applyBox(el, edgeBox(w));
     gridEl.appendChild(el);
   }
@@ -314,6 +367,7 @@ function render() {
   renderWires(logic);
   renderComponents(logic);
   renderPins();
+  renderProperties();
 }
 
 /* ---------- Interaction ---------- */
@@ -331,7 +385,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       renderWires();
       return;
     }
-    const edge = edgeFromEvent(e);
+    const edge = { ...edgeFromEvent(e), size: newWireSize };
     const key = edgeKey(edge);
     if (state.wires.has(key)) {
       // Energization is derived, not toggled; just select it.
@@ -340,6 +394,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
     } else if (addWireEdge(state, edge)) {
       render();
     } else {
+      busStatus(edgePlacementError(state, edge) ?? "Cannot place wire.", true);
       flashInvalidEdge(edge);
     }
     return;
@@ -356,6 +411,8 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
     if (!comp) return;
     selectedId = comp.id;
     selectedWire = null;
+    busStatus("Component selected.");
+    renderProperties();
     renderComponents();
     renderWires();
 
@@ -380,9 +437,11 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
     if (comp) {
       selectedId = comp.id;
       selectedWire = null;
+      busStatus("Component selected.");
       sanitizeAfterComponentEdit();
       render();
     } else {
+      busStatus("Cannot place component here. Check overlaps and bus sizes.", true);
       flashInvalid(cell);
     }
     return;
@@ -474,6 +533,7 @@ function endDrag(e) {
       selectedWire = null;
       renderComponents();
       renderWires();
+      renderProperties();
     }
     return;
   }
@@ -481,6 +541,7 @@ function endDrag(e) {
   const comp = state.components.find((c) => c.id === drag.id);
   const wasDrag = drag.moved;
   if (comp && !drag.valid) {
+    busStatus("Cannot move component here. Check overlaps and bus sizes.", true);
     comp.x = drag.originX;
     comp.y = drag.originY;
   }
@@ -513,12 +574,14 @@ function updateWirePreview(edge) {
   }
   const key = edgeKey(edge);
   const existing = state.wires.has(key);
-  const ok = existing || canPlaceEdge(state, edge);
-  applyBox(el, edgeBox(edge));
+  const candidate = { ...edge, size: newWireSize };
+  const error = existing ? null : edgePlacementError(state, candidate);
+  const ok = existing || !error;
+  applyBox(el, edgeBox(candidate));
   el.classList.toggle("valid", ok);
   el.classList.toggle("invalid", !ok);
   el.classList.toggle("remove", existing);
-  el.title = existing ? "Right-click to remove" : "";
+  el.title = existing ? "Right-click to remove" : (error ?? `${newWireSize} bit wire`);
 }
 
 function flashInvalid(cell) {
@@ -557,6 +620,7 @@ canvasWrapEl.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 document.addEventListener("keydown", (e) => {
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   const mod = e.ctrlKey || e.metaKey;
   const zoomIn = e.key === "+" || e.key === "=" || e.code === "NumpadAdd";
   const zoomOut = e.key === "-" || e.key === "_" || e.code === "NumpadSubtract";

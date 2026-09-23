@@ -1,6 +1,6 @@
-import { dimsOf, normalizeRotation, pinsFor, spec } from "./components.js";
+import { bitWidth, dimsOf, normalizeRotation, pinsFor, spec, validBitWidth } from "./components.js";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 export const DEFAULT_COLS = 64;
 export const DEFAULT_ROWS = 44;
 
@@ -36,13 +36,15 @@ export function componentAt(board, x, y, ignoreId) {
 
 export function isValidComponent(board, component) {
   const size = dimsOf(component);
-  if (!size || !Number.isInteger(component.x) || !Number.isInteger(component.y)) return false;
+  if (!size || !Number.isInteger(component.x) || !Number.isInteger(component.y) ||
+      !validBitWidth(bitWidth(component))) return false;
   for (let y = component.y; y < component.y + size.h; y++) {
     for (let x = component.x; x < component.x + size.w; x++) {
       if (componentAt(board, x, y, component.id)) return false;
     }
   }
-  return true;
+  return !pinsFor(component).some((pin) => wiresAtPoint(board, pin.px, pin.py).some((wire) =>
+    wireSize(wire) !== bitWidth(component)));
 }
 
 export function addComponent(board, component) {
@@ -73,41 +75,64 @@ function endpointOnWall(board, edge) {
   return false;
 }
 
-function isPinStub(board, edge) {
-  const key = edgeKey(edge);
-  return board.components.some((component) => pinsFor(component).some((pin) => edgeKey(pin.edge) === key));
+export function wireSize(wire) { return wire.size ?? 1; }
+
+function wiresAtPoint(board, x, y) {
+  return [...board.wires.values()].filter((wire) => edgePoints(wire).some((p) => p[0] === x && p[1] === y));
 }
 
-function touchesWire(board, edge) {
-  const points = new Set(edgePoints(edge).map((point) => point.join(",")));
-  return [...board.wires.values()].some((wire) => edgePoints(wire).some((point) => points.has(point.join(","))));
+function pinsAtPoint(board, x, y) {
+  return board.components.flatMap((component) => pinsFor(component)
+    .filter((pin) => pin.px === x && pin.py === y)
+    .map(() => bitWidth(component)));
+}
+
+export function edgePlacementError(board, edge) {
+  if (!edgeInBounds(board, edge) || !Number.isInteger(edge.x) || !Number.isInteger(edge.y) ||
+      !validBitWidth(wireSize(edge))) return "Wire size must be 1–32 bits.";
+  if (edgeBlocked(board, edge) || endpointOnWall(board, edge)) return "Wire is blocked by a component.";
+  if (board.wires.has(edgeKey(edge))) return "Wire already exists here.";
+  const points = edgePoints(edge);
+  const touching = points.flatMap(([x, y]) => wiresAtPoint(board, x, y));
+  const pins = points.flatMap(([x, y]) => pinsAtPoint(board, x, y));
+  if (touching.some((wire) => wireSize(wire) !== wireSize(edge)) ||
+      pins.some((size) => size !== wireSize(edge))) return "Bus size mismatch.";
+  if (!touching.length && !points.some(([x, y]) =>
+    board.components.some((component) => pinsFor(component).some((pin) =>
+      pin.px === x && pin.py === y && edgeKey(pin.edge) === edgeKey(edge))))) {
+    return "Start a wire at a pin or an existing wire.";
+  }
+  return null;
 }
 
 export function canPlaceEdge(board, edge) {
-  return edgeInBounds(board, edge) && !edgeBlocked(board, edge) && !endpointOnWall(board, edge) &&
-    !board.wires.has(edgeKey(edge)) && (isPinStub(board, edge) || touchesWire(board, edge));
+  return edgePlacementError(board, edge) === null;
 }
 
 export function addWireEdge(board, edge) {
   if (!canPlaceEdge(board, edge)) return false;
-  board.wires.set(edgeKey(edge), { ...edge });
+  board.wires.set(edgeKey(edge), { ...edge, size: wireSize(edge) });
   return true;
 }
 
 export function sanitizeWires(board) {
   for (const [key, edge] of board.wires) {
-    if (!edgeInBounds(board, edge) || edgeBlocked(board, edge) || endpointOnWall(board, edge)) {
+    if (!edgeInBounds(board, edge) || !validBitWidth(wireSize(edge)) ||
+        edgeBlocked(board, edge) || endpointOnWall(board, edge) ||
+        edgePoints(edge).some(([x, y]) => pinsAtPoint(board, x, y).some((size) => size !== wireSize(edge)))) {
       board.wires.delete(key);
     }
   }
 }
 
 const GATE_OPS = {
-  and: (a, b) => a && b,
-  or: (a, b) => a || b,
-  xor: (a, b) => a !== b,
-  nand: (a, b) => !(a && b),
+  and: (a, b) => a & b,
+  or: (a, b) => a | b,
+  xor: (a, b) => a ^ b,
+  nand: (a, b) => ~(a & b),
 };
+
+function bitMask(size) { return size === 32 ? 0xffffffff : (2 ** size - 1); }
 
 function buildUnionFind(board) {
   const parent = new Map();
@@ -139,7 +164,7 @@ export function evaluateBoard(board) {
   const nets = new Map();
   for (const edge of board.wires.values()) {
     const root = find(edgePoints(edge)[0].join(","));
-    if (!nets.has(root)) nets.set(root, { id: root, edges: [], on: false });
+    if (!nets.has(root)) nets.set(root, { id: root, edges: [], size: wireSize(edge), value: 0, on: false });
     nets.get(root).edges.push(edge);
   }
 
@@ -154,23 +179,25 @@ export function evaluateBoard(board) {
       id: component.id,
       op: entry.op,
       source: !!entry.source,
+      size: bitWidth(component),
       ins: pins.filter((pin) => pin.role === "in").map(netAt),
       outs: pins.filter((pin) => pin.role === "out").map(netAt),
     };
   });
   const outputOf = (part, values) => {
-    if (part.source) return true;
-    if (!part.op) return false;
-    const [a, b] = part.ins.map((root) => root !== null && values.get(root) === true);
-    return GATE_OPS[part.op](a, b);
+    if (part.source) return 1;
+    if (!part.op) return 0;
+    const [a, b] = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
+    return (GATE_OPS[part.op](a, b) & bitMask(part.size)) >>> 0;
   };
 
   let values = new Map();
   for (let round = 0; round <= board.components.length; round++) {
     const next = new Map();
     for (const part of parts) {
-      if (outputOf(part, values)) {
-        for (const root of part.outs) if (root !== null) next.set(root, true);
+      const output = outputOf(part, values);
+      if (output) {
+        for (const root of part.outs) if (root !== null) next.set(root, ((next.get(root) ?? 0) | output) >>> 0);
       }
     }
     let stable = next.size === values.size;
@@ -183,14 +210,17 @@ export function evaluateBoard(board) {
 
   const states = new Map();
   for (const part of parts) {
-    const inputs = part.ins.map((root) => root !== null && values.get(root) === true);
+    const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
     states.set(part.id, {
       inputs,
       value: outputOf(part, values),
-      lit: inputs.length === 1 && inputs[0] === true,
+      lit: inputs.length === 1 && inputs[0] !== 0,
     });
   }
-  for (const net of nets.values()) net.on = values.get(net.id) === true;
+  for (const net of nets.values()) {
+    net.value = values.get(net.id) ?? 0;
+    net.on = net.value !== 0;
+  }
   return { nets, states };
 }
 
@@ -205,10 +235,20 @@ export function netContaining(board, key) {
   return null;
 }
 
+export function resizeNet(board, key, size) {
+  if (!validBitWidth(size)) return false;
+  const net = netContaining(board, key);
+  if (!net) return false;
+  if (net.edges.some((edge) => edgePoints(edge).some(([x, y]) =>
+    pinsAtPoint(board, x, y).some((pinSize) => pinSize !== size)))) return false;
+  for (const edge of net.edges) board.wires.get(edgeKey(edge)).size = size;
+  return true;
+}
+
 export function netInfoByEdgeKey(board) {
   const info = new Map();
   for (const net of computeNets(board).values()) {
-    for (const edge of net.edges) info.set(edgeKey(edge), { on: net.on, netId: net.id });
+    for (const edge of net.edges) info.set(edgeKey(edge), { on: net.on, value: net.value, size: net.size, netId: net.id });
   }
   return info;
 }
@@ -217,11 +257,11 @@ export function serialize(board) {
   return JSON.stringify({
     version: SCHEMA_VERSION,
     grid: { ...board.grid },
-    components: board.components.map(({ t, x, y, r }) => {
+    components: board.components.map(({ t, x, y, r, size }) => {
       const q = normalizeRotation(r);
-      return q ? { t, x, y, r: q } : { t, x, y };
+      return { t, x, y, ...(q ? { r: q } : {}), ...(spec(t)?.op ? { size: size ?? 1 } : {}) };
     }),
-    wires: [...board.wires.values()].map(({ o, x, y }) => ({ o, x, y })),
+    wires: [...board.wires.values()].map(({ o, x, y, size }) => ({ o, x, y, size: size ?? 1 })),
   }, null, 2);
 }
 
@@ -244,6 +284,7 @@ export function parseDocument(text) {
     const r = normalizeRotation(raw.r);
     const component = {
       id: `c${board.components.length + 1}`, t: raw.t, r,
+      ...(spec(raw.t).op ? { size: raw.size ?? 1 } : {}),
       x: clampInt(raw.x, -COORD_LIMIT, COORD_LIMIT, 0),
       y: clampInt(raw.y, -COORD_LIMIT, COORD_LIMIT, 0),
     };
@@ -252,9 +293,12 @@ export function parseDocument(text) {
   if (Array.isArray(data.wires)) {
     for (const raw of data.wires) {
       if (!raw || (raw.o !== "H" && raw.o !== "V")) { skipped.wires++; continue; }
-      const edge = { o: raw.o, x: Number(raw.x), y: Number(raw.y) };
-      if (!Number.isInteger(edge.x) || !Number.isInteger(edge.y) || !edgeInBounds(board, edge) ||
-          edgeBlocked(board, edge) || endpointOnWall(board, edge)) { skipped.wires++; continue; }
+      const edge = { o: raw.o, x: Number(raw.x), y: Number(raw.y), size: raw.size ?? 1 };
+      if (!Number.isInteger(edge.x) || !Number.isInteger(edge.y) || !validBitWidth(edge.size) ||
+          board.wires.has(edgeKey(edge)) || !edgeInBounds(board, edge) ||
+          edgeBlocked(board, edge) || endpointOnWall(board, edge) ||
+          edgePoints(edge).some(([x, y]) => pinsAtPoint(board, x, y).some((size) => size !== edge.size)) ||
+          edgePoints(edge).some(([x, y]) => wiresAtPoint(board, x, y).some((wire) => wireSize(wire) !== edge.size))) { skipped.wires++; continue; }
       board.wires.set(edgeKey(edge), edge);
     }
   }
