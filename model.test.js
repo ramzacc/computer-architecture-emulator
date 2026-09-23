@@ -36,13 +36,13 @@ test("a power net drives an LED and sanitizes after edits", () => {
   const board = createBoard(10, 10);
   addComponent(board, { id: "p", t: "power", x: 1, y: 0, r: 0 }); // out edge V:2,2
   addComponent(board, { id: "l", t: "led", x: 1, y: 3, r: 0 });   // in edge V:2,2
-  assert.equal(canPlaceEdge(board, { o: "H", x: 6, y: 6 }), false);
+  assert.equal(canPlaceEdge(board, { o: "H", x: 6, y: 6 }), true);
   assert.equal(addWireEdge(board, { o: "V", x: 2, y: 2 }), true);
   const [net] = computeNets(board).values();
   assert.equal(net.on, true);
   assert.equal(net.edges.length, 1);
   assert.equal(evaluateBoard(board).states.get("l").lit, true);
-  board.components.push({ id: "x", t: "led", x: 0, y: 2, r: 0 });
+  board.components.push({ id: "x", t: "power", x: 1, y: 2, r: 0 });
   sanitizeWires(board);
   assert.equal(board.wires.has(edgeKey({ o: "V", x: 2, y: 2 })), false);
 });
@@ -61,6 +61,47 @@ test("older power circuits keep their output connections after the 2x2 resize", 
   ], wires: [{ o: "H", x: 11, y: 11, size: 1 }] }));
   assert.deepEqual(rotated.skipped, { components: 0, wires: 0 });
   assert.deepEqual(pinsFor(rotated.board.components[0])[0].edge, { o: "H", x: 11, y: 11 });
+});
+
+test("wires can follow component borders but cannot cross their interiors", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "p", t: "power", x: 3, y: 1, r: 0 }), true);
+  assert.equal(addComponent(board, { id: "l", t: "led", x: 4, y: 4, r: 0 }), true);
+
+  // The power pin reaches the LED's top edge, including a point that is not a pin.
+  for (const edge of [
+    { o: "V", x: 4, y: 3 },
+    { o: "H", x: 4, y: 4 },
+    { o: "H", x: 5, y: 4 },
+    { o: "V", x: 6, y: 4 },
+    { o: "V", x: 6, y: 5 },
+    { o: "H", x: 5, y: 6 },
+    { o: "H", x: 4, y: 6 },
+    { o: "V", x: 4, y: 5 },
+    { o: "V", x: 4, y: 4 },
+  ]) assert.equal(addWireEdge(board, edge), true, JSON.stringify(edge));
+
+  assert.equal(canPlaceEdge(board, { o: "V", x: 5, y: 4 }), false);
+  assert.equal(canPlaceEdge(board, { o: "H", x: 4, y: 5 }), false);
+  sanitizeWires(board);
+  assert.equal(board.wires.size, 9);
+
+  const { board: imported, skipped } = parseDocument(serialize(board));
+  assert.deepEqual(skipped, { components: 0, wires: 0 });
+  assert.equal(imported.wires.size, 9);
+});
+
+test("a wire can start anywhere on a component border", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "l", t: "led", x: 4, y: 4, r: 0 }), true);
+  for (const edge of [
+    { o: "H", x: 4, y: 4 }, { o: "H", x: 5, y: 4 },
+    { o: "V", x: 6, y: 4 }, { o: "V", x: 6, y: 5 },
+    { o: "H", x: 4, y: 6 }, { o: "H", x: 5, y: 6 },
+    { o: "V", x: 4, y: 4 }, { o: "V", x: 4, y: 5 },
+  ]) assert.equal(addWireEdge(board, edge), true, JSON.stringify(edge));
+  assert.equal(board.wires.size, 8);
+  assert.equal(canPlaceEdge(board, { o: "H", x: 4, y: 5 }), false);
 });
 
 test("gates compute their output from the input nets", () => {
