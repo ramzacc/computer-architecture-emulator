@@ -1,6 +1,6 @@
 import { dimsFor, dimsOf, pinsFor, spec } from "./components.js";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 export const DEFAULT_COLS = 64;
 export const DEFAULT_ROWS = 44;
 
@@ -101,7 +101,14 @@ export function sanitizeWires(board) {
   }
 }
 
-export function computeNets(board) {
+const GATE_OPS = {
+  and: (a, b) => a && b,
+  or: (a, b) => a || b,
+  xor: (a, b) => a !== b,
+  nand: (a, b) => !(a && b),
+};
+
+function buildUnionFind(board) {
   const parent = new Map();
   const find = (point) => {
     while (parent.get(point) !== point) {
@@ -120,18 +127,74 @@ export function computeNets(board) {
     if (!parent.has(b)) parent.set(b, b);
     union(a, b);
   }
-  const powered = new Set(board.components.filter((component) => spec(component.t).source)
-    .flatMap((component) => pinsFor(component).map((pin) => `${pin.px},${pin.py}`)));
+  return { parent, find };
+}
+
+// solves the board to a fixed point: nets carry a value, each component's
+// output (or LED) follows from its inputs. Loops are allowed; they just settle
+// on whatever value the final pass produced.
+export function evaluateBoard(board) {
+  const { parent, find } = buildUnionFind(board);
   const nets = new Map();
   for (const edge of board.wires.values()) {
-    const points = edgePoints(edge).map((point) => point.join(","));
-    const root = find(points[0]);
+    const root = find(edgePoints(edge)[0].join(","));
     if (!nets.has(root)) nets.set(root, { id: root, edges: [], on: false });
-    const net = nets.get(root);
-    net.edges.push(edge);
-    if (points.some((point) => powered.has(point))) net.on = true;
+    nets.get(root).edges.push(edge);
   }
-  return nets;
+
+  const netAt = (pin) => {
+    const point = `${pin.px},${pin.py}`;
+    return parent.has(point) ? find(point) : null;
+  };
+  const parts = board.components.map((component) => {
+    const entry = spec(component.t);
+    const pins = pinsFor(component);
+    return {
+      id: component.id,
+      op: entry.op,
+      source: !!entry.source,
+      ins: pins.filter((pin) => pin.role === "in").map(netAt),
+      outs: pins.filter((pin) => pin.role === "out").map(netAt),
+    };
+  });
+  const outputOf = (part, values) => {
+    if (part.source) return true;
+    if (!part.op) return false;
+    const [a, b] = part.ins.map((root) => root !== null && values.get(root) === true);
+    return GATE_OPS[part.op](a, b);
+  };
+
+  let values = new Map();
+  for (let round = 0; round <= board.components.length; round++) {
+    const next = new Map();
+    for (const part of parts) {
+      if (outputOf(part, values)) {
+        for (const root of part.outs) if (root !== null) next.set(root, true);
+      }
+    }
+    let stable = next.size === values.size;
+    if (stable) for (const [root, value] of next) {
+      if (values.get(root) !== value) { stable = false; break; }
+    }
+    values = next;
+    if (stable) break;
+  }
+
+  const states = new Map();
+  for (const part of parts) {
+    const inputs = part.ins.map((root) => root !== null && values.get(root) === true);
+    states.set(part.id, {
+      inputs,
+      value: outputOf(part, values),
+      lit: inputs.length === 1 && inputs[0] === true,
+    });
+  }
+  for (const net of nets.values()) net.on = values.get(net.id) === true;
+  return { nets, states };
+}
+
+export function computeNets(board) {
+  return evaluateBoard(board).nets;
 }
 
 export function netContaining(board, key) {

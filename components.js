@@ -1,116 +1,59 @@
 // Fixed component registry. Characteristics live here, never in the saved file.
 // Instances only persist their type + position (+ orientation when rotated).
 //
+// These are real logic-level parts: a power rail, an LED, and gates that read
+// their inputs and drive an output. Signal flow runs top-to-bottom (N inputs,
+// S outputs) so a two-input gate can sit symmetrically on the lattice.
+//
 // Pins are declared per component in unrotated local lattice coordinates:
-//   dir = outward normal ("N" | "E" | "S" | "W").
+//   dir  = outward normal ("N" | "E" | "S" | "W").
+//   role = "in" (reads the net) or "out" (drives the net).
 // A pin must sit on the interior of one side, never on a corner (a corner has
 // no single outward normal). Concretely: N/S pins need 0 < x < w; E/W pins
-// need 0 < y < h. So 1-wide parts carry W/E pins and 1-tall parts carry N/S
-// pins. Layouts are irregular on purpose; nothing assumes 4 symmetric pins.
+// need 0 < y < h. So 1-tall parts carry N/S pins and 1-wide parts carry W/E.
 export const COMPONENT_TYPES = {
-  cpu: {
-    label: "CPU", w: 2, h: 2, color: "#4c8bf5", source: true,
+  power: {
+    label: "Power", w: 2, h: 1, color: "#30a46c", shape: "power", source: true,
     pins: [
-      { x: 1, y: 0, dir: "N" },
-      { x: 1, y: 2, dir: "S" },
-      { x: 0, y: 1, dir: "W" },
-      { x: 2, y: 1, dir: "E" },
+      { x: 1, y: 1, dir: "S", role: "out" },
     ],
   },
-  gpu: {
-    label: "GPU", w: 2, h: 2, color: "#8e4cf5", source: true,
+  led: {
+    label: "LED", w: 2, h: 1, color: "#5a5a7a", shape: "led",
     pins: [
-      { x: 1, y: 0, dir: "N" },
-      { x: 2, y: 1, dir: "E" },
-      { x: 0, y: 1, dir: "W" },
-      { x: 1, y: 2, dir: "S" },
+      { x: 1, y: 0, dir: "N", role: "in" },
     ],
   },
-  reg: {
-    label: "Register", w: 1, h: 2, color: "#e5484d",
+  and: {
+    label: "AND", w: 4, h: 2, color: "#4c8bf5", shape: "and", op: "and",
     pins: [
-      { x: 0, y: 1, dir: "W" },
-      { x: 1, y: 1, dir: "E" },
+      { x: 1, y: 0, dir: "N", role: "in" },
+      { x: 3, y: 0, dir: "N", role: "in" },
+      { x: 2, y: 2, dir: "S", role: "out" },
     ],
   },
-  cache: {
-    label: "Cache", w: 1, h: 2, color: "#f5883b",
+  or: {
+    label: "OR", w: 4, h: 2, color: "#30a46c", shape: "or", op: "or",
     pins: [
-      { x: 0, y: 1, dir: "W" },
-      { x: 1, y: 1, dir: "E" },
+      { x: 1, y: 0, dir: "N", role: "in" },
+      { x: 3, y: 0, dir: "N", role: "in" },
+      { x: 2, y: 2, dir: "S", role: "out" },
     ],
   },
-  bus: {
-    label: "Bus", w: 2, h: 1, color: "#30a46c",
+  xor: {
+    label: "XOR", w: 4, h: 2, color: "#f5883b", shape: "xor", op: "xor",
     pins: [
-      { x: 1, y: 0, dir: "N" },
-      { x: 1, y: 1, dir: "S" },
+      { x: 1, y: 0, dir: "N", role: "in" },
+      { x: 3, y: 0, dir: "N", role: "in" },
+      { x: 2, y: 2, dir: "S", role: "out" },
     ],
   },
-  clock: {
-    label: "Clock", w: 2, h: 1, color: "#e5c84c", source: true,
+  nand: {
+    label: "NAND", w: 4, h: 2, color: "#8e4cf5", shape: "nand", op: "nand",
     pins: [
-      { x: 1, y: 0, dir: "N" },
-      { x: 1, y: 1, dir: "S" },
-    ],
-  },
-  board: {
-    label: "Board", w: 3, h: 3, color: "#2f6f4f",
-    pins: [
-      { x: 1, y: 0, dir: "N" },
-      { x: 2, y: 0, dir: "N" },
-      { x: 1, y: 3, dir: "S" },
-      { x: 0, y: 1, dir: "W" },
-      { x: 3, y: 2, dir: "E" },
-    ],
-  },
-  fpga: {
-    label: "FPGA", w: 3, h: 3, color: "#7a4c2f",
-    pins: [
-      { x: 2, y: 0, dir: "N" },
-      { x: 1, y: 3, dir: "S" },
-      { x: 2, y: 3, dir: "S" },
-      { x: 0, y: 2, dir: "W" },
-      { x: 3, y: 1, dir: "E" },
-    ],
-  },
-  ram: {
-    label: "RAM", w: 3, h: 2, color: "#2c6f8f",
-    pins: [
-      { x: 1, y: 0, dir: "N" },
-      { x: 2, y: 0, dir: "N" },
-      { x: 1, y: 2, dir: "S" },
-      { x: 0, y: 1, dir: "W" },
-      { x: 3, y: 1, dir: "E" },
-    ],
-  },
-  rom: {
-    label: "ROM", w: 3, h: 2, color: "#5a5a7a",
-    pins: [
-      { x: 1, y: 0, dir: "N" },
-      { x: 2, y: 0, dir: "N" },
-      { x: 0, y: 1, dir: "W" },
-      { x: 3, y: 1, dir: "E" },
-    ],
-  },
-  alu: {
-    label: "ALU", w: 2, h: 3, color: "#a03a6b",
-    pins: [
-      { x: 1, y: 0, dir: "N" },
-      { x: 1, y: 3, dir: "S" },
-      { x: 0, y: 1, dir: "W" },
-      { x: 0, y: 2, dir: "W" },
-      { x: 2, y: 2, dir: "E" },
-    ],
-  },
-  cu: {
-    label: "Control", w: 2, h: 3, color: "#3a6ba0", source: true,
-    pins: [
-      { x: 1, y: 0, dir: "N" },
-      { x: 1, y: 3, dir: "S" },
-      { x: 0, y: 1, dir: "W" },
-      { x: 2, y: 1, dir: "E" },
-      { x: 2, y: 2, dir: "E" },
+      { x: 1, y: 0, dir: "N", role: "in" },
+      { x: 3, y: 0, dir: "N", role: "in" },
+      { x: 2, y: 2, dir: "S", role: "out" },
     ],
   },
 };
@@ -147,6 +90,6 @@ export function pinsFor(component) {
     const px = component.x + (component.r ? entry.h - pin.y : pin.x);
     const py = component.y + (component.r ? pin.x : pin.y);
     const dir = component.r ? ROTATE_CW[pin.dir] : pin.dir;
-    return { px, py, dir, edge: outwardEdge(px, py, dir) };
+    return { px, py, dir, role: pin.role, edge: outwardEdge(px, py, dir) };
   });
 }

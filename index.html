@@ -42,9 +42,10 @@
         active, so switching between Wire and Pan never leaves you modeless.
       </p>
       <p class="hint">
-        A net is <strong>ON</strong> (lighter) when it reaches a source
-        component's pin (CPU, GPU, Clock, Control). That energization is derived
-        live and never saved.
+        <strong>Power</strong> always drives its output pin high. Gates
+        (AND/OR/XOR/NAND) read their two inputs and drive their output. An
+        <strong>LED</strong> lights red when its single input net is
+        <strong>ON</strong>. Signals are solved live and never saved.
       </p>
 
       <h2>Selection</h2>
