@@ -58,20 +58,44 @@ export const COMPONENT_TYPES = {
   },
 };
 
-const ROTATE_CW = { N: "E", E: "S", S: "W", W: "N" };
+// Orientation is a quarter-turn count: 0 = 0deg, 1 = 90deg CW, 2 = 180deg,
+// 3 = 270deg CW. Every component can face all four directions.
+const DIRECTIONS = ["N", "E", "S", "W"];
+
+export function normalizeRotation(r) {
+  const q = Math.trunc(Number(r) || 0) % 4;
+  return q < 0 ? q + 4 : q;
+}
 
 export function spec(type) {
   return Object.hasOwn(COMPONENT_TYPES, type) ? COMPONENT_TYPES[type] : null;
 }
 
-export function dimsFor(type, rotated = false) {
+// Maps a point from a w x h local box onto the box rotated r quarter-turns CW.
+function rotatePoint(x, y, w, h, r) {
+  switch (r) {
+    case 1: return [h - y, x];
+    case 2: return [w - x, h - y];
+    case 3: return [y, w - x];
+    default: return [x, y];
+  }
+}
+
+function rotateDir(dir, r) {
+  const i = DIRECTIONS.indexOf(dir);
+  return i < 0 ? dir : DIRECTIONS[(i + r) % 4];
+}
+
+export function dimsFor(type, r = 0) {
   const component = spec(type);
   if (!component) return null;
-  return rotated ? { w: component.h, h: component.w } : { w: component.w, h: component.h };
+  return normalizeRotation(r) % 2
+    ? { w: component.h, h: component.w }
+    : { w: component.w, h: component.h };
 }
 
 export function dimsOf(component) {
-  return dimsFor(component.t, !!component.r);
+  return dimsFor(component.t, component.r);
 }
 
 function outwardEdge(px, py, dir) {
@@ -86,10 +110,12 @@ function outwardEdge(px, py, dir) {
 export function pinsFor(component) {
   const entry = spec(component.t);
   if (!entry) return [];
+  const r = normalizeRotation(component.r);
   return entry.pins.map((pin) => {
-    const px = component.x + (component.r ? entry.h - pin.y : pin.x);
-    const py = component.y + (component.r ? pin.x : pin.y);
-    const dir = component.r ? ROTATE_CW[pin.dir] : pin.dir;
+    const [lx, ly] = rotatePoint(pin.x, pin.y, entry.w, entry.h, r);
+    const px = component.x + lx;
+    const py = component.y + ly;
+    const dir = rotateDir(pin.dir, r);
     return { px, py, dir, role: pin.role, edge: outwardEdge(px, py, dir) };
   });
 }
