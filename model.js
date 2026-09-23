@@ -1,8 +1,12 @@
-import { dimsFor, dimsOf, normalizeRotation, pinsFor, spec } from "./components.js";
+import { dimsOf, normalizeRotation, pinsFor, spec } from "./components.js";
 
 export const SCHEMA_VERSION = 5;
 export const DEFAULT_COLS = 64;
 export const DEFAULT_ROWS = 44;
+
+// The lattice is conceptually infinite. Grid dimensions are kept in the
+// document only as legacy metadata; they no longer restrict placement.
+export const COORD_LIMIT = 1e7;
 
 export function createBoard(cols = DEFAULT_COLS, rows = DEFAULT_ROWS) {
   return { grid: { cols, rows }, components: [], wires: new Map() };
@@ -18,10 +22,8 @@ export function edgePoints(edge) {
 }
 
 export function edgeInBounds(board, edge) {
-  const { cols, rows } = board.grid;
-  if (edge.o === "H") return edge.x >= 0 && edge.x < cols && edge.y >= 0 && edge.y <= rows;
-  if (edge.o === "V") return edge.x >= 0 && edge.x <= cols && edge.y >= 0 && edge.y < rows;
-  return false;
+  // Board coordinates are unbounded; only the orientation must be valid.
+  return edge.o === "H" || edge.o === "V";
 }
 
 export function componentAt(board, x, y, ignoreId) {
@@ -35,7 +37,6 @@ export function componentAt(board, x, y, ignoreId) {
 export function isValidComponent(board, component) {
   const size = dimsOf(component);
   if (!size || !Number.isInteger(component.x) || !Number.isInteger(component.y)) return false;
-  if (component.x < 0 || component.y < 0 || component.x + size.w > board.grid.cols || component.y + size.h > board.grid.rows) return false;
   for (let y = component.y; y < component.y + size.h; y++) {
     for (let x = component.x; x < component.x + size.w; x++) {
       if (componentAt(board, x, y, component.id)) return false;
@@ -241,11 +242,10 @@ export function parseDocument(text) {
   for (const raw of data.components) {
     if (!raw || !spec(raw.t)) { skipped.components++; continue; }
     const r = normalizeRotation(raw.r);
-    const { w, h } = dimsFor(raw.t, r);
     const component = {
       id: `c${board.components.length + 1}`, t: raw.t, r,
-      x: clampInt(raw.x, 0, Math.max(0, board.grid.cols - w), 0),
-      y: clampInt(raw.y, 0, Math.max(0, board.grid.rows - h), 0),
+      x: clampInt(raw.x, -COORD_LIMIT, COORD_LIMIT, 0),
+      y: clampInt(raw.y, -COORD_LIMIT, COORD_LIMIT, 0),
     };
     if (!addComponent(board, component)) skipped.components++;
   }
