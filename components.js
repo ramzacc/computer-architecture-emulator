@@ -19,7 +19,7 @@ export const COMPONENT_TYPES = {
     ],
   },
   led: {
-    label: "LED", w: 2, h: 1, color: "#5a5a7a", shape: "led",
+    label: "LED", w: 2, h: 2, color: "#5a5a7a", shape: "led",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in" },
     ],

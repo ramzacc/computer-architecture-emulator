@@ -23,10 +23,6 @@ let idCounter = 1;
 
 const gridEl = document.getElementById("grid");
 const paletteEl = document.getElementById("palette");
-const serializedEl = document.getElementById("serialized");
-const selectionInfoEl = document.getElementById("selection-info");
-const btnRotate = document.getElementById("btn-rotate");
-const btnDelete = document.getElementById("btn-delete");
 const btnWire = document.getElementById("btn-wire");
 const btnPan = document.getElementById("btn-pan");
 const canvasWrapEl = document.getElementById("canvas-wrap");
@@ -103,18 +99,7 @@ function powerArt(color) {
 
 function ledArt() {
   const stroke = "rgba(255,255,255,.4)";
-  return `
-    <line x1="40" y1="0" x2="40" y2="12" stroke="${stroke}" stroke-width="2"/>
-    <polygon class="led-tri" points="28,12 52,12 40,28" fill="#5a5a7a" stroke="${stroke}" stroke-width="2"/>
-    <line class="led-bar" x1="28" y1="28" x2="52" y2="28" stroke="${stroke}" stroke-width="2"/>
-    <line x1="40" y1="28" x2="40" y2="36" stroke="${stroke}" stroke-width="2"/>
-    <line x1="32" y1="36" x2="48" y2="36" stroke="${stroke}" stroke-width="2"/>
-    <g class="led-rays" stroke="#ff4136" stroke-width="2" stroke-linecap="round">
-      <line x1="20" y1="6" x2="12" y2="0"/>
-      <line x1="60" y1="6" x2="68" y2="0"/>
-      <line x1="18" y1="20" x2="8" y2="20"/>
-      <line x1="62" y1="20" x2="72" y2="20"/>
-    </g>`;
+  return `<rect class="led-body" x="4" y="4" width="72" height="72" fill="#5a5a7a" stroke="${stroke}" stroke-width="2"/>`;
 }
 
 function gateArt(shape, color) {
@@ -259,51 +244,12 @@ function syncPlacingCursor() {
   }
 }
 
-function renderSelection(logic = evaluateBoard(state)) {
-  if (selectedWire && state.wires.has(selectedWire)) {
-    const net = netContaining(state, selectedWire);
-    selectionInfoEl.classList.remove("muted");
-    selectionInfoEl.textContent = `Wire net  ${net ? net.edges.length : 0} segment(s)  ${
-      net && net.on ? "ON" : "OFF"
-    }`;
-    btnRotate.disabled = true;
-    btnDelete.disabled = false;
-    return;
-  }
-
-  const sel = state.components.find((c) => c.id === selectedId);
-  if (!sel) {
-    selectionInfoEl.textContent = "Nothing selected";
-    selectionInfoEl.classList.add("muted");
-    btnRotate.disabled = true;
-    btnDelete.disabled = true;
-    return;
-  }
-  const s = spec(sel.t);
-  const d = dimsOf(sel);
-  const st = logic.states.get(sel.id);
-  const stateText = !st ? "" : s.shape === "led" ? (st.lit ? "  LIT" : "  dark")
-    : st.value ? "  OUT 1" : "  OUT 0";
-  selectionInfoEl.classList.remove("muted");
-  selectionInfoEl.textContent = `${s.label} [${sel.t}]  ${d.w}x${d.h}  @ (${sel.x}, ${sel.y})${
-    sel.r ? `  ${(sel.r % 4) * 90}°` : ""
-  }${stateText}`;
-  btnRotate.disabled = false;
-  btnDelete.disabled = false;
-}
-
-function updateSerialized() {
-  serializedEl.value = serialize(state);
-}
-
 function render() {
   renderGridSize();
   const logic = evaluateBoard(state);
   renderWires(logic);
   renderComponents(logic);
   renderPins();
-  renderSelection(logic);
-  updateSerialized();
 }
 
 /* ---------- Interaction ---------- */
@@ -318,7 +264,6 @@ gridEl.addEventListener("pointerdown", (e) => {
   if (mode === MODE.WIRE) {
     if (wireEl) {
       selectWire(wireEl.dataset.key);
-      renderSelection();
       renderWires();
       return;
     }
@@ -338,7 +283,6 @@ gridEl.addEventListener("pointerdown", (e) => {
 
   if (wireEl) {
     selectWire(wireEl.dataset.key);
-    renderSelection();
     renderWires();
     return;
   }
@@ -350,7 +294,6 @@ gridEl.addEventListener("pointerdown", (e) => {
     selectedWire = null;
     renderComponents();
     renderWires();
-    renderSelection();
 
     const rect = gridEl.getBoundingClientRect();
     drag = {
@@ -451,7 +394,6 @@ gridEl.addEventListener("pointermove", (e) => {
   // Pins and wires are derived from component positions, so move them live.
   renderPins();
   renderWires();
-  renderSelection();
 });
 
 function endDrag(e) {
@@ -465,7 +407,6 @@ function endDrag(e) {
     if (wasClick) {
       selectedId = null;
       selectedWire = null;
-      renderSelection();
       renderComponents();
       renderWires();
     }
@@ -538,7 +479,6 @@ function flashInvalidEdge(edge) {
 }
 
 document.addEventListener("keydown", (e) => {
-  if (e.target === serializedEl) return;
   if (e.key === "r" || e.key === "R") {
     rotateSelected();
   } else if (e.key === "Delete" || e.key === "Backspace") {
@@ -588,8 +528,8 @@ function deleteSelected() {
   render();
 }
 
-document.getElementById("btn-rotate").addEventListener("click", rotateSelected);
-document.getElementById("btn-delete").addEventListener("click", deleteSelected);
+document.getElementById("btn-rotate")?.addEventListener("click", rotateSelected);
+document.getElementById("btn-delete")?.addEventListener("click", deleteSelected);
 
 btnWire.addEventListener("click", () => {
   mode = MODE.WIRE;
@@ -597,7 +537,6 @@ btnWire.addEventListener("click", () => {
   selectedWire = null;
   renderPalette();
   syncPlacingCursor();
-  renderSelection();
   renderWires();
 });
 
@@ -683,19 +622,6 @@ document.getElementById("file-input").addEventListener("change", (e) => {
   reader.onload = () => loadFromText(String(reader.result));
   reader.readAsText(file);
   e.target.value = "";
-});
-
-document.getElementById("btn-apply").addEventListener("click", () => {
-  loadFromText(serializedEl.value);
-});
-
-document.getElementById("btn-copy").addEventListener("click", async () => {
-  try {
-    await navigator.clipboard.writeText(serialize(state));
-  } catch {
-    serializedEl.select();
-    document.execCommand("copy");
-  }
 });
 
 /* ---------- Seeds ---------- */
