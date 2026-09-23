@@ -91,6 +91,10 @@ export function validBitWidth(size) {
   return Number.isInteger(size) && size >= 1 && size <= MAX_BUS_WIDTH;
 }
 
+export function validSplitterOrder(order) {
+  return order === "ascendant" || order === "descendant";
+}
+
 export function validConstant(component) {
   const size = bitWidth(component);
   const value = component.value ?? 0;
@@ -150,8 +154,9 @@ export function pinsFor(component) {
   const localH = entry.splitter ? width + 1 : entry.h;
   const localPins = entry.splitter
     ? [{ x: 1, y: 0, dir: "N", role: "in", size: width },
-      ...Array.from({ length: width }, (_, bit) =>
-        ({ x: 2, y: bit + 1, dir: "E", role: "out", size: 1, bit }))]
+      ...Array.from({ length: width }, (_, index) =>
+        ({ x: 2, y: index + 1, dir: "E", role: "out", size: 1,
+          bit: component.order === "descendant" ? width - 1 - index : index }))]
     : entry.pins;
   return localPins.map((pin) => {
     const [lx, ly] = rotatePoint(pin.x, pin.y, entry.w, localH, r);

@@ -24,7 +24,8 @@ wires and gate pins must have the same size; the editor reports a mismatch and
 rejects the change otherwise. Selecting a wire shows the current net value in
 decimal and binary under **Bus properties** (or HIGH/LOW for one bit). Gates compute AND, OR, XOR, and NAND bitwise
 across their configured size. A splitter has one bus connection and one 1-bit
-branch per bit, with bit 0 closest to the bus connection. It works in either
+branch per bit. Select it to set **Order**: Ascendant puts bit 0 at the first
+branch; Descendant puts the highest bit there. It works in either
 direction: a bus can feed its branches, or powered branches can form a bus. Its height grows with its size
 (1–32 bits), and it can be rotated like other components. Power and LEDs remain
 1 bit.

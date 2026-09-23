@@ -1,6 +1,6 @@
-import { COMPONENT_TYPES, bitWidth, dimsOf, isSizable, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=12";
+import { COMPONENT_TYPES, bitWidth, dimsOf, isSizable, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=13";
 import { addComponent, addWireEdge, createBoard, edgeKey,
-  edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, wireSize } from "./model.js?v=12";
+  edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, wireSize } from "./model.js?v=13";
 
 const CELL = 48;
 const GAP = 3;
@@ -38,6 +38,8 @@ const zoomLabelEl = document.getElementById("zoom-level");
 const newWireSizeEl = document.getElementById("new-wire-size");
 const selectedSizeRowEl = document.getElementById("selected-size-row");
 const selectedSizeEl = document.getElementById("selected-size");
+const splitterOrderRowEl = document.getElementById("splitter-order-row");
+const splitterOrderEl = document.getElementById("splitter-order");
 const selectedValueRowEl = document.getElementById("selected-value-row");
 const selectedValueEl = document.getElementById("selected-value");
 const constantValueRowEl = document.getElementById("constant-value-row");
@@ -57,6 +59,10 @@ function renderProperties() {
   selectedSizeEl.disabled = size === undefined;
   selectedSizeEl.value = size === undefined ? "" : String(size);
   selectedSizeEl.max = component?.t === "constant" ? "8" : "32";
+  const splitter = component?.t === "splitter";
+  splitterOrderRowEl.hidden = !splitter;
+  splitterOrderEl.disabled = !splitter;
+  splitterOrderEl.value = splitter ? component.order ?? "ascendant" : "ascendant";
   const constant = component?.t === "constant";
   constantValueRowEl.hidden = !constant;
   constantValueEl.disabled = !constant;
@@ -106,6 +112,14 @@ selectedSizeEl.addEventListener("change", () => {
   renderProperties();
 });
 
+splitterOrderEl.addEventListener("change", () => {
+  const component = state.components.find((c) => c.id === selectedId);
+  if (!component || component.t !== "splitter") return;
+  component.order = splitterOrderEl.value;
+  busStatus(`Splitter order set to ${component.order}.`);
+  render();
+});
+
 constantValueEl.addEventListener("change", () => {
   const component = state.components.find((c) => c.id === selectedId);
   const value = Number(constantValueEl.value);
@@ -128,7 +142,7 @@ function nextId() {
 
 function placeComponent(type, x, y) {
   const component = { id: nextId(), t: type, x, y, r: 0,
-    ...(type === "splitter" ? { size: 4 } : {}),
+    ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
     ...(type === "constant" ? { size: 1, value: 0 } : {}) };
   return addComponent(state, component) ? component : null;
 }
@@ -302,9 +316,11 @@ function gateArt(shape, color) {
 function componentArt(c, s) {
   if (s.splitter) {
     const n = bitWidth(c);
-    const branches = Array.from({ length: n }, (_, bit) =>
-      `<line x1="40" y1="${(bit + 1) * U}" x2="80" y2="${(bit + 1) * U}" stroke="#ddb866" stroke-width="3"/>
-       <text x="53" y="${(bit + 1) * U - 5}" fill="#f4deb2" font-size="12">${bit}</text>`).join("");
+    const branches = Array.from({ length: n }, (_, index) => {
+      const bit = c.order === "descendant" ? n - 1 - index : index;
+      return `<line x1="40" y1="${(index + 1) * U}" x2="80" y2="${(index + 1) * U}" stroke="#ddb866" stroke-width="3"/>
+       <text x="53" y="${(index + 1) * U - 5}" fill="#f4deb2" font-size="12">${bit}</text>`;
+    }).join("");
     const inner = `<line x1="40" y1="0" x2="40" y2="${(n + 1) * U}" stroke="#ddb866" stroke-width="8"/>${branches}`;
     return svgWrap(inner, { w: 2, h: n + 1 }, c.r);
   }
@@ -688,7 +704,7 @@ canvasWrapEl.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 document.addEventListener("keydown", (e) => {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
   const mod = e.ctrlKey || e.metaKey;
   const zoomIn = e.key === "+" || e.key === "=" || e.code === "NumpadAdd";
   const zoomOut = e.key === "-" || e.key === "_" || e.code === "NumpadSubtract";
