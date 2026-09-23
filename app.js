@@ -37,6 +37,7 @@ const canvasWrapEl = document.getElementById("canvas-wrap");
 const zoomLabelEl = document.getElementById("zoom-level");
 const newWireSizeEl = document.getElementById("new-wire-size");
 const selectedSizeEl = document.getElementById("selected-size");
+const selectedValueEl = document.getElementById("selected-value");
 const busStatusEl = document.getElementById("bus-status");
 
 function busStatus(message, error = false) {
@@ -50,6 +51,9 @@ function renderProperties() {
   const size = component && isSizable(component) ? bitWidth(component) : net?.size;
   selectedSizeEl.disabled = size === undefined;
   selectedSizeEl.value = size === undefined ? "" : String(size);
+  selectedValueEl.textContent = !net ? "—" : net.size === 1
+    ? `${net.value} (${net.on ? "HIGH" : "LOW"})`
+    : `${net.value} (0b${net.value.toString(2).padStart(net.size, "0")})`;
   if (size !== undefined && !busStatusEl.classList.contains("error")) {
     busStatus(component ? `${spec(component.t).label}: ${size} bit${size === 1 ? "" : "s"}.` :
       `Selected bus: ${size} bit${size === 1 ? "" : "s"}.`);
