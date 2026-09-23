@@ -9,14 +9,18 @@ python3 -m http.server 8000
 
 The catalog holds real logic-level parts: a **Power** rail (always drives high),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**
-and **NAND** gates. Each pin declares an `in` or `out` role, and the board is
+and **NAND** gates, plus a **Splitter**. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
 
 Wires carry buses of 1–32 bits (the size property). Set **New wire size** before drawing,
 or select a connected wire net or logic gate and edit **Selected size**. Connected
 wires and gate pins must have the same size; the editor reports a mismatch and
 rejects the change otherwise. Gates compute AND, OR, XOR, and NAND bitwise
-across their configured size. Power and LEDs remain 1 bit.
+across their configured size. A splitter has one bus connection and one 1-bit
+branch per bit, with bit 0 closest to the bus connection. It works in either
+direction: a bus can feed its branches, or powered branches can form a bus. Its height grows with its size
+(1–32 bits), and it can be rotated like other components. Power and LEDs remain
+1 bit.
 
 The canvas is an infinite, pannable lattice. Drag empty space to pan, scroll to
 move, and zoom with `Ctrl`/`Cmd` + scroll, `Ctrl`/`Cmd` + `+`/`-` (plain

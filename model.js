@@ -1,4 +1,4 @@
-import { bitWidth, dimsOf, normalizeRotation, pinsFor, spec, validBitWidth } from "./components.js";
+import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth } from "./components.js";
 
 export const SCHEMA_VERSION = 6;
 export const DEFAULT_COLS = 64;
@@ -44,7 +44,7 @@ export function isValidComponent(board, component) {
     }
   }
   return !pinsFor(component).some((pin) => wiresAtPoint(board, pin.px, pin.py).some((wire) =>
-    wireSize(wire) !== bitWidth(component)));
+    wireSize(wire) !== pin.size));
 }
 
 export function addComponent(board, component) {
@@ -84,7 +84,7 @@ function wiresAtPoint(board, x, y) {
 function pinsAtPoint(board, x, y) {
   return board.components.flatMap((component) => pinsFor(component)
     .filter((pin) => pin.px === x && pin.py === y)
-    .map(() => bitWidth(component)));
+    .map((pin) => pin.size));
 }
 
 export function edgePlacementError(board, edge) {
@@ -179,6 +179,7 @@ export function evaluateBoard(board) {
       id: component.id,
       op: entry.op,
       source: !!entry.source,
+      splitter: !!entry.splitter,
       size: bitWidth(component),
       ins: pins.filter((pin) => pin.role === "in").map(netAt),
       outs: pins.filter((pin) => pin.role === "out").map(netAt),
@@ -186,6 +187,11 @@ export function evaluateBoard(board) {
   });
   const outputOf = (part, values) => {
     if (part.source) return 1;
+    if (part.splitter) {
+      const bus = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
+      return part.outs.reduce((value, root, bit) =>
+        value | (((root === null ? 0 : (values.get(root) ?? 0)) & 1) << bit), bus) >>> 0;
+    }
     if (!part.op) return 0;
     const [a, b] = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
     return (GATE_OPS[part.op](a, b) & bitMask(part.size)) >>> 0;
@@ -194,10 +200,22 @@ export function evaluateBoard(board) {
   let values = new Map();
   for (let round = 0; round <= board.components.length; round++) {
     const next = new Map();
+    const drive = (root, output) => {
+      if (root !== null && output) next.set(root, ((next.get(root) ?? 0) | output) >>> 0);
+    };
     for (const part of parts) {
-      const output = outputOf(part, values);
-      if (output) {
-        for (const root of part.outs) if (root !== null) next.set(root, ((next.get(root) ?? 0) | output) >>> 0);
+      if (part.splitter) {
+        const bus = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
+        let combined = 0;
+        part.outs.forEach((root, bit) => {
+          const branch = root === null ? 0 : (values.get(root) ?? 0);
+          combined |= (branch & 1) << bit;
+          drive(root, (bus >>> bit) & 1);
+        });
+        drive(part.ins[0], combined >>> 0);
+      } else {
+        const output = outputOf(part, values);
+        for (const root of part.outs) drive(root, output);
       }
     }
     let stable = next.size === values.size;
@@ -259,7 +277,7 @@ export function serialize(board) {
     grid: { ...board.grid },
     components: board.components.map(({ t, x, y, r, size }) => {
       const q = normalizeRotation(r);
-      return { t, x, y, ...(q ? { r: q } : {}), ...(spec(t)?.op ? { size: size ?? 1 } : {}) };
+      return { t, x, y, ...(q ? { r: q } : {}), ...(isSizable({ t }) ? { size: size ?? 1 } : {}) };
     }),
     wires: [...board.wires.values()].map(({ o, x, y, size }) => ({ o, x, y, size: size ?? 1 })),
   }, null, 2);
@@ -284,7 +302,7 @@ export function parseDocument(text) {
     const r = normalizeRotation(raw.r);
     const component = {
       id: `c${board.components.length + 1}`, t: raw.t, r,
-      ...(spec(raw.t).op ? { size: raw.size ?? 1 } : {}),
+      ...(isSizable({ t: raw.t }) ? { size: raw.size ?? 1 } : {}),
       x: clampInt(raw.x, -COORD_LIMIT, COORD_LIMIT, 0),
       y: clampInt(raw.y, -COORD_LIMIT, COORD_LIMIT, 0),
     };

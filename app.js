@@ -1,4 +1,4 @@
-import { COMPONENT_TYPES, bitWidth, dimsOf, pinsFor, spec, validBitWidth } from "./components.js";
+import { COMPONENT_TYPES, bitWidth, dimsOf, isSizable, pinsFor, spec, validBitWidth } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey,
   edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, wireSize } from "./model.js";
 
@@ -47,11 +47,11 @@ function busStatus(message, error = false) {
 function renderProperties() {
   const component = state.components.find((c) => c.id === selectedId);
   const net = selectedWire ? netContaining(state, selectedWire) : null;
-  const size = component?.t && spec(component.t)?.op ? bitWidth(component) : net?.size;
+  const size = component && isSizable(component) ? bitWidth(component) : net?.size;
   selectedSizeEl.disabled = size === undefined;
   selectedSizeEl.value = size === undefined ? "" : String(size);
   if (size !== undefined && !busStatusEl.classList.contains("error")) {
-    busStatus(component ? `${spec(component.t).label} gate: ${size} bit${size === 1 ? "" : "s"}.` :
+    busStatus(component ? `${spec(component.t).label}: ${size} bit${size === 1 ? "" : "s"}.` :
       `Selected bus: ${size} bit${size === 1 ? "" : "s"}.`);
   }
 }
@@ -71,7 +71,7 @@ selectedSizeEl.addEventListener("change", () => {
   const size = Number(selectedSizeEl.value);
   const component = state.components.find((c) => c.id === selectedId);
   let changed = false;
-  if (validBitWidth(size) && component && spec(component.t)?.op) {
+  if (validBitWidth(size) && component && isSizable(component)) {
     const old = component.size ?? 1;
     component.size = size;
     changed = isValidComponent(state, component);
@@ -92,7 +92,7 @@ function nextId() {
 }
 
 function placeComponent(type, x, y) {
-  const component = { id: nextId(), t: type, x, y, r: 0 };
+  const component = { id: nextId(), t: type, x, y, r: 0, ...(type === "splitter" ? { size: 4 } : {}) };
   return addComponent(state, component) ? component : null;
 }
 
@@ -241,6 +241,14 @@ function gateArt(shape, color) {
 }
 
 function componentArt(c, s) {
+  if (s.splitter) {
+    const n = bitWidth(c);
+    const branches = Array.from({ length: n }, (_, bit) =>
+      `<line x1="40" y1="${(bit + 1) * U}" x2="80" y2="${(bit + 1) * U}" stroke="#ddb866" stroke-width="3"/>
+       <text x="53" y="${(bit + 1) * U - 5}" fill="#f4deb2" font-size="12">${bit}</text>`).join("");
+    const inner = `<line x1="40" y1="0" x2="40" y2="${(n + 1) * U}" stroke="#ddb866" stroke-width="8"/>${branches}`;
+    return svgWrap(inner, { w: 2, h: n + 1 }, c.r);
+  }
   let inner;
   if (s.shape === "power") inner = powerArt(s.color);
   else if (s.shape === "led") inner = ledArt();
@@ -334,10 +342,10 @@ function renderPalette() {
     const btn = document.createElement("button");
     btn.dataset.type = type;
     btn.classList.toggle("active", placingType === type);
-    btn.title = `${s.w}x${s.h}`;
+    btn.title = s.splitter ? "2 x (bits + 1)" : `${s.w}x${s.h}`;
     btn.innerHTML = `<span class="swatch" style="background:${s.color}"></span>
       <span class="name">${s.label}</span>
-      <span class="size">${s.w}x${s.h}</span>`;
+      <span class="size">${s.splitter ? "1–32 bits" : `${s.w}x${s.h}`}</span>`;
     btn.addEventListener("click", () => {
       placingType = placingType === type ? null : type;
       // Arming a component is a normal-canvas activity, so leave wire mode.
