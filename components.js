@@ -1,5 +1,4 @@
-// Fixed component registry. Characteristics live here, never in the saved file.
-// Instances only persist their type + position (+ orientation when rotated).
+// Fixed component registry. Gate instances may also persist a bit width.
 //
 // These are real logic-level parts: a power rail, an LED, and gates that read
 // their inputs and drive an output. Signal flow runs top-to-bottom (N inputs,
@@ -48,6 +47,10 @@ export const COMPONENT_TYPES = {
       { x: 2, y: 2, dir: "S", role: "out" },
     ],
   },
+  splitter: {
+    label: "Splitter", w: 2, h: 2, color: "#ddb866", shape: "splitter", splitter: true,
+    pins: [],
+  },
   nand: {
     label: "NAND", w: 4, h: 2, color: "#8e4cf5", shape: "nand", op: "nand",
     pins: [
@@ -65,6 +68,21 @@ const DIRECTIONS = ["N", "E", "S", "W"];
 export function normalizeRotation(r) {
   const q = Math.trunc(Number(r) || 0) % 4;
   return q < 0 ? q + 4 : q;
+}
+
+export const MAX_BUS_WIDTH = 32;
+
+export function isSizable(component) {
+  const entry = spec(component.t);
+  return !!(entry?.op || entry?.splitter);
+}
+
+export function bitWidth(component) {
+  return isSizable(component) ? (component.size ?? 1) : 1;
+}
+
+export function validBitWidth(size) {
+  return Number.isInteger(size) && size >= 1 && size <= MAX_BUS_WIDTH;
 }
 
 export function spec(type) {
@@ -95,6 +113,10 @@ export function dimsFor(type, r = 0) {
 }
 
 export function dimsOf(component) {
+  if (spec(component.t)?.splitter) {
+    const h = bitWidth(component) + 1;
+    return normalizeRotation(component.r) % 2 ? { w: h, h: 2 } : { w: 2, h };
+  }
   return dimsFor(component.t, component.r);
 }
 
@@ -111,11 +133,18 @@ export function pinsFor(component) {
   const entry = spec(component.t);
   if (!entry) return [];
   const r = normalizeRotation(component.r);
-  return entry.pins.map((pin) => {
-    const [lx, ly] = rotatePoint(pin.x, pin.y, entry.w, entry.h, r);
+  const width = bitWidth(component);
+  const localH = entry.splitter ? width + 1 : entry.h;
+  const localPins = entry.splitter
+    ? [{ x: 1, y: 0, dir: "N", role: "in", size: width },
+      ...Array.from({ length: width }, (_, bit) =>
+        ({ x: 2, y: bit + 1, dir: "E", role: "out", size: 1, bit }))]
+    : entry.pins;
+  return localPins.map((pin) => {
+    const [lx, ly] = rotatePoint(pin.x, pin.y, entry.w, localH, r);
     const px = component.x + lx;
     const py = component.y + ly;
     const dir = rotateDir(pin.dir, r);
-    return { px, py, dir, role: pin.role, edge: outwardEdge(px, py, dir) };
+    return { px, py, dir, role: pin.role, size: pin.size ?? width, bit: pin.bit, edge: outwardEdge(px, py, dir) };
   });
 }

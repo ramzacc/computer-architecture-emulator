@@ -239,3 +239,10 @@ main {
 .canvas-wrap.wire-mode { cursor: crosshair; }
 .canvas-wrap.pan { cursor: grab; }
 .canvas-wrap.panning { cursor: grabbing; }
+
+.property { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; font-size: 12px; }
+.property input { width: 65px; padding: 5px; color: var(--text); background: #0f1115; border: 1px solid var(--line); border-radius: 5px; }
+#bus-status.error { color: #ff777b; }
+
+.bus-value-row { align-items: flex-start; }
+#selected-value { max-width: 180px; text-align: right; overflow-wrap: anywhere; font: 12px/1.4 ui-monospace, monospace; color: #9fe8b0; }

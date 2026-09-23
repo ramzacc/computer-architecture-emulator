@@ -1,8 +1,9 @@
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { dimsOf, pinsFor, spec } from "./components.js";
 import { addComponent, addWireEdge, canPlaceEdge, computeNets, createBoard,
-  edgeKey, evaluateBoard, isValidComponent, parseDocument, sanitizeWires, serialize } from "./model.js";
+  edgeKey, evaluateBoard, isValidComponent, parseDocument, resizeNet, sanitizeWires, serialize } from "./model.js";
 
 test("component geometry rotates pins and rejects overlap", () => {
   const board = createBoard(10, 10);
@@ -61,8 +62,8 @@ test("gates compute their output from the input nets", () => {
     { o: "V", x: 9, y: 1 }, { o: "V", x: 9, y: 2 },
   ]) assert.equal(addWireEdge(board, wire), true, `wire ${JSON.stringify(wire)}`);
   const { states } = evaluateBoard(board);
-  assert.equal(states.get("g").value, true);
-  assert.equal(states.get("h").value, false);
+  assert.equal(states.get("g").value, 1);
+  assert.equal(states.get("h").value, 0);
 });
 
 test("documents persist all four orientations", () => {
@@ -88,6 +89,98 @@ test("imports skip overlap and malformed wires without changing the schema", () 
   assert.equal(board.components.length, 3);
   assert.equal(board.wires.size, 1);
   const saved = JSON.parse(serialize(board));
-  assert.deepEqual(saved.wires, [{ o: "H", x: 0, y: 9 }]);
+  assert.deepEqual(saved.wires, [{ o: "H", x: 0, y: 9, size: 1 }]);
   assert.deepEqual(JSON.parse(serialize(parseDocument(serialize(board)).board)), saved);
+});
+
+
+test("bus sizes must match connected wires and gate pins", () => {
+  const board = createBoard();
+  addComponent(board, { id: "g", t: "and", x: 0, y: 2, r: 0, size: 8 });
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 1, size: 1 }), false);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 1, size: 8 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 0, size: 4 }), false);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 0, size: 8 }), true);
+  assert.equal(resizeNet(board, "V:1,1", 4), false);
+  assert.equal(board.wires.get("V:1,1").size, 8);
+  assert.equal(resizeNet(board, "V:1,1", 8), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 3, y: 1, size: 33 }), false);
+});
+
+test("32 bit NAND uses a full width mask and persists sizes", () => {
+  const board = createBoard();
+  addComponent(board, { id: "n", t: "nand", x: 0, y: 0, r: 0, size: 32 });
+  assert.equal(addWireEdge(board, { o: "V", x: 2, y: 2, size: 32 }), true);
+  const result = evaluateBoard(board);
+  assert.equal(result.states.get("n").value, 0xffffffff);
+  assert.equal([...result.nets.values()][0].value, 0xffffffff);
+  const saved = JSON.parse(serialize(board));
+  assert.equal(saved.version, 6);
+  assert.equal(saved.components[0].size, 32);
+  assert.equal(saved.wires[0].size, 32);
+  assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
+});
+
+test("imports reject mixed width connections", () => {
+  const data = { components: [{ t: "and", x: 0, y: 2, size: 8 }], wires: [
+    { o: "V", x: 1, y: 1, size: 8 },
+    { o: "V", x: 1, y: 0, size: 4 },
+    { o: "V", x: 3, y: 1, size: 1 },
+    { o: "V", x: 3, y: 0, size: 8 },
+  ] };
+  const { board, skipped } = parseDocument(JSON.stringify(data));
+  assert.equal(board.wires.size, 2);
+  assert.equal(skipped.wires, 2);
+});
+
+test("splitter has one ordered one-bit branch per bus bit", () => {
+  const board = createBoard();
+  const nand = { id: "n", t: "nand", x: 0, y: 0, r: 0, size: 4 };
+  const splitter = { id: "s", t: "splitter", x: 0, y: 4, r: 0, size: 4 };
+  assert.equal(addComponent(board, nand), true);
+  assert.equal(addComponent(board, splitter), true);
+  assert.deepEqual(dimsOf(splitter), { w: 2, h: 5 });
+  assert.deepEqual(pinsFor(splitter).map(({ px, py, size, bit }) => [px, py, size, bit]),
+    [[1, 4, 4, undefined], [2, 5, 1, 0], [2, 6, 1, 1], [2, 7, 1, 2], [2, 8, 1, 3]]);
+  for (const edge of [
+    { o: "V", x: 2, y: 2, size: 4 }, { o: "H", x: 1, y: 3, size: 4 },
+    { o: "V", x: 1, y: 3, size: 4 },
+    ...[5, 6, 7, 8].map((y) => ({ o: "H", x: 2, y, size: 1 })),
+  ]) assert.equal(addWireEdge(board, edge), true, JSON.stringify(edge));
+  assert.equal(addWireEdge(board, { o: "H", x: 3, y: 5, size: 4 }), false);
+  const logic = evaluateBoard(board);
+  assert.equal(logic.states.get("s").value, 15);
+  for (const y of [5, 6, 7, 8]) {
+    const net = [...logic.nets.values()].find((n) => n.edges.some((e) => edgeKey(e) === `H:2,${y}`));
+    assert.equal(net.value, 1);
+    assert.equal(net.size, 1);
+  }
+  const saved = JSON.parse(serialize(board));
+  assert.equal(saved.components.find((c) => c.t === "splitter").size, 4);
+  assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
+});
+
+test("splitter rotation and size changes adjust its footprint", () => {
+  const board = createBoard();
+  const splitter = { id: "s", t: "splitter", x: 0, y: 0, r: 1, size: 3 };
+  assert.equal(addComponent(board, splitter), true);
+  assert.deepEqual(dimsOf(splitter), { w: 4, h: 2 });
+  assert.deepEqual(pinsFor(splitter).map(({ px, py, dir, size }) => [px, py, dir, size]),
+    [[4, 1, "E", 3], [3, 2, "S", 1], [2, 2, "S", 1], [1, 2, "S", 1]]);
+  splitter.size = 33;
+  assert.equal(isValidComponent(board, splitter), false);
+});
+
+
+test("a splitter combines one-bit power branches and drives LEDs through a gate", () => {
+  const text = readFileSync(new URL("./fixtures/splitter-combine.json", import.meta.url), "utf8");
+  const { board, skipped } = parseDocument(text);
+  assert.deepEqual(skipped, { components: 0, wires: 0 });
+  const { states, nets } = evaluateBoard(board);
+  assert.equal(states.get("c2").value, 3);
+  assert.equal(states.get("c7").value, 3);
+  assert.equal(states.get("c4").value, 3);
+  assert.equal(states.get("c5").lit, true);
+  assert.equal(states.get("c6").lit, true);
+  assert.equal([...nets.values()].find((net) => net.edges.some((edge) => edgeKey(edge) === "H:6,0")).value, 3);
 });

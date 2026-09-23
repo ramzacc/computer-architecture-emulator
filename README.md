@@ -9,8 +9,19 @@ python3 -m http.server 8000
 
 The catalog holds real logic-level parts: a **Power** rail (always drives high),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**
-and **NAND** gates. Each pin declares an `in` or `out` role, and the board is
+and **NAND** gates, plus a **Splitter**. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
+
+Wires carry buses of 1–32 bits (the size property). Set **New wire size** before drawing,
+or select a connected wire net or logic gate and edit **Selected size**. Connected
+wires and gate pins must have the same size; the editor reports a mismatch and
+rejects the change otherwise. Selecting a wire shows the current net value in
+decimal and binary under **Bus properties** (or HIGH/LOW for one bit). Gates compute AND, OR, XOR, and NAND bitwise
+across their configured size. A splitter has one bus connection and one 1-bit
+branch per bit, with bit 0 closest to the bus connection. It works in either
+direction: a bus can feed its branches, or powered branches can form a bus. Its height grows with its size
+(1–32 bits), and it can be rotated like other components. Power and LEDs remain
+1 bit.
 
 The canvas is an infinite, pannable lattice. Drag empty space to pan, scroll to
 move, and zoom with `Ctrl`/`Cmd` + scroll, `Ctrl`/`Cmd` + `+`/`-` (plain
@@ -27,10 +38,10 @@ The code has three parts:
   document format.
 - `app.js` handles browser events, SVG rendering, and local storage.
 
-Saved documents use schema version 5. They contain grid dimensions, component
-types and positions, and wire segments. Pins, logic values, and wire power are
-derived from the catalog. Loading skips unknown or overlapping components and
-invalid wire segments; the browser console reports the number skipped.
+Saved documents use schema version 6. They contain grid dimensions, component
+types, positions, and gate sizes, plus sized wire segments. Pins, logic values, and wire power are
+derived from the catalog. Loading treats missing sizes in older documents as 1 bit and skips unknown or
+overlapping components and invalid or mismatched wire segments; the browser console reports the number skipped.
 
 Run the model checks with `npm test` (Node.js 18 or newer). No install step is
 needed.
