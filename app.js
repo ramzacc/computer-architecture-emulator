@@ -247,7 +247,7 @@ function renderPalette() {
 function syncPlacingCursor() {
   gridEl.classList.toggle("placing", placingType !== null);
   gridEl.classList.toggle("pan", mode === MODE.PAN && placingType === null);
-  gridEl.classList.toggle("wire", mode === MODE.WIRE);
+  gridEl.classList.toggle("wire-mode", mode === MODE.WIRE);
   btnWire.classList.toggle("active", mode === MODE.WIRE);
   btnPan.classList.toggle("active", mode === MODE.PAN);
   if (mode !== MODE.WIRE) {

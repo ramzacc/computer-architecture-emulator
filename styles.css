@@ -218,6 +218,6 @@ main {
 .comp:active { cursor: grabbing; }
 
 .grid.placing { cursor: crosshair; }
-.grid.wire { cursor: crosshair; }
+.grid.wire-mode { cursor: crosshair; }
 .grid.pan { cursor: grab; }
 .grid.panning { cursor: grabbing; }
