@@ -107,3 +107,45 @@ test('changing a constant cannot create a short circuit', () => {
   assert.equal(editor.component(b.id).value, 0);
   assert.equal(ctx.saves, saves + 2);
 });
+
+test('ALU placement and resizing keep data and operation pin widths distinct', () => {
+  const { editor } = setup();
+  const alu = editor.place('alu', 0, 0);
+  assert.equal(alu.size, 4);
+  assert.equal(editor.addWire({ o: 'V', x: 5, y: -1, size: 2 }), true);
+  assert.equal(editor.addWire({ o: 'V', x: 3, y: 3, size: 4 }), true);
+  assert.equal(editor.resizeComponent(alu.id, 8), false);
+  assert.equal(editor.deleteNet('V:3,3'), true);
+  assert.equal(editor.resizeComponent(alu.id, 8), true);
+  assert.equal(editor.addWire({ o: 'V', x: 3, y: 3, size: 8 }), true);
+  assert.equal(editor.addWire({ o: 'V', x: 5, y: -2, size: 8 }), false);
+});
+
+test('a wire route places all segments in one saved edit and reuses existing segments', () => {
+  const ctx = setup();
+  const start = { x: -2, y: 0 };
+  const corner = { x: 1, y: 2 };
+  assert.equal(ctx.editor.addWireRoute(start, corner, 1).error, null);
+  assert.deepEqual([...ctx.editor.board.wires.keys()], [
+    'H:-2,0', 'H:-1,0', 'H:0,0', 'V:1,0', 'V:1,1',
+  ]);
+  assert.equal(ctx.saves, 1);
+  assert.equal(ctx.editor.addWireRoute(corner, { x: 1, y: 4 }, 1).error, null);
+  assert.equal(ctx.editor.board.wires.size, 7);
+  assert.equal(ctx.saves, 2);
+  assert.equal(ctx.editor.addWireRoute(start, corner, 1).error, null);
+  assert.equal(ctx.saves, 2);
+  assert.equal(ctx.editor.addWireRoute(start, corner, 2).error, 'Bus size mismatch.');
+  assert.equal(ctx.saves, 2);
+  assert.equal(ctx.editor.board.wires.size, 7);
+});
+
+test('a blocked wire route leaves the board untouched', () => {
+  const ctx = setup();
+  ctx.editor.place('power', 1, 0);
+  const before = serialize(ctx.editor.board);
+  assert.equal(ctx.editor.addWireRoute({ x: 0, y: 1 }, { x: 4, y: 1 }, 1).error,
+    'Wire is blocked by a component.');
+  assert.equal(serialize(ctx.editor.board), before);
+  assert.equal(ctx.saves, 1);
+});

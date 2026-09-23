@@ -108,6 +108,54 @@ export function addWireEdge(board, edge) {
   return true;
 }
 
+// Build one continuous orthogonal run. Try the other corner when the first
+// bend would cross a component or a differently sized net.
+export function wireRoute(board, start, end, size) {
+  const distance = Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
+  if (!Number.isInteger(start.x) || !Number.isInteger(start.y) ||
+      !Number.isInteger(end.x) || !Number.isInteger(end.y) ||
+      !validBitWidth(size)) return { edges: [], error: "Invalid wire route." };
+  if (distance > 256) return { edges: [], error: "Route is too long; add a corner closer by." };
+
+  const build = (horizontalFirst) => {
+    const edges = [];
+    let { x, y } = start;
+    const step = (axis, target) => {
+      while ((axis === "x" ? x : y) !== target) {
+        const direction = Math.sign(target - (axis === "x" ? x : y));
+        edges.push(axis === "x"
+          ? { o: "H", x: direction > 0 ? x : x - 1, y, size }
+          : { o: "V", x, y: direction > 0 ? y : y - 1, size });
+        if (axis === "x") x += direction;
+        else y += direction;
+      }
+    };
+    if (horizontalFirst) { step("x", end.x); step("y", end.y); }
+    else { step("y", end.y); step("x", end.x); }
+    return edges;
+  };
+
+  let firstError = null;
+  for (const horizontalFirst of [true, false]) {
+    const edges = build(horizontalFirst);
+    const trial = { ...board, wires: new Map(board.wires) };
+    let error = null;
+    for (const edge of edges) {
+      const existing = trial.wires.get(edgeKey(edge));
+      if (existing) {
+        if (wireSize(existing) !== size) { error = "Bus size mismatch."; break; }
+      } else {
+        error = edgePlacementError(trial, edge);
+        if (error) break;
+        trial.wires.set(edgeKey(edge), edge);
+      }
+    }
+    if (!error) return { edges, error: null };
+    firstError ??= error;
+  }
+  return { edges: build(true), error: firstError };
+}
+
 export function sanitizeWires(board) {
   for (const [key, edge] of board.wires) {
     if (!edgeInBounds(board, edge) || !validBitWidth(wireSize(edge)) ||
@@ -127,6 +175,24 @@ const GATE_OPS = {
 };
 
 function bitMask(size) { return size === 32 ? 0xffffffff : (2 ** size - 1); }
+
+function aluResult(inputs, size) {
+  const mask = bitMask(size) >>> 0;
+  const a = (inputs[0] & mask) >>> 0;
+  const b = (inputs[1] & mask) >>> 0;
+  const op = inputs[2] & 3;
+  let result, carry = 0;
+  if (op === 0) {
+    const sum = a + b;
+    result = (sum & mask) >>> 0;
+    carry = Number(sum > mask);
+  } else if (op === 1) {
+    result = ((a - b) & mask) >>> 0;
+    carry = Number(a >= b); // subtraction carry means no borrow
+  } else if (op === 2) result = (a & b) >>> 0;
+  else result = (a | b) >>> 0;
+  return { result, carry, zero: Number(result === 0) };
+}
 
 function buildUnionFind(board) {
   const parent = new Map();
@@ -176,6 +242,7 @@ export function evaluateBoard(board) {
       constant: !!entry.constant,
       constantValue: component.value ?? 0,
       splitter: !!entry.splitter,
+      alu: !!entry.alu,
       size: bitWidth(component),
       ins: pins.filter((pin) => pin.role === "in").map(netAt),
       outs: pins.filter((pin) => pin.role === "out")
@@ -185,6 +252,7 @@ export function evaluateBoard(board) {
   const outputOf = (part, values) => {
     if (part.constant) return part.constantValue;
     if (part.source) return 1;
+    if (part.alu) return aluResult(part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0)), part.size).result;
     if (part.splitter) {
       const bus = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
       return part.outs.reduce((value, root, bit) =>
@@ -212,6 +280,12 @@ export function evaluateBoard(board) {
           drive(root, (bus >>> bit) & 1);
         });
         drive(part.ins[0], combined >>> 0);
+      } else if (part.alu) {
+        const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
+        const { result, carry, zero } = aluResult(inputs, part.size);
+        drive(part.outs[0], carry);
+        drive(part.outs[1], result);
+        drive(part.outs[2], zero);
       } else {
         const output = outputOf(part, values);
         for (const root of part.outs) drive(root, output);
@@ -228,9 +302,11 @@ export function evaluateBoard(board) {
   const states = new Map();
   for (const part of parts) {
     const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
+    const flags = part.alu ? aluResult(inputs, part.size) : null;
     states.set(part.id, {
       inputs,
       value: outputOf(part, values),
+      ...(flags ? { carry: flags.carry, zero: flags.zero } : {}),
       lit: inputs.length === 1 && inputs[0] !== 0,
     });
   }

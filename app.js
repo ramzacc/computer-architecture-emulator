@@ -1,5 +1,5 @@
 import { COMPONENT_TYPES, bitWidth, dimsOf, isSizable, pinsFor, spec, validBitWidth } from "./components.js";
-import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, serialize } from "./model.js";
+import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
 import { BoardEditor } from "./editor.js";
 import { createRenderer } from "./renderer.js";
 
@@ -25,6 +25,7 @@ let placingType = null;
 let drag = null;
 let pan = null;
 let newWireSize = 1;
+let wireStart = null;
 
 const gridEl = document.getElementById("grid");
 const paletteEl = document.getElementById("palette");
@@ -87,6 +88,7 @@ newWireSizeEl.addEventListener("change", () => {
     return;
   }
   newWireSize = size;
+  clearWireGesture();
   busStatus(`New wires will carry ${size} bit${size === 1 ? "" : "s"}.`);
 });
 
@@ -147,6 +149,11 @@ function worldFromEvent(ev) {
 function cellFromEvent(ev) {
   const world = worldFromEvent(ev);
   return { x: Math.floor(world.x / CELL), y: Math.floor(world.y / CELL) };
+}
+
+function pointFromEvent(ev) {
+  const world = worldFromEvent(ev);
+  return { x: Math.round(world.x / CELL), y: Math.round(world.y / CELL) };
 }
 
 function edgeFromEvent(ev) {
@@ -231,7 +238,7 @@ function renderPalette() {
     btn.addEventListener("click", () => {
       placingType = placingType === type ? null : type;
       // Arming a component is a normal-canvas activity, so leave wire mode.
-      if (placingType) mode = MODE.PAN;
+      if (placingType) { mode = MODE.PAN; clearWireGesture(); }
       renderPalette();
       syncPlacingCursor();
     });
@@ -246,8 +253,7 @@ function syncPlacingCursor() {
   btnWire.classList.toggle("active", mode === MODE.WIRE);
   btnPan.classList.toggle("active", mode === MODE.PAN);
   if (mode !== MODE.WIRE) {
-    const pv = gridEl.querySelector(".wire-preview");
-    if (pv) pv.remove();
+    clearWireGesture();
   }
 }
 
@@ -270,21 +276,24 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
   const cell = cellFromEvent(e);
 
   if (mode === MODE.WIRE) {
-    if (wireEl) {
-      selectWire(wireEl.dataset.key);
+    const point = pointFromEvent(e);
+    if (!wireStart) {
+      wireStart = point;
+      selectedId = null;
+      selectedWire = null;
+      renderComponents();
       renderWires();
-      return;
+      renderProperties();
+      busStatus("Click to place a corner or endpoint. Double-click or right-click to finish; Esc cancels.");
+    } else if (point.x !== wireStart.x || point.y !== wireStart.y) {
+      const result = editor.addWireRoute(wireStart, point, newWireSize);
+      if (result.error) busStatus(result.error, true);
+      else {
+        wireStart = point;
+        busStatus("Corner placed. Click to continue, or double-click/right-click to finish.");
+      }
     }
-    const edge = { ...edgeFromEvent(e), size: newWireSize };
-    const key = edgeKey(edge);
-    if (state.wires.has(key)) {
-      // Energization is derived, not toggled; just select it.
-      selectWire(key);
-      render();
-    } else if (!editor.addWire(edge)) {
-      busStatus(edgePlacementError(state, edge) ?? "Cannot place wire.", true);
-      flashInvalidEdge(edge);
-    }
+    updateWirePreview(point);
     return;
   }
 
@@ -344,6 +353,12 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
 });
 
 canvasWrapEl.addEventListener("contextmenu", (e) => {
+  if (mode === MODE.WIRE && wireStart) {
+    e.preventDefault();
+    clearWireGesture();
+    busStatus("Wire finished.");
+    return;
+  }
   const wireEl = e.target.closest(".wire");
   let key = wireEl ? wireEl.dataset.key : null;
   if (!key && mode === MODE.WIRE) {
@@ -369,7 +384,7 @@ canvasWrapEl.addEventListener("pointermove", (e) => {
   }
 
   if (mode === MODE.WIRE && !drag) {
-    updateWirePreview(edgeFromEvent(e));
+    updateWirePreview(pointFromEvent(e));
     return;
   }
 
@@ -437,28 +452,40 @@ canvasWrapEl.addEventListener("pointerup", endDrag);
 canvasWrapEl.addEventListener("pointercancel", endDrag);
 
 canvasWrapEl.addEventListener("pointerleave", () => {
-  const el = gridEl.querySelector(".wire-preview");
-  if (el) el.remove();
+  gridEl.querySelectorAll(".wire-preview").forEach((el) => el.remove());
 });
 
-function updateWirePreview(edge) {
-  let el = gridEl.querySelector(".wire-preview");
-  if (!el) {
-    el = document.createElement("div");
-    el.className = "wire-preview";
+function clearWireGesture() {
+  wireStart = null;
+  gridEl.querySelectorAll(".wire-preview, .wire-anchor").forEach((el) => el.remove());
+}
+
+function updateWirePreview(point) {
+  gridEl.querySelectorAll(".wire-preview, .wire-anchor").forEach((el) => el.remove());
+  if (mode !== MODE.WIRE) return;
+  const anchor = wireStart ?? point;
+  const marker = document.createElement("div");
+  marker.className = "wire-anchor";
+  marker.style.left = anchor.x * CELL + "px";
+  marker.style.top = anchor.y * CELL + "px";
+  gridEl.appendChild(marker);
+  if (!wireStart) return;
+  const route = wireRoute(state, wireStart, point, newWireSize);
+  for (const edge of route.edges) {
+    const el = document.createElement("div");
+    el.className = `wire-preview ${route.error ? "invalid" : "valid"}`;
+    applyBox(el, edgeBox(edge));
+    el.title = route.error ?? `${newWireSize} bit wire`;
     gridEl.appendChild(el);
   }
-  const key = edgeKey(edge);
-  const existing = state.wires.has(key);
-  const candidate = { ...edge, size: newWireSize };
-  const error = existing ? null : edgePlacementError(state, candidate);
-  const ok = existing || !error;
-  applyBox(el, edgeBox(candidate));
-  el.classList.toggle("valid", ok);
-  el.classList.toggle("invalid", !ok);
-  el.classList.toggle("remove", existing);
-  el.title = existing ? "Right-click to remove" : (error ?? `${newWireSize} bit wire`);
 }
+
+canvasWrapEl.addEventListener("dblclick", (e) => {
+  if (mode !== MODE.WIRE || !wireStart) return;
+  e.preventDefault();
+  clearWireGesture();
+  busStatus("Wire finished.");
+});
 
 function flashInvalid(cell) {
   const el = document.createElement("div");
@@ -468,15 +495,6 @@ function flashInvalid(cell) {
   el.style.width = CELL - GAP + "px";
   el.style.height = CELL - GAP + "px";
   el.style.background = "transparent";
-  el.style.pointerEvents = "none";
-  gridEl.appendChild(el);
-  setTimeout(() => el.remove(), 250);
-}
-
-function flashInvalidEdge(edge) {
-  const el = document.createElement("div");
-  el.className = "wire invalid";
-  applyBox(el, edgeBox(edge));
   el.style.pointerEvents = "none";
   gridEl.appendChild(el);
   setTimeout(() => el.remove(), 250);
@@ -516,6 +534,11 @@ document.addEventListener("keydown", (e) => {
     deleteSelected();
     e.preventDefault();
   } else if (e.key === "Escape") {
+    if (wireStart) {
+      clearWireGesture();
+      busStatus("Wire finished.");
+      return;
+    }
     mode = MODE.PAN;
     placingType = null;
     selectedId = null;
@@ -545,6 +568,7 @@ function deleteSelected() {
 }
 
 btnWire.addEventListener("click", () => {
+  clearWireGesture();
   mode = MODE.WIRE;
   placingType = null;
   selectedWire = null;
@@ -555,6 +579,7 @@ btnWire.addEventListener("click", () => {
 });
 
 btnPan.addEventListener("click", () => {
+  clearWireGesture();
   mode = MODE.PAN;
   placingType = null;
   renderPalette();
@@ -570,6 +595,7 @@ function loadFromText(text) {
     selectedId = null;
     selectedWire = null;
     placingType = null;
+    clearWireGesture();
     mode = MODE.PAN;
     editor.replaceBoard(board);
     if (skipped.components) console.warn(`Skipped ${skipped.components} invalid component(s).`);

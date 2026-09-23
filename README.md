@@ -7,18 +7,32 @@ static HTTP server, then open `index.html`. For example:
 python3 -m http.server 8000
 ```
 
-Three example circuit documents are in [`examples/`](examples/). Import one with **Import .json**:
+Four example circuit documents are in [`examples/`](examples/). Import one with **Import .json**:
 
 1. [Power an LED](examples/power-led.json) — connect a power rail directly to an LED.
 2. [AND gate](examples/and-gate.json) — two powered inputs light an LED through an AND gate. Remove one input wire to see it turn off.
 3. [Two-bit bus](examples/splitter-combine.json) — two power rails form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
+4. [Four-bit ALU](examples/alu.json) — constants 7 and 3 feed an ALU. The result bus reads 10; the carry and zero LEDs are off. Change the 2-bit OP constant to try other operations.
 
 The catalog holds real logic-level parts: a 2×2 **Power** rail (always drives high),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,
 **NAND**, and 2×2 **NOT** gates, plus a **Splitter** and **Constant** source. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
 
+The **ALU** has configurable A, B, and result bus width (1–32 bits), a fixed
+2-bit OP input, and 1-bit carry (C) and zero (Z) outputs. Its pins are labeled
+on the component. OP selects `00` add, `01` subtract, `10` bitwise AND, or
+`11` bitwise OR. Arithmetic wraps to the selected width. C is the carry out
+for addition, or 1 when subtraction needs no borrow; it is 0 for logic
+operations. Z is 1 when the result is zero. An unwired input reads zero.
+
 Wires carry buses of 1–32 bits (the size property). Set **New wire size** before drawing,
+then enter **Wire mode** and click a start point and successive corners or endpoints.
+The preview snaps to the grid and routes horizontally then vertically, or takes
+the other bend when the first is blocked. Double-click, right-click, or press
+`Esc` to finish the current wire; click again to start another. Select existing
+wires in **Pan mode**, and right-click a wire there to remove one segment.
+Set **New wire size** again for a new bus,
 or select a connected wire net or logic gate and edit **Selected size**. Connected
 wires and gate pins must have the same size; the editor reports a mismatch and
 rejects the change otherwise. Selecting a wire shows the current net value in
