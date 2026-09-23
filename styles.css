@@ -241,6 +241,7 @@ main {
 .canvas-wrap.panning { cursor: grabbing; }
 
 .property { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; font-size: 12px; }
+.property[hidden] { display: none; }
 .property input { width: 65px; padding: 5px; color: var(--text); background: #0f1115; border: 1px solid var(--line); border-radius: 5px; }
 #bus-status.error { color: #ff777b; }
 

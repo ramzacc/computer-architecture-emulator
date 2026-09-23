@@ -36,7 +36,9 @@ const btnPan = document.getElementById("btn-pan");
 const canvasWrapEl = document.getElementById("canvas-wrap");
 const zoomLabelEl = document.getElementById("zoom-level");
 const newWireSizeEl = document.getElementById("new-wire-size");
+const selectedSizeRowEl = document.getElementById("selected-size-row");
 const selectedSizeEl = document.getElementById("selected-size");
+const selectedValueRowEl = document.getElementById("selected-value-row");
 const selectedValueEl = document.getElementById("selected-value");
 const busStatusEl = document.getElementById("bus-status");
 
@@ -49,8 +51,10 @@ function renderProperties() {
   const component = state.components.find((c) => c.id === selectedId);
   const net = selectedWire ? netContaining(state, selectedWire) : null;
   const size = component && isSizable(component) ? bitWidth(component) : net?.size;
+  selectedSizeRowEl.hidden = size === undefined;
   selectedSizeEl.disabled = size === undefined;
   selectedSizeEl.value = size === undefined ? "" : String(size);
+  selectedValueRowEl.hidden = !net;
   selectedValueEl.textContent = !net ? "—" : net.size === 1
     ? `${net.value} (${net.on ? "HIGH" : "LOW"})`
     : `${net.value} (0b${net.value.toString(2).padStart(net.size, "0")})`;
@@ -705,6 +709,7 @@ btnWire.addEventListener("click", () => {
   renderPalette();
   syncPlacingCursor();
   renderWires();
+  renderProperties();
 });
 
 btnPan.addEventListener("click", () => {
