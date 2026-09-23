@@ -1,4 +1,4 @@
-import { dimsFor, dimsOf, pinsFor, spec } from "./components.js";
+import { dimsFor, dimsOf, normalizeRotation, pinsFor, spec } from "./components.js";
 
 export const SCHEMA_VERSION = 5;
 export const DEFAULT_COLS = 64;
@@ -216,7 +216,10 @@ export function serialize(board) {
   return JSON.stringify({
     version: SCHEMA_VERSION,
     grid: { ...board.grid },
-    components: board.components.map(({ t, x, y, r }) => r ? { t, x, y, r: 1 } : { t, x, y }),
+    components: board.components.map(({ t, x, y, r }) => {
+      const q = normalizeRotation(r);
+      return q ? { t, x, y, r: q } : { t, x, y };
+    }),
     wires: [...board.wires.values()].map(({ o, x, y }) => ({ o, x, y })),
   }, null, 2);
 }
@@ -237,7 +240,7 @@ export function parseDocument(text) {
   const skipped = { components: 0, wires: 0 };
   for (const raw of data.components) {
     if (!raw || !spec(raw.t)) { skipped.components++; continue; }
-    const r = raw.r ? 1 : 0;
+    const r = normalizeRotation(raw.r);
     const { w, h } = dimsFor(raw.t, r);
     const component = {
       id: `c${board.components.length + 1}`, t: raw.t, r,

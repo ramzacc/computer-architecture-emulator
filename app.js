@@ -76,12 +76,15 @@ function renderGridSize() {
   gridEl.style.backgroundSize = `${CELL}px ${CELL}px, ${CELL}px ${CELL}px`;
 }
 
-function svgWrap(inner, s, rotated) {
-  const vw = rotated ? s.h * U : s.w * U;
-  const vh = rotated ? s.w * U : s.h * U;
-  const content = rotated
-    ? `<g transform="translate(${s.h * U},0) rotate(90)">${inner}</g>`
-    : inner;
+function svgWrap(inner, s, r) {
+  const q = ((r % 4) + 4) % 4;
+  const vw = (q % 2 ? s.h : s.w) * U;
+  const vh = (q % 2 ? s.w : s.h) * U;
+  const transform = q === 1 ? `translate(${s.h * U},0) rotate(90)`
+    : q === 2 ? `translate(${s.w * U},${s.h * U}) rotate(180)`
+    : q === 3 ? `translate(0,${s.w * U}) rotate(270)`
+    : null;
+  const content = transform ? `<g transform="${transform}">${inner}</g>` : inner;
   return `<svg class="art" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="none">${content}</svg>`;
 }
 
@@ -127,7 +130,7 @@ function componentArt(c, s) {
   if (s.shape === "power") inner = powerArt(s.color);
   else if (s.shape === "led") inner = ledArt();
   else inner = gateArt(s.shape, s.color);
-  return svgWrap(inner, s, !!c.r);
+  return svgWrap(inner, s, c.r);
 }
 
 function renderComponents(logic = evaluateBoard(state)) {
@@ -497,14 +500,18 @@ document.addEventListener("keydown", (e) => {
 function rotateSelected() {
   const sel = state.components.find((c) => c.id === selectedId);
   if (!sel) return;
-  const prev = sel.r;
-  sel.r = prev ? 0 : 1;
-  if (!isValidComponent(state, sel)) {
-    sel.r = prev;
-    return;
+  const prev = ((sel.r % 4) + 4) % 4;
+  // Step through all four orientations; a rotation that would overlap is skipped
+  // so the user can still reach the other valid directions.
+  for (let step = 1; step <= 3; step++) {
+    sel.r = (prev + step) % 4;
+    if (isValidComponent(state, sel)) {
+      sanitizeAfterComponentEdit();
+      render();
+      return;
+    }
   }
-  sanitizeAfterComponentEdit();
-  render();
+  sel.r = prev;
 }
 
 function deleteSelected() {

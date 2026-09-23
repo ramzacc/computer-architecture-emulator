@@ -15,6 +15,20 @@ test("component geometry rotates pins and rejects overlap", () => {
   assert.deepEqual(dimsOf(gate), { w: 2, h: 4 });
   const input = pinsFor(gate).find((pin) => pin.role === "in" && pin.px === 3 && pin.py === 2);
   assert.deepEqual(input.edge, { o: "H", x: 3, y: 2 });
+
+  gate.r = 2;
+  assert.deepEqual(dimsOf(gate), { w: 4, h: 2 });
+  assert.deepEqual(
+    pinsFor(gate).map((pin) => [pin.px, pin.py, pin.dir]),
+    [[4, 3, "S"], [2, 3, "S"], [3, 1, "N"]],
+  );
+
+  gate.r = 3;
+  assert.deepEqual(dimsOf(gate), { w: 2, h: 4 });
+  assert.deepEqual(
+    pinsFor(gate).map((pin) => [pin.px, pin.py, pin.dir]),
+    [[1, 4, "W"], [1, 2, "W"], [3, 3, "E"]],
+  );
 });
 
 test("a power net drives an LED and sanitizes after edits", () => {
@@ -49,6 +63,17 @@ test("gates compute their output from the input nets", () => {
   const { states } = evaluateBoard(board);
   assert.equal(states.get("g").value, true);
   assert.equal(states.get("h").value, false);
+});
+
+test("documents persist all four orientations", () => {
+  const board = createBoard(10, 10);
+  addComponent(board, { id: "c1", t: "power", x: 1, y: 1, r: 3 });
+  const saved = JSON.parse(serialize(board));
+  assert.deepEqual(saved.components, [{ t: "power", x: 1, y: 1, r: 3 }]);
+  const { board: reloaded, skipped } = parseDocument(JSON.stringify(saved));
+  assert.deepEqual(skipped, { components: 0, wires: 0 });
+  assert.equal(reloaded.components[0].r, 3);
+  assert.deepEqual(JSON.parse(serialize(reloaded)), saved);
 });
 
 test("imports skip overlap and malformed wires without changing the schema", () => {
