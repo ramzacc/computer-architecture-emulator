@@ -7,6 +7,12 @@ static HTTP server, then open `index.html`. For example:
 python3 -m http.server 8000
 ```
 
+Three example circuit documents are in [`examples/`](examples/). Import one with **Import .json**:
+
+1. [Power an LED](examples/power-led.json) — connect a power rail directly to an LED.
+2. [AND gate](examples/and-gate.json) — two powered inputs light an LED through an AND gate. Remove one input wire to see it turn off.
+3. [Two-bit bus](examples/splitter-combine.json) — two power rails form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
+
 The catalog holds real logic-level parts: a **Power** rail (always drives high),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**
 and **NAND** gates, plus a **Splitter**. Each pin declares an `in` or `out` role, and the board is

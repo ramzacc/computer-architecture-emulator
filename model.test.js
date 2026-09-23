@@ -173,7 +173,7 @@ test("splitter rotation and size changes adjust its footprint", () => {
 
 
 test("a splitter combines one-bit power branches and drives LEDs through a gate", () => {
-  const text = readFileSync(new URL("./fixtures/splitter-combine.json", import.meta.url), "utf8");
+  const text = readFileSync(new URL("./examples/splitter-combine.json", import.meta.url), "utf8");
   const { board, skipped } = parseDocument(text);
   assert.deepEqual(skipped, { components: 0, wires: 0 });
   const { states, nets } = evaluateBoard(board);
