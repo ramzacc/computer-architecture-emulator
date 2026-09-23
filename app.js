@@ -116,7 +116,7 @@ constantValueEl.addEventListener("change", () => {
     busStatus(`Constant set to ${value}.`);
   } else {
     if (component && value !== component.value)
-      busStatus(`Constant value must be a whole number from 0 to ${2 ** bitWidth(component) - 1}.`, true);
+      busStatus(`Constant value must be a whole number from 0 to ${2 ** bitWidth(component) - 1}, and must not short circuit another output.`, true);
     renderProperties();
   }
 });
@@ -325,7 +325,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       busStatus("Component selected.");
       render();
     } else {
-      busStatus("Cannot place component here. Check overlaps and bus sizes.", true);
+      busStatus("Cannot place component here. Check overlaps, bus sizes, and short circuits.", true);
       flashInvalid(cell);
     }
     return;
@@ -427,7 +427,7 @@ function endDrag(e) {
   }
   if (e.type !== "pointercancel" && target && (target.x !== originX || target.y !== originY)) {
     if (!valid || !editor.move(id, target.x, target.y)) {
-      busStatus("Cannot move component here. Check overlaps and bus sizes.", true);
+      busStatus("Cannot move component here. Check overlaps, bus sizes, and short circuits.", true);
       render();
     }
   } else render();

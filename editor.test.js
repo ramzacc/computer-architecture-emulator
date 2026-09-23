@@ -88,3 +88,22 @@ test('storage errors leave the current board usable', () => {
 test('wire hover text includes the evaluated value', () => {
   assert.equal(wireTitle({ size: 2 }, 3), '2 bit(s), value 3');
 });
+
+test('changing a constant cannot create a short circuit', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  const a = editor.place('constant', 0, 0);
+  const b = editor.place('constant', 4, 0);
+  for (const edge of [
+    { o: 'V', x: 1, y: 2 }, { o: 'V', x: 5, y: 2 },
+    ...[1, 2, 3, 4].map((x) => ({ o: 'H', x, y: 3 })),
+  ]) assert.equal(editor.addWire(edge), true);
+  const saves = ctx.saves;
+  assert.equal(editor.setConstantValue(a.id, 1), false);
+  assert.equal(editor.component(a.id).value, 0);
+  assert.equal(ctx.saves, saves);
+  assert.equal(editor.removeWire('H:4,3'), true);
+  assert.equal(editor.setConstantValue(a.id, 1), true);
+  assert.equal(editor.component(b.id).value, 0);
+  assert.equal(ctx.saves, saves + 2);
+});

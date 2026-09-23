@@ -3,7 +3,58 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { dimsOf, pinsFor, spec } from "./components.js";
 import { addComponent, addWireEdge, canPlaceEdge, computeNets, createBoard,
-  edgeKey, evaluateBoard, isValidComponent, parseDocument, resizeNet, sanitizeWires, serialize } from "./model.js";
+  edgeKey, edgePlacementError, evaluateBoard, isValidComponent, parseDocument, resizeNet,
+  sanitizeWires, serialize } from "./model.js";
+
+test("a wire cannot join HIGH and LOW drivers, including driven zero bits", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "low", t: "constant", x: 0, y: 0, value: 0 }), true);
+  assert.equal(addComponent(board, { id: "high", t: "constant", x: 4, y: 0, value: 1 }), true);
+  const wires = [
+    { o: "V", x: 1, y: 2 }, { o: "V", x: 5, y: 2 },
+    { o: "H", x: 1, y: 3 }, { o: "H", x: 2, y: 3 }, { o: "H", x: 3, y: 3 },
+  ];
+  for (const wire of wires) assert.equal(addWireEdge(board, wire), true);
+  const last = { o: "H", x: 4, y: 3 };
+  assert.match(edgePlacementError(board, last), /Short circuit/);
+  assert.equal(addWireEdge(board, last), false);
+  assert.equal(board.wires.size, wires.length);
+
+  const imported = parseDocument(JSON.stringify({ components: [
+    { t: "constant", x: 0, y: 0, value: 0 },
+    { t: "constant", x: 4, y: 0, value: 1 },
+  ], wires: [...wires, last] }));
+  assert.equal(imported.skipped.wires, 1);
+});
+
+test("a splitter carries short-circuit checks between a bus bit and its branch", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "bus", t: "constant", x: 0, y: 0, size: 2, value: 0 }), true);
+  assert.equal(addComponent(board, { id: "split", t: "splitter", x: 0, y: 4, size: 2 }), true);
+  assert.equal(addComponent(board, { id: "high", t: "power", x: 4, y: 3 }), true);
+  for (const edge of [
+    { o: "V", x: 1, y: 2, size: 2 }, { o: "V", x: 1, y: 3, size: 2 },
+    { o: "H", x: 2, y: 5 }, { o: "H", x: 3, y: 5 },
+  ]) assert.equal(addWireEdge(board, edge), true);
+  const last = { o: "H", x: 4, y: 5 };
+  assert.match(edgePlacementError(board, last), /Short circuit/);
+  assert.equal(addWireEdge(board, last), false);
+});
+
+test("an inverter cannot feed its own output back into its input", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "inverter", t: "not", x: 0, y: 0 }), true);
+  for (const edge of [
+    { o: "V", x: 1, y: -1 },
+    { o: "H", x: 1, y: -1 }, { o: "H", x: 2, y: -1 },
+    { o: "V", x: 3, y: -1 }, { o: "V", x: 3, y: 0 }, { o: "V", x: 3, y: 1 },
+    { o: "H", x: 2, y: 2 },
+  ]) assert.equal(addWireEdge(board, edge), true, JSON.stringify(edge));
+  const last = { o: "H", x: 1, y: 2 };
+  // The final segment joins the return path to the output pin.
+  assert.match(edgePlacementError(board, last), /feedback loop/);
+  assert.equal(addWireEdge(board, last), false);
+});
 
 test("component geometry rotates pins and rejects overlap", () => {
   const board = createBoard(10, 10);

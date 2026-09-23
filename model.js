@@ -46,12 +46,16 @@ export function isValidComponent(board, component) {
     }
   }
   return !pinsFor(component).some((pin) => wiresAtPoint(board, pin.px, pin.py).some((wire) =>
-    wireSize(wire) !== pin.size));
+    wireSize(wire) !== pin.size)) && !shortCircuitError(board);
 }
 
 export function addComponent(board, component) {
   if (!isValidComponent(board, component)) return false;
   board.components.push(component);
+  if (shortCircuitError(board)) {
+    board.components.pop();
+    return false;
+  }
   return true;
 }
 
@@ -86,6 +90,11 @@ export function edgePlacementError(board, edge) {
   const pins = points.flatMap(([x, y]) => pinsAtPoint(board, x, y));
   if (touching.some((wire) => wireSize(wire) !== wireSize(edge)) ||
       pins.some((size) => size !== wireSize(edge))) return "Bus size mismatch.";
+  const key = edgeKey(edge);
+  board.wires.set(key, { ...edge, size: wireSize(edge) });
+  const conflict = shortCircuitError(board);
+  board.wires.delete(key);
+  if (conflict) return conflict;
   return null;
 }
 
@@ -141,9 +150,9 @@ function buildUnionFind(board) {
   return { parent, find };
 }
 
-// solves the board to a fixed point: nets carry a value, each component's
-// output (or LED) follows from its inputs. Loops are allowed; they just settle
-// on whatever value the final pass produced.
+// Solve the board to a fixed point: nets carry a value, each component's
+// output (or LED) follows from its inputs. Oscillating feedback is reported
+// to callers so edits can reject it.
 export function evaluateBoard(board) {
   const { parent, find } = buildUnionFind(board);
   const nets = new Map();
@@ -187,6 +196,7 @@ export function evaluateBoard(board) {
   };
 
   let values = new Map();
+  let settled = false;
   for (let round = 0; round <= board.components.length; round++) {
     const next = new Map();
     const drive = (root, output) => {
@@ -212,7 +222,7 @@ export function evaluateBoard(board) {
       if (values.get(root) !== value) { stable = false; break; }
     }
     values = next;
-    if (stable) break;
+    if (stable) { settled = true; break; }
   }
 
   const states = new Map();
@@ -228,7 +238,55 @@ export function evaluateBoard(board) {
     net.value = values.get(net.id) ?? 0;
     net.on = net.value !== 0;
   }
-  return { nets, states };
+  return { nets, states, settled };
+}
+
+// Each splitter branch is electrically the corresponding bit of its bus.
+// Compare actual output drivers after evaluation, including drivers connected
+// through splitters; a driven zero must count just as much as a driven one.
+export function shortCircuitError(board) {
+  const { nets, states, settled } = evaluateBoard(board);
+  if (!settled) return "Short circuit: feedback loop does not settle.";
+  const parent = new Map();
+  const find = (key) => {
+    if (!parent.has(key)) parent.set(key, key);
+    if (parent.get(key) !== key) parent.set(key, find(parent.get(key)));
+    return parent.get(key);
+  };
+  const union = (a, b) => { parent.set(find(a), find(b)); };
+  const pointNets = new Map();
+  for (const net of nets.values()) for (const edge of net.edges) {
+    for (const point of edgePoints(edge)) pointNets.set(point.join(","), net.id);
+  }
+  const netAt = (pin) => pointNets.get(`${pin.px},${pin.py}`);
+  const bitKey = (net, bit) => `${net}:${bit}`;
+  for (const component of board.components) {
+    if (component.t !== "splitter") continue;
+    const [bus, ...branches] = pinsFor(component);
+    const busNet = netAt(bus);
+    if (busNet === undefined) continue;
+    for (const branch of branches) {
+      const branchNet = netAt(branch);
+      if (branchNet !== undefined) union(bitKey(busNet, branch.bit), bitKey(branchNet, 0));
+    }
+  }
+  const driven = new Map();
+  for (const component of board.components) {
+    const entry = spec(component.t);
+    if (!entry?.source && !entry?.constant && !entry?.op) continue;
+    const value = states.get(component.id).value;
+    for (const pin of pinsFor(component).filter((item) => item.role === "out")) {
+      const net = netAt(pin);
+      if (net === undefined) continue;
+      for (let bit = 0; bit < pin.size; bit++) {
+        const key = find(bitKey(net, bit));
+        const level = (value >>> bit) & 1;
+        if (driven.has(key) && driven.get(key) !== level) return "Short circuit: HIGH and LOW outputs are connected.";
+        driven.set(key, level);
+      }
+    }
+  }
+  return null;
 }
 
 export function computeNets(board) {
@@ -249,6 +307,10 @@ export function resizeNet(board, key, size) {
   if (net.edges.some((edge) => edgePoints(edge).some(([x, y]) =>
     pinsAtPoint(board, x, y).some((pinSize) => pinSize !== size)))) return false;
   for (const edge of net.edges) board.wires.get(edgeKey(edge)).size = size;
+  if (shortCircuitError(board)) {
+    for (const edge of net.edges) board.wires.get(edgeKey(edge)).size = net.size;
+    return false;
+  }
   return true;
 }
 
