@@ -1,11 +1,12 @@
 import { COMPONENT_TYPES, dimsOf, pinsFor, spec } from "./components.js";
 import { addComponent, addWireEdge, canPlaceEdge, createBoard, edgeKey,
-  isValidComponent, netContaining, netInfoByEdgeKey, parseDocument, sanitizeWires, serialize } from "./model.js";
+  evaluateBoard, isValidComponent, netContaining, parseDocument, sanitizeWires, serialize } from "./model.js";
 
 const CELL = 48;
 const GAP = 3;
 const WIRE_W = 4;
-const STORAGE_KEY = "grid-canvas-prototype-v4";
+const U = 40;
+const STORAGE_KEY = "grid-canvas-prototype-v5";
 
 let state = createBoard();
 let selectedId = null;
@@ -74,23 +75,89 @@ function renderGridSize() {
   gridEl.style.backgroundSize = `${CELL}px ${CELL}px, ${CELL}px ${CELL}px`;
 }
 
-function renderComponents() {
+function svgWrap(inner, s, rotated) {
+  const vw = rotated ? s.h * U : s.w * U;
+  const vh = rotated ? s.w * U : s.h * U;
+  const content = rotated
+    ? `<g transform="translate(${s.h * U},0) rotate(90)">${inner}</g>`
+    : inner;
+  return `<svg class="art" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="none">${content}</svg>`;
+}
+
+function powerArt(color) {
+  const stroke = "rgba(255,255,255,.4)";
+  return `
+    <line x1="40" y1="31" x2="40" y2="40" stroke="${stroke}" stroke-width="2"/>
+    <circle cx="40" cy="18" r="13" fill="${color}" stroke="${stroke}" stroke-width="2"/>
+    <line x1="34" y1="18" x2="46" y2="18" stroke="#14161a" stroke-width="3"/>
+    <line x1="40" y1="12" x2="40" y2="24" stroke="#14161a" stroke-width="3"/>`;
+}
+
+function ledArt() {
+  const stroke = "rgba(255,255,255,.4)";
+  return `
+    <line x1="40" y1="0" x2="40" y2="12" stroke="${stroke}" stroke-width="2"/>
+    <polygon class="led-tri" points="28,12 52,12 40,28" fill="#5a5a7a" stroke="${stroke}" stroke-width="2"/>
+    <line class="led-bar" x1="28" y1="28" x2="52" y2="28" stroke="${stroke}" stroke-width="2"/>
+    <line x1="40" y1="28" x2="40" y2="36" stroke="${stroke}" stroke-width="2"/>
+    <line x1="32" y1="36" x2="48" y2="36" stroke="${stroke}" stroke-width="2"/>
+    <g class="led-rays" stroke="#ff4136" stroke-width="2" stroke-linecap="round">
+      <line x1="20" y1="6" x2="12" y2="0"/>
+      <line x1="60" y1="6" x2="68" y2="0"/>
+      <line x1="18" y1="20" x2="8" y2="20"/>
+      <line x1="62" y1="20" x2="72" y2="20"/>
+    </g>`;
+}
+
+function gateArt(shape, color) {
+  const stroke = "rgba(255,255,255,.35)";
+  let body = "";
+  if (shape === "and" || shape === "nand") {
+    body = `<path d="M28 14 H132 V36 A52 32 0 0 1 28 36 Z" fill="${color}" stroke="${stroke}" stroke-width="2"/>`;
+  } else {
+    body = `<path d="M26 14 Q80 32 134 14 Q134 54 80 80 Q26 54 26 14 Z" fill="${color}" stroke="${stroke}" stroke-width="2"/>`;
+    if (shape === "xor") {
+      body += `<path d="M18 10 Q72 28 126 10" fill="none" stroke="${stroke}" stroke-width="2"/>`;
+    }
+  }
+  const stubs = `
+    <line x1="40" y1="0" x2="40" y2="18" stroke="${stroke}" stroke-width="2"/>
+    <line x1="120" y1="0" x2="120" y2="18" stroke="${stroke}" stroke-width="2"/>`;
+  let out = "";
+  if (shape === "nand") {
+    out = `<circle cx="80" cy="74" r="6" fill="${color}" stroke="${stroke}" stroke-width="2"/>`;
+  } else if (shape === "and") {
+    out = `<line x1="80" y1="68" x2="80" y2="80" stroke="${stroke}" stroke-width="2"/>`;
+  }
+  return body + stubs + out;
+}
+
+function componentArt(c, s) {
+  let inner;
+  if (s.shape === "power") inner = powerArt(s.color);
+  else if (s.shape === "led") inner = ledArt();
+  else inner = gateArt(s.shape, s.color);
+  return svgWrap(inner, s, !!c.r);
+}
+
+function renderComponents(logic = evaluateBoard(state)) {
   gridEl.querySelectorAll(".comp").forEach((el) => el.remove());
   for (const c of state.components) {
     const s = spec(c.t);
     const d = dimsOf(c);
     if (!s || !d) continue;
     const el = document.createElement("div");
-    el.className = "comp";
+    el.className = "comp shaped";
     el.dataset.id = c.id;
     el.style.left = c.x * CELL + "px";
     el.style.top = c.y * CELL + "px";
     el.style.width = d.w * CELL - GAP + "px";
     el.style.height = d.h * CELL - GAP + "px";
-    el.style.background = s.color;
-    el.textContent = s.label;
-    el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}`;
     if (c.id === selectedId) el.classList.add("selected");
+    const st = logic.states.get(c.id);
+    if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
+    el.innerHTML = componentArt(c, s);
+    el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}${st && st.value ? "  ON" : ""}`;
     gridEl.appendChild(el);
   }
 }
@@ -100,7 +167,7 @@ function renderPins() {
   for (const c of state.components) {
     for (const p of pinsFor(c)) {
       const el = document.createElement("div");
-      el.className = "pin";
+      el.className = "pin " + p.role;
       el.style.left = p.px * CELL + "px";
       el.style.top = p.py * CELL + "px";
       gridEl.appendChild(el);
@@ -132,9 +199,12 @@ function applyBox(el, box) {
   el.style.height = box.height;
 }
 
-function renderWires() {
+function renderWires(logic = evaluateBoard(state)) {
   gridEl.querySelectorAll(".wire").forEach((el) => el.remove());
-  const info = netInfoByEdgeKey(state);
+  const info = new Map();
+  for (const net of logic.nets.values()) {
+    for (const edge of net.edges) info.set(edgeKey(edge), { on: net.on, netId: net.id });
+  }
   const selNetId = selectedWire && info.has(selectedWire) ? info.get(selectedWire).netId : null;
   for (const w of state.wires.values()) {
     const key = edgeKey(w);
@@ -178,7 +248,7 @@ function syncPlacingCursor() {
   }
 }
 
-function renderSelection() {
+function renderSelection(logic = evaluateBoard(state)) {
   if (selectedWire && state.wires.has(selectedWire)) {
     const net = netContaining(state, selectedWire);
     selectionInfoEl.classList.remove("muted");
@@ -200,10 +270,13 @@ function renderSelection() {
   }
   const s = spec(sel.t);
   const d = dimsOf(sel);
+  const st = logic.states.get(sel.id);
+  const stateText = !st ? "" : s.shape === "led" ? (st.lit ? "  LIT" : "  dark")
+    : st.value ? "  OUT 1" : "  OUT 0";
   selectionInfoEl.classList.remove("muted");
   selectionInfoEl.textContent = `${s.label} [${sel.t}]  ${d.w}x${d.h}  @ (${sel.x}, ${sel.y})${
     sel.r ? "  rotated" : ""
-  }`;
+  }${stateText}`;
   btnRotate.disabled = false;
   btnDelete.disabled = false;
 }
@@ -214,10 +287,11 @@ function updateSerialized() {
 
 function render() {
   renderGridSize();
-  renderWires();
-  renderComponents();
+  const logic = evaluateBoard(state);
+  renderWires(logic);
+  renderComponents(logic);
   renderPins();
-  renderSelection();
+  renderSelection(logic);
   updateSerialized();
 }
 
@@ -604,18 +678,14 @@ document.getElementById("btn-copy").addEventListener("click", async () => {
 
 function seedLayout() {
   const layout = [
-    ["cpu", 0, 0],
-    ["gpu", 3, 0],
-    ["reg", 5, 0],
-    ["cache", 5, 3],
-    ["bus", 3, 4],
-    ["clock", 3, 5],
-    ["board", 9, 0],
-    ["fpga", 9, 4],
-    ["ram", 6, 6],
-    ["rom", 0, 7],
-    ["alu", 12, 6],
-    ["cu", 0, 4],
+    // power straight into an LED
+    ["power", 2, 1], ["led", 2, 3],
+    // two powers into an AND, output into an LED
+    ["power", 7, 1], ["power", 9, 1], ["and", 7, 3], ["led", 8, 6],
+    // two powers into a NAND -> lights nothing
+    ["power", 14, 1], ["power", 16, 1], ["nand", 14, 3], ["led", 15, 6],
+    // two powers into an XOR -> also off
+    ["power", 22, 1], ["power", 24, 1], ["xor", 22, 3], ["led", 23, 6],
   ];
   state.components = [];
   for (const [t, x, y] of layout) placeComponent(t, x, y);
@@ -623,10 +693,13 @@ function seedLayout() {
 
 function seedWires() {
   state.wires = new Map();
-  addWireEdge(state, { o: "H", x: 2, y: 1 });
-  addWireEdge(state, { o: "H", x: 6, y: 1 });
-  addWireEdge(state, { o: "H", x: 7, y: 1 });
-  addWireEdge(state, { o: "V", x: 8, y: 1 });
+  const wires = [
+    { o: "V", x: 3, y: 2 },
+    { o: "V", x: 8, y: 2 }, { o: "V", x: 10, y: 2 }, { o: "V", x: 9, y: 5 },
+    { o: "V", x: 15, y: 2 }, { o: "V", x: 17, y: 2 }, { o: "V", x: 16, y: 5 },
+    { o: "V", x: 23, y: 2 }, { o: "V", x: 25, y: 2 }, { o: "V", x: 24, y: 5 },
+  ];
+  for (const wire of wires) addWireEdge(state, wire);
 }
 
 /* ---------- Boot ---------- */
