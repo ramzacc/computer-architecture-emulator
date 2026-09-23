@@ -292,6 +292,11 @@ function constantArt(c, color) {
 
 function gateArt(shape, color) {
   const stroke = "rgba(255,255,255,.35)";
+  if (shape === "not") return `
+    <line x1="40" y1="0" x2="40" y2="18" stroke="${stroke}" stroke-width="2"/>
+    <path d="M16 18 H64 L40 60 Z" fill="${color}" stroke="${stroke}" stroke-width="2"/>
+    <circle cx="40" cy="66" r="6" fill="${color}" stroke="${stroke}" stroke-width="2"/>
+    <line x1="40" y1="72" x2="40" y2="80" stroke="${stroke}" stroke-width="2"/>`;
   let body = "";
   if (shape === "and" || shape === "nand") {
     body = `<path d="M28 14 H132 V36 A52 32 0 0 1 28 36 Z" fill="${color}" stroke="${stroke}" stroke-width="2"/>`;

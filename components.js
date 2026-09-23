@@ -53,6 +53,13 @@ export const COMPONENT_TYPES = {
       { x: 2, y: 2, dir: "S", role: "out" },
     ],
   },
+  not: {
+    label: "NOT", w: 2, h: 2, color: "#e56b8a", shape: "not", op: "not",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in" },
+      { x: 1, y: 2, dir: "S", role: "out" },
+    ],
+  },
   splitter: {
     label: "Splitter", w: 2, h: 2, color: "#ddb866", shape: "splitter", splitter: true,
     pins: [],

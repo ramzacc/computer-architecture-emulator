@@ -114,6 +114,7 @@ const GATE_OPS = {
   or: (a, b) => a | b,
   xor: (a, b) => a ^ b,
   nand: (a, b) => ~(a & b),
+  not: (a) => ~a,
 };
 
 function bitMask(size) { return size === 32 ? 0xffffffff : (2 ** size - 1); }

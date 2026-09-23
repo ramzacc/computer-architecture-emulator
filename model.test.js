@@ -178,6 +178,34 @@ test("32 bit NAND uses a full width mask and persists sizes", () => {
   assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
 });
 
+test("NOT is a rotatable 2x2 gate and inverts every bit of its selected width", () => {
+  const board = createBoard();
+  const constant = { id: "k", t: "constant", x: 0, y: 0, r: 0, size: 4, value: 0b0101 };
+  const inverter = { id: "n", t: "not", x: 0, y: 4, r: 0, size: 4 };
+  assert.equal(addComponent(board, constant), true);
+  assert.equal(addComponent(board, inverter), true);
+  assert.deepEqual(dimsOf(inverter), { w: 2, h: 2 });
+  assert.deepEqual(pinsFor(inverter).map(({ px, py, role, size }) => [px, py, role, size]),
+    [[1, 4, "in", 4], [1, 6, "out", 4]]);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 2, size: 4 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 3, size: 4 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 6, size: 4 }), true);
+  assert.equal(evaluateBoard(board).states.get("n").value, 0b1010);
+  assert.equal([...computeNets(board).values()].find((net) => net.edges.some((edge) => edge.y === 6)).value, 0b1010);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 7, size: 1 }), false);
+  const saved = JSON.parse(serialize(board));
+  assert.deepEqual(saved.components[1], { t: "not", x: 0, y: 4, size: 4 });
+  assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
+
+  const wide = createBoard();
+  const wideInverter = { id: "wide", t: "not", x: 3, y: 3, r: 1, size: 32 };
+  assert.equal(addComponent(wide, wideInverter), true);
+  assert.deepEqual(dimsOf(wideInverter), { w: 2, h: 2 });
+  assert.deepEqual(pinsFor(wideInverter).map(({ px, py, dir }) => [px, py, dir]),
+    [[5, 4, "E"], [3, 4, "W"]]);
+  assert.equal(evaluateBoard(wide).states.get("wide").value, 0xffffffff);
+});
+
 test("constant drives its configured value and enforces its width and range", () => {
   const board = createBoard();
   const constant = { id: "k", t: "constant", x: 0, y: 0, r: 0, size: 8, value: 173 };
