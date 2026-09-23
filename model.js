@@ -58,21 +58,8 @@ function edgeBlocked(board, edge) {
   const my = edge.y + (edge.o === "V" ? 0.5 : 0);
   return board.components.some((component) => {
     const { w, h } = dimsOf(component);
-    return mx >= component.x && mx <= component.x + w && my >= component.y && my <= component.y + h;
+    return mx > component.x && mx < component.x + w && my > component.y && my < component.y + h;
   });
-}
-
-function endpointOnWall(board, edge) {
-  for (const [x, y] of edgePoints(edge)) {
-    for (const component of board.components) {
-      const { w, h } = dimsOf(component);
-      const onContour =
-        ((x === component.x || x === component.x + w) && y >= component.y && y <= component.y + h) ||
-        ((y === component.y || y === component.y + h) && x >= component.x && x <= component.x + w);
-      if (onContour && !pinsFor(component).some((pin) => pin.px === x && pin.py === y)) return true;
-    }
-  }
-  return false;
 }
 
 export function wireSize(wire) { return wire.size ?? 1; }
@@ -90,18 +77,13 @@ function pinsAtPoint(board, x, y) {
 export function edgePlacementError(board, edge) {
   if (!edgeInBounds(board, edge) || !Number.isInteger(edge.x) || !Number.isInteger(edge.y) ||
       !validBitWidth(wireSize(edge))) return "Wire size must be 1–32 bits.";
-  if (edgeBlocked(board, edge) || endpointOnWall(board, edge)) return "Wire is blocked by a component.";
+  if (edgeBlocked(board, edge)) return "Wire is blocked by a component.";
   if (board.wires.has(edgeKey(edge))) return "Wire already exists here.";
   const points = edgePoints(edge);
   const touching = points.flatMap(([x, y]) => wiresAtPoint(board, x, y));
   const pins = points.flatMap(([x, y]) => pinsAtPoint(board, x, y));
   if (touching.some((wire) => wireSize(wire) !== wireSize(edge)) ||
       pins.some((size) => size !== wireSize(edge))) return "Bus size mismatch.";
-  if (!touching.length && !points.some(([x, y]) =>
-    board.components.some((component) => pinsFor(component).some((pin) =>
-      pin.px === x && pin.py === y && edgeKey(pin.edge) === edgeKey(edge))))) {
-    return "Start a wire at a pin or an existing wire.";
-  }
   return null;
 }
 
@@ -118,7 +100,7 @@ export function addWireEdge(board, edge) {
 export function sanitizeWires(board) {
   for (const [key, edge] of board.wires) {
     if (!edgeInBounds(board, edge) || !validBitWidth(wireSize(edge)) ||
-        edgeBlocked(board, edge) || endpointOnWall(board, edge) ||
+        edgeBlocked(board, edge) ||
         edgePoints(edge).some(([x, y]) => pinsAtPoint(board, x, y).some((size) => size !== wireSize(edge)))) {
       board.wires.delete(key);
     }
@@ -314,7 +296,7 @@ export function parseDocument(text) {
       const edge = { o: raw.o, x: Number(raw.x), y: Number(raw.y), size: raw.size ?? 1 };
       if (!Number.isInteger(edge.x) || !Number.isInteger(edge.y) || !validBitWidth(edge.size) ||
           board.wires.has(edgeKey(edge)) || !edgeInBounds(board, edge) ||
-          edgeBlocked(board, edge) || endpointOnWall(board, edge) ||
+          edgeBlocked(board, edge) ||
           edgePoints(edge).some(([x, y]) => pinsAtPoint(board, x, y).some((size) => size !== edge.size)) ||
           edgePoints(edge).some(([x, y]) => wiresAtPoint(board, x, y).some((wire) => wireSize(wire) !== edge.size))) { skipped.wires++; continue; }
       board.wires.set(edgeKey(edge), edge);
