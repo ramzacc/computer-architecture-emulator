@@ -206,12 +206,8 @@ main {
   height: 100%;
   overflow: visible;
 }
-.comp .led-tri,
-.comp .led-bar { transition: fill .12s, stroke .12s; }
-.comp .led-rays { opacity: 0; transition: opacity .12s; }
-.comp.lit .led-tri { fill: #ff4136; stroke: #ffb0aa; filter: drop-shadow(0 0 6px #ff4136); }
-.comp.lit .led-bar { stroke: #ff4136; }
-.comp.lit .led-rays { opacity: 1; }
+.comp .led-body { transition: fill .12s, stroke .12s; }
+.comp.lit .led-body { fill: #ff4136; stroke: #ffb0aa; filter: drop-shadow(0 0 6px #ff4136); }
 
 .comp.selected { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--accent); z-index: 5; }
 .comp.invalid { box-shadow: 0 0 0 2px var(--danger); }
