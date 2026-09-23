@@ -115,10 +115,41 @@ test("32 bit NAND uses a full width mask and persists sizes", () => {
   assert.equal(result.states.get("n").value, 0xffffffff);
   assert.equal([...result.nets.values()][0].value, 0xffffffff);
   const saved = JSON.parse(serialize(board));
-  assert.equal(saved.version, 6);
+  assert.equal(saved.version, 7);
   assert.equal(saved.components[0].size, 32);
   assert.equal(saved.wires[0].size, 32);
   assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
+});
+
+test("constant drives its configured value and enforces its width and range", () => {
+  const board = createBoard();
+  const constant = { id: "k", t: "constant", x: 0, y: 0, r: 0, size: 8, value: 173 };
+  assert.equal(addComponent(board, constant), true);
+  assert.deepEqual(dimsOf(constant), { w: 2, h: 2 });
+  assert.equal(pinsFor(constant)[0].size, 8);
+  assert.deepEqual(pinsFor(constant)[0].edge, { o: "V", x: 1, y: 2 });
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 2, size: 1 }), false);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 2, size: 8 }), true);
+  assert.equal(evaluateBoard(board).states.get("k").value, 173);
+  assert.equal([...computeNets(board).values()][0].value, 173);
+  const saved = JSON.parse(serialize(board));
+  assert.equal(saved.version, 7);
+  assert.deepEqual(saved.components[0], { t: "constant", x: 0, y: 0, size: 8, value: 173 });
+  assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
+  constant.value = 256;
+  assert.equal(isValidComponent(board, constant), false);
+  constant.value = -1;
+  assert.equal(isValidComponent(board, constant), false);
+  constant.value = 1.5;
+  assert.equal(isValidComponent(board, constant), false);
+  constant.value = 0;
+  constant.size = 9;
+  assert.equal(isValidComponent(board, constant), false);
+  const invalid = parseDocument(JSON.stringify({ components: [
+    { t: "constant", x: 0, y: 0, size: 9, value: 1 },
+    { t: "constant", x: 3, y: 0, size: 2, value: 4 },
+  ] }));
+  assert.equal(invalid.skipped.components, 2);
 });
 
 test("imports reject mixed width connections", () => {

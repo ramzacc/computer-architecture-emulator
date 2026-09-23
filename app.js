@@ -1,6 +1,6 @@
-import { COMPONENT_TYPES, bitWidth, dimsOf, isSizable, pinsFor, spec, validBitWidth } from "./components.js";
+import { COMPONENT_TYPES, bitWidth, dimsOf, isSizable, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=9";
 import { addComponent, addWireEdge, createBoard, edgeKey,
-  edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, wireSize } from "./model.js";
+  edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, wireSize } from "./model.js?v=9";
 
 const CELL = 48;
 const GAP = 3;
@@ -40,6 +40,8 @@ const selectedSizeRowEl = document.getElementById("selected-size-row");
 const selectedSizeEl = document.getElementById("selected-size");
 const selectedValueRowEl = document.getElementById("selected-value-row");
 const selectedValueEl = document.getElementById("selected-value");
+const constantValueRowEl = document.getElementById("constant-value-row");
+const constantValueEl = document.getElementById("constant-value");
 const busStatusEl = document.getElementById("bus-status");
 
 function busStatus(message, error = false) {
@@ -54,6 +56,12 @@ function renderProperties() {
   selectedSizeRowEl.hidden = size === undefined;
   selectedSizeEl.disabled = size === undefined;
   selectedSizeEl.value = size === undefined ? "" : String(size);
+  selectedSizeEl.max = component?.t === "constant" ? "8" : "32";
+  const constant = component?.t === "constant";
+  constantValueRowEl.hidden = !constant;
+  constantValueEl.disabled = !constant;
+  constantValueEl.max = constant ? String(2 ** bitWidth(component) - 1) : "1";
+  constantValueEl.value = constant ? String(component.value ?? 0) : "";
   selectedValueRowEl.hidden = !net;
   selectedValueEl.textContent = !net ? "—" : net.size === 1
     ? `${net.value} (${net.on ? "HIGH" : "LOW"})`
@@ -81,15 +89,34 @@ selectedSizeEl.addEventListener("change", () => {
   let changed = false;
   if (validBitWidth(size) && component && isSizable(component)) {
     const old = component.size ?? 1;
-    component.size = size;
-    changed = isValidComponent(state, component);
-    if (!changed) component.size = old;
+    const oldValue = component.value;
+    if (component.t !== "constant" || size <= 8) {
+      component.size = size;
+      if (component.t === "constant") component.value = Math.min(component.value ?? 0, 2 ** size - 1);
+      changed = isValidComponent(state, component);
+      if (!changed) { component.size = old; component.value = oldValue; }
+    }
   } else if (validBitWidth(size) && selectedWire) {
     changed = resizeNet(state, selectedWire, size);
   }
-  if (!changed) busStatus("Bus size mismatch or invalid size (use 1–32 bits).", true);
+  if (!changed) busStatus(component?.t === "constant"
+    ? "Constant width must be 1–8 bits and match connected wires."
+    : "Bus size mismatch or invalid size (use 1–32 bits).", true);
   else { busStatus(`Size set to ${size} bits.`); render(); }
   renderProperties();
+});
+
+constantValueEl.addEventListener("change", () => {
+  const component = state.components.find((c) => c.id === selectedId);
+  const value = Number(constantValueEl.value);
+  if (!component || component.t !== "constant" || !validConstant({ ...component, value })) {
+    busStatus(`Constant value must be a whole number from 0 to ${component ? 2 ** bitWidth(component) - 1 : 1}.`, true);
+    renderProperties();
+    return;
+  }
+  component.value = value;
+  busStatus(`Constant set to ${value}.`);
+  render();
 });
 
 function nextId() {
@@ -100,7 +127,9 @@ function nextId() {
 }
 
 function placeComponent(type, x, y) {
-  const component = { id: nextId(), t: type, x, y, r: 0, ...(type === "splitter" ? { size: 4 } : {}) };
+  const component = { id: nextId(), t: type, x, y, r: 0,
+    ...(type === "splitter" ? { size: 4 } : {}),
+    ...(type === "constant" ? { size: 1, value: 0 } : {}) };
   return addComponent(state, component) ? component : null;
 }
 
@@ -225,6 +254,20 @@ function ledArt() {
   return `<rect class="led-body" x="4" y="4" width="72" height="72" fill="#5a5a7a" stroke="${stroke}" stroke-width="2"/>`;
 }
 
+function constantArt(c, color) {
+  const value = c.value ?? 0;
+  const stroke = "rgba(255,255,255,.55)";
+  const stub = [
+    [40, 72, 40, 83], // south
+    [8, 40, -1, 40],  // west
+    [40, 8, 40, -1],  // north
+    [72, 40, 83, 40], // east
+  ][((c.r ?? 0) % 4 + 4) % 4];
+  return `<rect x="8" y="8" width="64" height="64" rx="7" fill="${color}" stroke="${stroke}" stroke-width="2"/>
+    <text x="40" y="48" text-anchor="middle" fill="#14161a" font-size="24" font-weight="700">${value}</text>
+    <line x1="${stub[0]}" y1="${stub[1]}" x2="${stub[2]}" y2="${stub[3]}" stroke="${stroke}" stroke-width="2"/>`;
+}
+
 function gateArt(shape, color) {
   const stroke = "rgba(255,255,255,.35)";
   let body = "";
@@ -259,9 +302,10 @@ function componentArt(c, s) {
   }
   let inner;
   if (s.shape === "power") inner = powerArt(s.color);
+  else if (s.shape === "constant") inner = constantArt(c, s.color);
   else if (s.shape === "led") inner = ledArt();
   else inner = gateArt(s.shape, s.color);
-  return svgWrap(inner, s, c.r);
+  return svgWrap(inner, s, s.constant ? 0 : c.r);
 }
 
 function renderComponents(logic = evaluateBoard(state)) {
@@ -353,7 +397,7 @@ function renderPalette() {
     btn.title = s.splitter ? "2 x (bits + 1)" : `${s.w}x${s.h}`;
     btn.innerHTML = `<span class="swatch" style="background:${s.color}"></span>
       <span class="name">${s.label}</span>
-      <span class="size">${s.splitter ? "1–32 bits" : `${s.w}x${s.h}`}</span>`;
+      <span class="size">${s.splitter ? "1–32 bits" : s.constant ? "1–8 bits" : `${s.w}x${s.h}`}</span>`;
     btn.addEventListener("click", () => {
       placingType = placingType === type ? null : type;
       // Arming a component is a normal-canvas activity, so leave wire mode.

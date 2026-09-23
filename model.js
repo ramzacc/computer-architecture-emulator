@@ -1,6 +1,6 @@
-import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth } from "./components.js";
+import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=9";
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 export const DEFAULT_COLS = 64;
 export const DEFAULT_ROWS = 44;
 
@@ -37,7 +37,8 @@ export function componentAt(board, x, y, ignoreId) {
 export function isValidComponent(board, component) {
   const size = dimsOf(component);
   if (!size || !Number.isInteger(component.x) || !Number.isInteger(component.y) ||
-      !validBitWidth(bitWidth(component))) return false;
+      !validBitWidth(bitWidth(component)) ||
+      (component.t === "constant" && !validConstant(component))) return false;
   for (let y = component.y; y < component.y + size.h; y++) {
     for (let x = component.x; x < component.x + size.w; x++) {
       if (componentAt(board, x, y, component.id)) return false;
@@ -179,6 +180,8 @@ export function evaluateBoard(board) {
       id: component.id,
       op: entry.op,
       source: !!entry.source,
+      constant: !!entry.constant,
+      constantValue: component.value ?? 0,
       splitter: !!entry.splitter,
       size: bitWidth(component),
       ins: pins.filter((pin) => pin.role === "in").map(netAt),
@@ -186,6 +189,7 @@ export function evaluateBoard(board) {
     };
   });
   const outputOf = (part, values) => {
+    if (part.constant) return part.constantValue;
     if (part.source) return 1;
     if (part.splitter) {
       const bus = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
@@ -275,9 +279,10 @@ export function serialize(board) {
   return JSON.stringify({
     version: SCHEMA_VERSION,
     grid: { ...board.grid },
-    components: board.components.map(({ t, x, y, r, size }) => {
+    components: board.components.map(({ t, x, y, r, size, value }) => {
       const q = normalizeRotation(r);
-      return { t, x, y, ...(q ? { r: q } : {}), ...(isSizable({ t }) ? { size: size ?? 1 } : {}) };
+      return { t, x, y, ...(q ? { r: q } : {}), ...(isSizable({ t }) ? { size: size ?? 1 } : {}),
+        ...(t === "constant" ? { value: value ?? 0 } : {}) };
     }),
     wires: [...board.wires.values()].map(({ o, x, y, size }) => ({ o, x, y, size: size ?? 1 })),
   }, null, 2);
@@ -303,6 +308,7 @@ export function parseDocument(text) {
     const component = {
       id: `c${board.components.length + 1}`, t: raw.t, r,
       ...(isSizable({ t: raw.t }) ? { size: raw.size ?? 1 } : {}),
+      ...(raw.t === "constant" ? { value: raw.value ?? 0 } : {}),
       x: clampInt(raw.x, -COORD_LIMIT, COORD_LIMIT, 0),
       y: clampInt(raw.y, -COORD_LIMIT, COORD_LIMIT, 0),
     };
