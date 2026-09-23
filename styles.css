@@ -66,10 +66,32 @@ main {
 }
 
 .canvas-wrap {
-  overflow: auto;
-  padding: 4px;
+  position: relative;
+  overflow: hidden;
   flex: 1 1 auto;
   min-width: 0;
+  background-color: #0f1115;
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  touch-action: none;
+}
+
+.zoom-level {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 10;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(15, 17, 21, .8);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font: 11px/1.2 ui-monospace, monospace;
+  pointer-events: none;
 }
 
 .palette { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -113,13 +135,13 @@ main {
 }
 
 .grid {
-  position: relative;
-  background-color: #0f1115;
-  background-image:
-    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  will-change: transform;
   outline: none;
 }
 
@@ -213,7 +235,7 @@ main {
 .comp.invalid { box-shadow: 0 0 0 2px var(--danger); }
 .comp:active { cursor: grabbing; }
 
-.grid.placing { cursor: crosshair; }
-.grid.wire-mode { cursor: crosshair; }
-.grid.pan { cursor: grab; }
-.grid.panning { cursor: grabbing; }
+.canvas-wrap.placing { cursor: crosshair; }
+.canvas-wrap.wire-mode { cursor: crosshair; }
+.canvas-wrap.pan { cursor: grab; }
+.canvas-wrap.panning { cursor: grabbing; }

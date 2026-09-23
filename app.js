@@ -7,6 +7,13 @@ const GAP = 3;
 const WIRE_W = 4;
 const U = 40;
 const STORAGE_KEY = "grid-canvas-prototype-v5";
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 1.2;
+
+// The lattice is unbounded: `view` maps world pixels onto the viewport with
+// translate(view.x, view.y) then scale(view.zoom), anchored at the top-left.
+const view = { x: 0, y: 0, zoom: 1 };
 
 // Exactly one mode is always active. Add future modes here and wire them into
 // the pointer handlers below; never allow a null/empty mode.
@@ -26,6 +33,7 @@ const paletteEl = document.getElementById("palette");
 const btnWire = document.getElementById("btn-wire");
 const btnPan = document.getElementById("btn-pan");
 const canvasWrapEl = document.getElementById("canvas-wrap");
+const zoomLabelEl = document.getElementById("zoom-level");
 
 function nextId() {
   let id;
@@ -49,18 +57,31 @@ function selectWire(key) {
   selectedId = null;
 }
 
-function cellFromEvent(ev) {
-  const rect = gridEl.getBoundingClientRect();
+function viewportFromEvent(ev) {
+  const rect = canvasWrapEl.getBoundingClientRect();
   return {
-    x: Math.floor((ev.clientX - rect.left) / CELL),
-    y: Math.floor((ev.clientY - rect.top) / CELL),
+    x: ev.clientX - rect.left - canvasWrapEl.clientLeft,
+    y: ev.clientY - rect.top - canvasWrapEl.clientTop,
   };
 }
 
+function worldFromViewport(p) {
+  return { x: (p.x - view.x) / view.zoom, y: (p.y - view.y) / view.zoom };
+}
+
+function worldFromEvent(ev) {
+  return worldFromViewport(viewportFromEvent(ev));
+}
+
+function cellFromEvent(ev) {
+  const world = worldFromEvent(ev);
+  return { x: Math.floor(world.x / CELL), y: Math.floor(world.y / CELL) };
+}
+
 function edgeFromEvent(ev) {
-  const rect = gridEl.getBoundingClientRect();
-  const fx = (ev.clientX - rect.left) / CELL;
-  const fy = (ev.clientY - rect.top) / CELL;
+  const world = worldFromEvent(ev);
+  const fx = world.x / CELL;
+  const fy = world.y / CELL;
   const hEdge = { o: "H", x: Math.floor(fx), y: Math.round(fy) };
   const vEdge = { o: "V", x: Math.round(fx), y: Math.floor(fy) };
   const hDist = Math.abs(fy - hEdge.y);
@@ -70,10 +91,53 @@ function edgeFromEvent(ev) {
 
 /* ---------- Rendering ---------- */
 
-function renderGridSize() {
-  gridEl.style.width = state.grid.cols * CELL + "px";
-  gridEl.style.height = state.grid.rows * CELL + "px";
-  gridEl.style.backgroundSize = `${CELL}px ${CELL}px, ${CELL}px ${CELL}px`;
+function applyView() {
+  gridEl.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
+  const step = CELL * view.zoom;
+  canvasWrapEl.style.backgroundSize = `${step}px ${step}px`;
+  canvasWrapEl.style.backgroundPosition = `${view.x}px ${view.y}px`;
+  if (zoomLabelEl) zoomLabelEl.textContent = `${Math.round(view.zoom * 100)}%`;
+}
+
+function zoomAt(factor, cx, cy) {
+  const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.zoom * factor));
+  if (Math.abs(next - view.zoom) < 1e-6) return;
+  if (cx === undefined) {
+    const rect = canvasWrapEl.getBoundingClientRect();
+    cx = rect.width / 2;
+    cy = rect.height / 2;
+  }
+  // Keep the world point under the anchor fixed while the scale changes.
+  const wx = (cx - view.x) / view.zoom;
+  const wy = (cy - view.y) / view.zoom;
+  view.zoom = next;
+  view.x = cx - wx * next;
+  view.y = cy - wy * next;
+  applyView();
+}
+
+function contentCenter() {
+  if (!state.components.length) return { x: 0, y: 0 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const c of state.components) {
+    const d = dimsOf(c);
+    if (!d) continue;
+    minX = Math.min(minX, c.x);
+    minY = Math.min(minY, c.y);
+    maxX = Math.max(maxX, c.x + d.w);
+    maxY = Math.max(maxY, c.y + d.h);
+  }
+  if (!Number.isFinite(minX)) return { x: 0, y: 0 };
+  return { x: ((minX + maxX) / 2) * CELL, y: ((minY + maxY) / 2) * CELL };
+}
+
+function resetView() {
+  view.zoom = 1;
+  const rect = canvasWrapEl.getBoundingClientRect();
+  const center = contentCenter();
+  view.x = rect.width / 2 - center.x;
+  view.y = rect.height / 2 - center.y;
+  applyView();
 }
 
 function svgWrap(inner, s, r) {
@@ -233,9 +297,9 @@ function renderPalette() {
 }
 
 function syncPlacingCursor() {
-  gridEl.classList.toggle("placing", placingType !== null);
-  gridEl.classList.toggle("pan", mode === MODE.PAN && placingType === null);
-  gridEl.classList.toggle("wire-mode", mode === MODE.WIRE);
+  canvasWrapEl.classList.toggle("placing", placingType !== null);
+  canvasWrapEl.classList.toggle("pan", mode === MODE.PAN && placingType === null);
+  canvasWrapEl.classList.toggle("wire-mode", mode === MODE.WIRE);
   btnWire.classList.toggle("active", mode === MODE.WIRE);
   btnPan.classList.toggle("active", mode === MODE.PAN);
   if (mode !== MODE.WIRE) {
@@ -245,7 +309,7 @@ function syncPlacingCursor() {
 }
 
 function render() {
-  renderGridSize();
+  applyView();
   const logic = evaluateBoard(state);
   renderWires(logic);
   renderComponents(logic);
@@ -254,7 +318,7 @@ function render() {
 
 /* ---------- Interaction ---------- */
 
-gridEl.addEventListener("pointerdown", (e) => {
+canvasWrapEl.addEventListener("pointerdown", (e) => {
   if (e.button === 2) return;
 
   const wireEl = e.target.closest(".wire");
@@ -295,19 +359,19 @@ gridEl.addEventListener("pointerdown", (e) => {
     renderComponents();
     renderWires();
 
-    const rect = gridEl.getBoundingClientRect();
+    const world = worldFromEvent(e);
     drag = {
       id: comp.id,
       startX: e.clientX,
       startY: e.clientY,
       originX: comp.x,
       originY: comp.y,
-      grabbedX: e.clientX - rect.left - comp.x * CELL,
-      grabbedY: e.clientY - rect.top - comp.y * CELL,
+      grabbedX: world.x - comp.x * CELL,
+      grabbedY: world.y - comp.y * CELL,
       moved: false,
       valid: true,
     };
-    gridEl.setPointerCapture(e.pointerId);
+    canvasWrapEl.setPointerCapture(e.pointerId);
     return;
   }
 
@@ -328,15 +392,15 @@ gridEl.addEventListener("pointerdown", (e) => {
   pan = {
     startX: e.clientX,
     startY: e.clientY,
-    left: canvasWrapEl.scrollLeft,
-    top: canvasWrapEl.scrollTop,
+    originX: view.x,
+    originY: view.y,
     moved: false,
   };
-  gridEl.classList.add("panning");
-  gridEl.setPointerCapture(e.pointerId);
+  canvasWrapEl.classList.add("panning");
+  canvasWrapEl.setPointerCapture(e.pointerId);
 });
 
-gridEl.addEventListener("contextmenu", (e) => {
+canvasWrapEl.addEventListener("contextmenu", (e) => {
   const wireEl = e.target.closest(".wire");
   let key = wireEl ? wireEl.dataset.key : null;
   if (!key && mode === MODE.WIRE) {
@@ -351,13 +415,14 @@ gridEl.addEventListener("contextmenu", (e) => {
   }
 });
 
-gridEl.addEventListener("pointermove", (e) => {
+canvasWrapEl.addEventListener("pointermove", (e) => {
   if (pan) {
     if (Math.abs(e.clientX - pan.startX) > 3 || Math.abs(e.clientY - pan.startY) > 3) {
       pan.moved = true;
     }
-    canvasWrapEl.scrollLeft = pan.left - (e.clientX - pan.startX);
-    canvasWrapEl.scrollTop = pan.top - (e.clientY - pan.startY);
+    view.x = pan.originX + (e.clientX - pan.startX);
+    view.y = pan.originY + (e.clientY - pan.startY);
+    applyView();
     return;
   }
 
@@ -374,9 +439,9 @@ gridEl.addEventListener("pointermove", (e) => {
   const comp = state.components.find((c) => c.id === drag.id);
   if (!comp) return;
 
-  const rect = gridEl.getBoundingClientRect();
-  const rawX = (e.clientX - rect.left - drag.grabbedX) / CELL;
-  const rawY = (e.clientY - rect.top - drag.grabbedY) / CELL;
+  const world = worldFromEvent(e);
+  const rawX = (world.x - drag.grabbedX) / CELL;
+  const rawY = (world.y - drag.grabbedY) / CELL;
   const nx = Math.round(rawX);
   const ny = Math.round(rawY);
   if (nx === comp.x && ny === comp.y) return;
@@ -400,9 +465,9 @@ function endDrag(e) {
   if (pan) {
     const wasClick = !pan.moved;
     pan = null;
-    gridEl.classList.remove("panning");
-    if (gridEl.hasPointerCapture?.(e.pointerId)) {
-      gridEl.releasePointerCapture(e.pointerId);
+    canvasWrapEl.classList.remove("panning");
+    if (canvasWrapEl.hasPointerCapture?.(e.pointerId)) {
+      canvasWrapEl.releasePointerCapture(e.pointerId);
     }
     if (wasClick) {
       selectedId = null;
@@ -420,8 +485,8 @@ function endDrag(e) {
     comp.y = drag.originY;
   }
   drag = null;
-  if (gridEl.hasPointerCapture?.(e.pointerId)) {
-    gridEl.releasePointerCapture(e.pointerId);
+  if (canvasWrapEl.hasPointerCapture?.(e.pointerId)) {
+    canvasWrapEl.releasePointerCapture(e.pointerId);
   }
   if (wasDrag) {
     sanitizeAfterComponentEdit();
@@ -431,10 +496,10 @@ function endDrag(e) {
   }
 }
 
-gridEl.addEventListener("pointerup", endDrag);
-gridEl.addEventListener("pointercancel", endDrag);
+canvasWrapEl.addEventListener("pointerup", endDrag);
+canvasWrapEl.addEventListener("pointercancel", endDrag);
 
-gridEl.addEventListener("pointerleave", () => {
+canvasWrapEl.addEventListener("pointerleave", () => {
   const el = gridEl.querySelector(".wire-preview");
   if (el) el.remove();
 });
@@ -478,8 +543,34 @@ function flashInvalidEdge(edge) {
   setTimeout(() => el.remove(), 250);
 }
 
+canvasWrapEl.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    const p = viewportFromEvent(e);
+    zoomAt(e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, p.x, p.y);
+  } else {
+    // Two-finger / wheel scroll pans the infinite canvas.
+    view.x -= e.deltaX;
+    view.y -= e.deltaY;
+    applyView();
+  }
+}, { passive: false });
+
 document.addEventListener("keydown", (e) => {
-  if (e.key === "r" || e.key === "R") {
+  const mod = e.ctrlKey || e.metaKey;
+  const zoomIn = e.key === "+" || e.key === "=" || e.code === "NumpadAdd";
+  const zoomOut = e.key === "-" || e.key === "_" || e.code === "NumpadSubtract";
+
+  if (zoomIn) {
+    zoomAt(ZOOM_STEP);
+    e.preventDefault();
+  } else if (zoomOut) {
+    zoomAt(1 / ZOOM_STEP);
+    e.preventDefault();
+  } else if (mod && e.key === "0") {
+    resetView();
+    e.preventDefault();
+  } else if (e.key === "r" || e.key === "R") {
     rotateSelected();
   } else if (e.key === "Delete" || e.key === "Backspace") {
     deleteSelected();
@@ -580,6 +671,7 @@ function loadFromText(text) {
     renderPalette();
     syncPlacingCursor();
     render();
+    resetView();
     return true;
   } catch (error) {
     alert(`Invalid document: ${error.message}`);
@@ -661,4 +753,5 @@ if (!saved || !loadFromText(saved)) {
   seedLayout();
   seedWires();
   render();
+  resetView();
 }
