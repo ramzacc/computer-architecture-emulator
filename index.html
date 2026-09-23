@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Grid Canvas Prototype</title>
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=10" />
 </head>
 <body>
   <header>
@@ -12,27 +12,26 @@
     <div class="toolbar">
       <button id="btn-wire" class="mode">Wire mode</button>
       <button id="btn-pan" class="mode">Pan mode</button>
-      <span class="divider"></span>
-      <button id="btn-save">Save</button>
-      <button id="btn-load">Load</button>
-      <button id="btn-download">Download .json</button>
-      <label class="file-label">
-        <span>Import .json</span>
-        <input id="file-input" type="file" accept="application/json,.json" />
-      </label>
-      <button id="btn-clear-wires">Clear wires</button>
-      <button id="btn-clear" class="danger">Clear all</button>
     </div>
   </header>
 
   <main>
     <section class="panel">
-      <h2>Components</h2>
-      <div id="palette" class="palette"></div>
-      <h2>Bus properties</h2>
+      <h2>File</h2>
+      <div class="file-actions">
+        <button id="btn-download">Download .json</button>
+        <label class="file-label">
+          <span>Import .json</span>
+          <input id="file-input" type="file" accept="application/json,.json" />
+        </label>
+      </div>
+      <h2>Wire properties</h2>
       <label class="property">New wire size (bits)
         <input id="new-wire-size" type="number" min="1" max="32" step="1" value="1" />
       </label>
+      <h2>Components</h2>
+      <div id="palette" class="palette"></div>
+      <h2 id="selected-properties-heading">Selected properties</h2>
       <label id="selected-size-row" class="property" hidden>Selected size (bits)
         <input id="selected-size" type="number" min="1" max="32" step="1" disabled />
       </label>
@@ -58,6 +57,6 @@
     </section>
   </main>
 
-  <script type="module" src="app.js?v=13"></script>
+  <script type="module" src="app.js?v=15"></script>
 </body>
 </html>

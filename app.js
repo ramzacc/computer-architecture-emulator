@@ -36,6 +36,7 @@ const btnPan = document.getElementById("btn-pan");
 const canvasWrapEl = document.getElementById("canvas-wrap");
 const zoomLabelEl = document.getElementById("zoom-level");
 const newWireSizeEl = document.getElementById("new-wire-size");
+const selectedPropertiesHeadingEl = document.getElementById("selected-properties-heading");
 const selectedSizeRowEl = document.getElementById("selected-size-row");
 const selectedSizeEl = document.getElementById("selected-size");
 const splitterOrderRowEl = document.getElementById("splitter-order-row");
@@ -54,6 +55,7 @@ function busStatus(message, error = false) {
 function renderProperties() {
   const component = state.components.find((c) => c.id === selectedId);
   const net = selectedWire ? netContaining(state, selectedWire) : null;
+  selectedPropertiesHeadingEl.textContent = component ? "Component properties" : net ? "Wire properties" : "Selected properties";
   const size = component && isSizable(component) ? bitWidth(component) : net?.size;
   selectedSizeRowEl.hidden = size === undefined;
   selectedSizeEl.disabled = size === undefined;
@@ -259,7 +261,7 @@ function svgWrap(inner, s, r) {
     : q === 3 ? `translate(0,${s.w * U}) rotate(270)`
     : null;
   const content = transform ? `<g transform="${transform}">${inner}</g>` : inner;
-  return `<svg class="art" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="none">${content}</svg>`;
+  return `<svg class="art" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="xMidYMid meet">${content}</svg>`;
 }
 
 function powerArt(color) {
@@ -421,12 +423,11 @@ function renderPalette() {
   paletteEl.innerHTML = "";
   for (const [type, s] of Object.entries(COMPONENT_TYPES)) {
     const btn = document.createElement("button");
+    btn.type = "button";
     btn.dataset.type = type;
     btn.classList.toggle("active", placingType === type);
-    btn.title = s.splitter ? "2 x (bits + 1)" : `${s.w}x${s.h}`;
-    btn.innerHTML = `<span class="swatch" style="background:${s.color}"></span>
-      <span class="name">${s.label}</span>
-      <span class="size">${s.splitter ? "1–32 bits" : s.constant ? "1–8 bits" : `${s.w}x${s.h}`}</span>`;
+    btn.innerHTML = `<span class="palette-icon" aria-hidden="true">${componentArt({ t: type, r: 0, size: s.splitter ? 4 : 1, value: 0 }, s)}</span>
+      <span class="name">${s.label}</span>`;
     btn.addEventListener("click", () => {
       placingType = placingType === type ? null : type;
       // Arming a component is a normal-canvas activity, so leave wire mode.
@@ -792,23 +793,6 @@ btnPan.addEventListener("click", () => {
   syncPlacingCursor();
 });
 
-document.getElementById("btn-clear").addEventListener("click", () => {
-  if (!confirm("Remove all components and wires?")) return;
-  state.components = [];
-  state.wires = new Map();
-  selectedId = null;
-  selectedWire = null;
-  render();
-});
-
-document.getElementById("btn-clear-wires").addEventListener("click", () => {
-  if (state.wires.size === 0) return;
-  if (!confirm("Remove all wires?")) return;
-  state.wires = new Map();
-  selectedWire = null;
-  render();
-});
-
 /* ---------- Persistence ---------- */
 
 function loadFromText(text) {
@@ -832,24 +816,6 @@ function loadFromText(text) {
     return false;
   }
 }
-
-document.getElementById("btn-save").addEventListener("click", () => {
-  try {
-    localStorage.setItem(STORAGE_KEY, serialize(state));
-    alert("Saved to browser storage.");
-  } catch (err) {
-    alert("Save failed: " + err.message);
-  }
-});
-
-document.getElementById("btn-load").addEventListener("click", () => {
-  const text = localStorage.getItem(STORAGE_KEY);
-  if (!text) {
-    alert("No saved state found.");
-    return;
-  }
-  loadFromText(text);
-});
 
 document.getElementById("btn-download").addEventListener("click", () => {
   const blob = new Blob([serialize(state)], { type: "application/json" });
