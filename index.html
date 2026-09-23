@@ -29,40 +29,6 @@
     <section class="panel">
       <h2>Components</h2>
       <div id="palette" class="palette"></div>
-      <p class="hint">Pick a known component, then click the grid to place it. Only its type + position are saved.</p>
-      <p class="hint">
-        <strong>Wire mode</strong> (top bar): start from a component pin, then
-        extend orthogonally. Click a wire to select its net, Delete to remove
-        it, right-click to remove one segment.
-      </p>
-      <p class="hint">
-        <strong>Pan mode</strong> (top bar, the default): drag empty canvas to
-        move around; click to select, drag a component to move it, or click the
-        grid to place the component picked above. Exactly one mode is always
-        active, so switching between Wire and Pan never leaves you modeless.
-      </p>
-      <p class="hint">
-        <strong>Power</strong> always drives its output pin high. Gates
-        (AND/OR/XOR/NAND) read their two inputs and drive their output. An
-        <strong>LED</strong> lights red when its single input net is
-        <strong>ON</strong>. Signals are solved live and never saved.
-      </p>
-
-      <h2>Selection</h2>
-      <div class="selection-box">
-        <div id="selection-info" class="muted">Nothing selected</div>
-        <div class="row">
-          <button id="btn-rotate" disabled>Rotate (R)</button>
-          <button id="btn-delete" disabled>Delete</button>
-        </div>
-      </div>
-
-      <h2>Serialized state</h2>
-      <textarea id="serialized" spellcheck="false"></textarea>
-      <div class="row">
-        <button id="btn-apply">Apply text</button>
-        <button id="btn-copy">Copy</button>
-      </div>
     </section>
 
     <section id="canvas-wrap" class="canvas-wrap">
