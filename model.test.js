@@ -250,6 +250,54 @@ test("constant drives its configured value and enforces its width and range", ()
   assert.equal(invalid.skipped.components, 2);
 });
 
+test("ALU selects arithmetic and logic operations and drives result flags", () => {
+  const board = createBoard();
+  for (const component of [
+    { id: "a", t: "constant", x: 0, y: 0, r: 0, size: 4, value: 7 },
+    { id: "b", t: "constant", x: 2, y: 0, r: 0, size: 4, value: 3 },
+    { id: "op", t: "constant", x: 4, y: 0, r: 0, size: 2, value: 0 },
+    { id: "alu", t: "alu", x: 0, y: 4, r: 0, size: 4 },
+  ]) assert.equal(addComponent(board, component), true);
+  assert.deepEqual(pinsFor(board.components[3]).map(({ name, size }) => [name, size]),
+    [["A", 4], ["B", 4], ["OP", 2], ["C", 1], ["R", 4], ["Z", 1]]);
+  for (const [x, size] of [[1, 4], [3, 4], [5, 2]]) {
+    for (const y of [2, 3]) assert.equal(addWireEdge(board, { o: "V", x, y, size }), true);
+  }
+  for (const [x, size] of [[1, 1], [3, 4], [5, 1]])
+    assert.equal(addWireEdge(board, { o: "V", x, y: 7, size }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 5, y: 1, size: 4 }), false);
+
+  const state = () => evaluateBoard(board).states.get("alu");
+  const nets = () => [...computeNets(board).values()].filter((net) => net.edges.some((edge) => edge.y === 7))
+    .sort((a, b) => a.edges[0].x - b.edges[0].x).map((net) => net.value);
+  assert.deepEqual([state().value, state().carry, state().zero], [10, 0, 0]);
+  assert.deepEqual(nets(), [0, 10, 0]);
+  board.components[2].value = 1;
+  assert.deepEqual([state().value, state().carry, state().zero], [4, 1, 0]);
+  board.components[0].value = 2;
+  assert.deepEqual([state().value, state().carry, state().zero], [15, 0, 0]);
+  board.components[2].value = 2;
+  assert.deepEqual([state().value, state().carry, state().zero], [2, 0, 0]);
+  board.components[2].value = 3;
+  assert.deepEqual([state().value, state().carry, state().zero], [3, 0, 0]);
+  board.components[0].value = 3;
+  board.components[2].value = 1;
+  assert.deepEqual([state().value, state().carry, state().zero], [0, 1, 1]);
+  board.components[0].value = 15;
+  board.components[1].value = 1;
+  board.components[2].value = 0;
+  assert.deepEqual([state().value, state().carry, state().zero], [0, 1, 1]);
+
+  const saved = JSON.parse(serialize(board));
+  assert.deepEqual(saved.components[3], { t: "alu", x: 0, y: 4, size: 4 });
+  assert.deepEqual(parseDocument(JSON.stringify(saved)).skipped, { components: 0, wires: 0 });
+  assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
+  const rotated = { id: "rotated", t: "alu", x: 10, y: 0, r: 1, size: 32 };
+  assert.equal(addComponent(board, rotated), true);
+  assert.deepEqual(dimsOf(rotated), { w: 3, h: 6 });
+  assert.deepEqual(pinsFor(rotated).map(({ size }) => size), [32, 32, 2, 1, 32, 1]);
+});
+
 test("imports reject mixed width connections", () => {
   const data = { components: [{ t: "and", x: 0, y: 2, size: 8 }], wires: [
     { o: "V", x: 1, y: 1, size: 8 },

@@ -57,6 +57,7 @@ export class BoardEditor {
     const component = { id, t: type, x, y, r: 0,
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
       ...(type === "constant" ? { size: 1, value: 0 } : {}) };
+    if (type === "alu") component.size = 4;
     if (!addComponent(this.board, component)) return null;
     this.commitComponentEdit();
     return component;

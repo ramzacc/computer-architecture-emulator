@@ -89,6 +89,19 @@ test('wire hover text includes the evaluated value', () => {
   assert.equal(wireTitle({ size: 2 }, 3), '2 bit(s), value 3');
 });
 
+test('ALU placement and resizing keep data and operation pin widths distinct', () => {
+  const { editor } = setup();
+  const alu = editor.place('alu', 0, 0);
+  assert.equal(alu.size, 4);
+  assert.equal(editor.addWire({ o: 'V', x: 5, y: -1, size: 2 }), true);
+  assert.equal(editor.addWire({ o: 'V', x: 3, y: 3, size: 4 }), true);
+  assert.equal(editor.resizeComponent(alu.id, 8), false);
+  assert.equal(editor.deleteNet('V:3,3'), true);
+  assert.equal(editor.resizeComponent(alu.id, 8), true);
+  assert.equal(editor.addWire({ o: 'V', x: 3, y: 3, size: 8 }), true);
+  assert.equal(editor.addWire({ o: 'V', x: 5, y: -2, size: 8 }), false);
+});
+
 test('a wire route places all segments in one saved edit and reuses existing segments', () => {
   const ctx = setup();
   const start = { x: -2, y: 0 };
