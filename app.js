@@ -1,12 +1,10 @@
-import { COMPONENT_TYPES, bitWidth, dimsOf, isSizable, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=13";
-import { addComponent, addWireEdge, createBoard, edgeKey,
-  edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, wireSize } from "./model.js?v=13";
+import { COMPONENT_TYPES, bitWidth, dimsOf, isSizable, pinsFor, spec, validBitWidth } from "./components.js";
+import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, serialize } from "./model.js";
+import { BoardEditor } from "./editor.js";
+import { createRenderer } from "./renderer.js";
 
 const CELL = 48;
 const GAP = 3;
-const WIRE_W = 4;
-const U = 40;
-const STORAGE_KEY = "grid-canvas-prototype-v5";
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 1.2;
@@ -26,7 +24,6 @@ let selectedWire = null;
 let placingType = null;
 let drag = null;
 let pan = null;
-let idCounter = 1;
 let newWireSize = 1;
 
 const gridEl = document.getElementById("grid");
@@ -46,6 +43,8 @@ const selectedValueEl = document.getElementById("selected-value");
 const constantValueRowEl = document.getElementById("constant-value-row");
 const constantValueEl = document.getElementById("constant-value");
 const busStatusEl = document.getElementById("bus-status");
+const { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox } =
+  createRenderer(gridEl, () => state, () => selectedId, () => selectedWire);
 
 function busStatus(message, error = false) {
   busStatusEl.textContent = message;
@@ -93,66 +92,34 @@ newWireSizeEl.addEventListener("change", () => {
 
 selectedSizeEl.addEventListener("change", () => {
   const size = Number(selectedSizeEl.value);
-  const component = state.components.find((c) => c.id === selectedId);
-  let changed = false;
-  if (validBitWidth(size) && component && isSizable(component)) {
-    const old = component.size ?? 1;
-    const oldValue = component.value;
-    if (component.t !== "constant" || size <= 8) {
-      component.size = size;
-      if (component.t === "constant") component.value = Math.min(component.value ?? 0, 2 ** size - 1);
-      changed = isValidComponent(state, component);
-      if (!changed) { component.size = old; component.value = oldValue; }
-    }
-  } else if (validBitWidth(size) && selectedWire) {
-    changed = resizeNet(state, selectedWire, size);
-  }
+  const component = editor.component(selectedId);
+  const current = component ? bitWidth(component) : selectedWire ? netContaining(state, selectedWire)?.size : undefined;
+  if (size === current) return;
+  const changed = component ? editor.resizeComponent(selectedId, size) : editor.resizeWire(selectedWire, size);
   if (!changed) busStatus(component?.t === "constant"
     ? "Constant width must be 1–8 bits and match connected wires."
     : "Bus size mismatch or invalid size (use 1–32 bits).", true);
-  else { busStatus(`Size set to ${size} bits.`); render(); }
+  else busStatus(`Size set to ${size} bits.`);
   renderProperties();
 });
 
 splitterOrderEl.addEventListener("change", () => {
-  const component = state.components.find((c) => c.id === selectedId);
-  if (!component || component.t !== "splitter") return;
-  component.order = splitterOrderEl.value;
-  busStatus(`Splitter order set to ${component.order}.`);
-  render();
+  if (editor.setSplitterOrder(selectedId, splitterOrderEl.value))
+    busStatus(`Splitter order set to ${splitterOrderEl.value}.`);
+  else renderProperties();
 });
 
 constantValueEl.addEventListener("change", () => {
-  const component = state.components.find((c) => c.id === selectedId);
+  const component = editor.component(selectedId);
   const value = Number(constantValueEl.value);
-  if (!component || component.t !== "constant" || !validConstant({ ...component, value })) {
-    busStatus(`Constant value must be a whole number from 0 to ${component ? 2 ** bitWidth(component) - 1 : 1}.`, true);
+  if (editor.setConstantValue(selectedId, value)) {
+    busStatus(`Constant set to ${value}.`);
+  } else {
+    if (component && value !== component.value)
+      busStatus(`Constant value must be a whole number from 0 to ${2 ** bitWidth(component) - 1}.`, true);
     renderProperties();
-    return;
   }
-  component.value = value;
-  busStatus(`Constant set to ${value}.`);
-  render();
 });
-
-function nextId() {
-  let id;
-  do { id = `c${idCounter++}`; }
-  while (state.components.some((component) => component.id === id));
-  return id;
-}
-
-function placeComponent(type, x, y) {
-  const component = { id: nextId(), t: type, x, y, r: 0,
-    ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
-    ...(type === "constant" ? { size: 1, value: 0 } : {}) };
-  return addComponent(state, component) ? component : null;
-}
-
-function sanitizeAfterComponentEdit() {
-  sanitizeWires(state);
-  if (selectedWire && !state.wires.has(selectedWire)) selectedWire = null;
-}
 
 function selectWire(key) {
   selectedWire = key;
@@ -252,173 +219,6 @@ function resetView() {
   applyView();
 }
 
-function svgWrap(inner, s, r) {
-  const q = ((r % 4) + 4) % 4;
-  const vw = (q % 2 ? s.h : s.w) * U;
-  const vh = (q % 2 ? s.w : s.h) * U;
-  const transform = q === 1 ? `translate(${s.h * U},0) rotate(90)`
-    : q === 2 ? `translate(${s.w * U},${s.h * U}) rotate(180)`
-    : q === 3 ? `translate(0,${s.w * U}) rotate(270)`
-    : null;
-  const content = transform ? `<g transform="${transform}">${inner}</g>` : inner;
-  return `<svg class="art" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="xMidYMid meet">${content}</svg>`;
-}
-
-function powerArt(color) {
-  const stroke = "rgba(255,255,255,.4)";
-  return `
-    <line x1="40" y1="63" x2="40" y2="83" stroke="${stroke}" stroke-width="2"/>
-    <circle cx="40" cy="38" r="25" fill="${color}" stroke="${stroke}" stroke-width="2"/>
-    <line x1="29" y1="38" x2="51" y2="38" stroke="#14161a" stroke-width="4"/>
-    <line x1="40" y1="27" x2="40" y2="49" stroke="#14161a" stroke-width="4"/>`;
-}
-
-function ledArt() {
-  const stroke = "rgba(255,255,255,.4)";
-  return `<rect class="led-body" x="4" y="4" width="72" height="72" fill="#5a5a7a" stroke="${stroke}" stroke-width="2"/>`;
-}
-
-function constantArt(c, color) {
-  const value = c.value ?? 0;
-  const stroke = "rgba(255,255,255,.55)";
-  const stub = [
-    [40, 72, 40, 83], // south
-    [8, 40, -1, 40],  // west
-    [40, 8, 40, -1],  // north
-    [72, 40, 83, 40], // east
-  ][((c.r ?? 0) % 4 + 4) % 4];
-  return `<rect x="8" y="8" width="64" height="64" rx="7" fill="${color}" stroke="${stroke}" stroke-width="2"/>
-    <text x="40" y="48" text-anchor="middle" fill="#14161a" font-size="24" font-weight="700">${value}</text>
-    <line x1="${stub[0]}" y1="${stub[1]}" x2="${stub[2]}" y2="${stub[3]}" stroke="${stroke}" stroke-width="2"/>`;
-}
-
-function gateArt(shape, color) {
-  const stroke = "rgba(255,255,255,.35)";
-  if (shape === "not") return `
-    <line x1="40" y1="0" x2="40" y2="18" stroke="${stroke}" stroke-width="2"/>
-    <path d="M16 18 H64 L40 60 Z" fill="${color}" stroke="${stroke}" stroke-width="2"/>
-    <circle cx="40" cy="66" r="6" fill="${color}" stroke="${stroke}" stroke-width="2"/>
-    <line x1="40" y1="72" x2="40" y2="80" stroke="${stroke}" stroke-width="2"/>`;
-  let body = "";
-  if (shape === "and" || shape === "nand") {
-    body = `<path d="M28 14 H132 V36 A52 32 0 0 1 28 36 Z" fill="${color}" stroke="${stroke}" stroke-width="2"/>`;
-  } else {
-    body = `<path d="M26 14 Q80 32 134 14 Q134 54 80 80 Q26 54 26 14 Z" fill="${color}" stroke="${stroke}" stroke-width="2"/>`;
-    if (shape === "xor") {
-      body += `<path d="M18 10 Q72 28 126 10" fill="none" stroke="${stroke}" stroke-width="2"/>`;
-    }
-  }
-  const stubs = `
-    <line x1="40" y1="0" x2="40" y2="18" stroke="${stroke}" stroke-width="2"/>
-    <line x1="120" y1="0" x2="120" y2="18" stroke="${stroke}" stroke-width="2"/>`;
-  let out = "";
-  if (shape === "nand") {
-    out = `<circle cx="80" cy="74" r="6" fill="${color}" stroke="${stroke}" stroke-width="2"/>`;
-  } else if (shape === "and") {
-    out = `<line x1="80" y1="68" x2="80" y2="80" stroke="${stroke}" stroke-width="2"/>`;
-  }
-  return body + stubs + out;
-}
-
-function componentArt(c, s) {
-  if (s.splitter) {
-    const n = bitWidth(c);
-    const branches = Array.from({ length: n }, (_, index) => {
-      const bit = c.order === "descendant" ? n - 1 - index : index;
-      return `<line x1="40" y1="${(index + 1) * U}" x2="80" y2="${(index + 1) * U}" stroke="#ddb866" stroke-width="3"/>
-       <text x="53" y="${(index + 1) * U - 5}" fill="#f4deb2" font-size="12">${bit}</text>`;
-    }).join("");
-    const inner = `<line x1="40" y1="0" x2="40" y2="${(n + 1) * U}" stroke="#ddb866" stroke-width="8"/>${branches}`;
-    return svgWrap(inner, { w: 2, h: n + 1 }, c.r);
-  }
-  let inner;
-  if (s.shape === "power") inner = powerArt(s.color);
-  else if (s.shape === "constant") inner = constantArt(c, s.color);
-  else if (s.shape === "led") inner = ledArt();
-  else inner = gateArt(s.shape, s.color);
-  return svgWrap(inner, s, s.constant ? 0 : c.r);
-}
-
-function renderComponents(logic = evaluateBoard(state)) {
-  gridEl.querySelectorAll(".comp").forEach((el) => el.remove());
-  for (const c of state.components) {
-    const s = spec(c.t);
-    const d = dimsOf(c);
-    if (!s || !d) continue;
-    const el = document.createElement("div");
-    el.className = "comp shaped";
-    el.dataset.id = c.id;
-    el.style.left = c.x * CELL + "px";
-    el.style.top = c.y * CELL + "px";
-    el.style.width = d.w * CELL - GAP + "px";
-    el.style.height = d.h * CELL - GAP + "px";
-    if (c.id === selectedId) el.classList.add("selected");
-    const st = logic.states.get(c.id);
-    if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
-    el.innerHTML = componentArt(c, s);
-    el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${st && st.value ? "  value: " + st.value : ""}`;
-    gridEl.appendChild(el);
-  }
-}
-
-function renderPins() {
-  gridEl.querySelectorAll(".pin").forEach((el) => el.remove());
-  for (const c of state.components) {
-    for (const p of pinsFor(c)) {
-      const el = document.createElement("div");
-      el.className = "pin " + p.role;
-      el.style.left = p.px * CELL + "px";
-      el.style.top = p.py * CELL + "px";
-      gridEl.appendChild(el);
-    }
-  }
-}
-
-function edgeBox(e) {
-  const width = wireSize(e) > 1 ? 7 : WIRE_W;
-  if (e.o === "H") {
-    return {
-      left: e.x * CELL + "px",
-      top: e.y * CELL - width / 2 + "px",
-      width: CELL + "px",
-      height: width + "px",
-    };
-  }
-  return {
-    left: e.x * CELL - width / 2 + "px",
-    top: e.y * CELL + "px",
-    width: width + "px",
-    height: CELL + "px",
-  };
-}
-
-function applyBox(el, box) {
-  el.style.left = box.left;
-  el.style.top = box.top;
-  el.style.width = box.width;
-  el.style.height = box.height;
-}
-
-function renderWires(logic = evaluateBoard(state)) {
-  gridEl.querySelectorAll(".wire").forEach((el) => el.remove());
-  const info = new Map();
-  for (const net of logic.nets.values()) {
-    for (const edge of net.edges) info.set(edgeKey(edge), { on: net.on, netId: net.id });
-  }
-  const selNetId = selectedWire && info.has(selectedWire) ? info.get(selectedWire).netId : null;
-  for (const w of state.wires.values()) {
-    const key = edgeKey(w);
-    const i = info.get(key);
-    const el = document.createElement("div");
-    el.dataset.key = key;
-    const selected = selNetId !== null && i.netId === selNetId;
-    el.className = "wire " + (i.on ? "on" : "off") + (wireSize(w) > 1 ? " bus" : "") + (selected ? " selected" : "");
-    el.title = `${wireSize(w)} bit(s), value ${i.value}`;
-    applyBox(el, edgeBox(w));
-    gridEl.appendChild(el);
-  }
-}
-
 function renderPalette() {
   paletteEl.innerHTML = "";
   for (const [type, s] of Object.entries(COMPONENT_TYPES)) {
@@ -481,9 +281,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       // Energization is derived, not toggled; just select it.
       selectWire(key);
       render();
-    } else if (addWireEdge(state, edge)) {
-      render();
-    } else {
+    } else if (!editor.addWire(edge)) {
       busStatus(edgePlacementError(state, edge) ?? "Cannot place wire.", true);
       flashInvalidEdge(edge);
     }
@@ -509,13 +307,10 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
     const world = worldFromEvent(e);
     drag = {
       id: comp.id,
-      startX: e.clientX,
-      startY: e.clientY,
       originX: comp.x,
       originY: comp.y,
       grabbedX: world.x - comp.x * CELL,
       grabbedY: world.y - comp.y * CELL,
-      moved: false,
       valid: true,
     };
     canvasWrapEl.setPointerCapture(e.pointerId);
@@ -523,12 +318,11 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
   }
 
   if (placingType) {
-    const comp = placeComponent(placingType, cell.x, cell.y);
+    const comp = editor.place(placingType, cell.x, cell.y);
     if (comp) {
       selectedId = comp.id;
       selectedWire = null;
       busStatus("Component selected.");
-      sanitizeAfterComponentEdit();
       render();
     } else {
       busStatus("Cannot place component here. Check overlaps and bus sizes.", true);
@@ -558,9 +352,8 @@ canvasWrapEl.addEventListener("contextmenu", (e) => {
   }
   if (key && state.wires.has(key)) {
     e.preventDefault();
-    state.wires.delete(key);
     if (selectedWire === key) selectedWire = null;
-    render();
+    editor.removeWire(key);
   }
 });
 
@@ -581,10 +374,6 @@ canvasWrapEl.addEventListener("pointermove", (e) => {
   }
 
   if (!drag) return;
-  const dx = e.clientX - drag.startX;
-  const dy = e.clientY - drag.startY;
-  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
-
   const comp = state.components.find((c) => c.id === drag.id);
   if (!comp) return;
 
@@ -628,23 +417,20 @@ function endDrag(e) {
     return;
   }
   if (!drag) return;
-  const comp = state.components.find((c) => c.id === drag.id);
-  const wasDrag = drag.moved;
-  if (comp && !drag.valid) {
-    busStatus("Cannot move component here. Check overlaps and bus sizes.", true);
-    comp.x = drag.originX;
-    comp.y = drag.originY;
-  }
+  const comp = editor.component(drag.id);
+  const { id, originX, originY, valid } = drag;
+  const target = comp ? { x: comp.x, y: comp.y } : null;
+  if (comp) { comp.x = originX; comp.y = originY; }
   drag = null;
   if (canvasWrapEl.hasPointerCapture?.(e.pointerId)) {
     canvasWrapEl.releasePointerCapture(e.pointerId);
   }
-  if (wasDrag) {
-    sanitizeAfterComponentEdit();
-    render();
-  } else {
-    renderComponents();
-  }
+  if (e.type !== "pointercancel" && target && (target.x !== originX || target.y !== originY)) {
+    if (!valid || !editor.move(id, target.x, target.y)) {
+      busStatus("Cannot move component here. Check overlaps and bus sizes.", true);
+      render();
+    }
+  } else render();
 }
 
 canvasWrapEl.addEventListener("pointerup", endDrag);
@@ -743,38 +529,20 @@ document.addEventListener("keydown", (e) => {
 /* ---------- Actions ---------- */
 
 function rotateSelected() {
-  const sel = state.components.find((c) => c.id === selectedId);
-  if (!sel) return;
-  const prev = ((sel.r % 4) + 4) % 4;
-  // Step through all four orientations; a rotation that would overlap is skipped
-  // so the user can still reach the other valid directions.
-  for (let step = 1; step <= 3; step++) {
-    sel.r = (prev + step) % 4;
-    if (isValidComponent(state, sel)) {
-      sanitizeAfterComponentEdit();
-      render();
-      return;
-    }
-  }
-  sel.r = prev;
+  editor.rotate(selectedId);
 }
 
 function deleteSelected() {
   if (selectedWire) {
-    const net = netContaining(state, selectedWire);
-    if (net) for (const w of net.edges) state.wires.delete(edgeKey(w));
+    const key = selectedWire;
     selectedWire = null;
-    render();
-    return;
+    editor.deleteNet(key);
+  } else if (selectedId) {
+    const id = selectedId;
+    selectedId = null;
+    editor.deleteComponent(id);
   }
-  if (!selectedId) return;
-  state.components = state.components.filter((c) => c.id !== selectedId);
-  selectedId = null;
-  render();
 }
-
-document.getElementById("btn-rotate")?.addEventListener("click", rotateSelected);
-document.getElementById("btn-delete")?.addEventListener("click", deleteSelected);
 
 btnWire.addEventListener("click", () => {
   mode = MODE.WIRE;
@@ -797,18 +565,17 @@ btnPan.addEventListener("click", () => {
 
 function loadFromText(text) {
   try {
+    // Parse before changing any selection or visible state.
     const { board, skipped } = parseDocument(text);
-    state = board;
-    idCounter = board.components.length + 1;
     selectedId = null;
     selectedWire = null;
     placingType = null;
     mode = MODE.PAN;
+    editor.replaceBoard(board);
     if (skipped.components) console.warn(`Skipped ${skipped.components} invalid component(s).`);
     if (skipped.wires) console.warn(`Skipped ${skipped.wires} invalid wire segment(s).`);
     renderPalette();
     syncPlacingCursor();
-    render();
     resetView();
     return true;
   } catch (error) {
@@ -850,7 +617,7 @@ function seedLayout() {
     ["power", 22, 0], ["power", 24, 0], ["xor", 22, 3], ["led", 23, 6],
   ];
   state.components = [];
-  for (const [t, x, y] of layout) placeComponent(t, x, y);
+  for (const [t, x, y] of layout) addComponent(state, { id: `c${state.components.length + 1}`, t, x, y, r: 0 });
 }
 
 function seedWires() {
@@ -864,14 +631,35 @@ function seedWires() {
   for (const wire of wires) addWireEdge(state, wire);
 }
 
+function getStorage() {
+  try { return globalThis.localStorage; }
+  catch (error) { console.warn("Browser storage is unavailable:", error); return null; }
+}
+
+const editor = new BoardEditor({
+  storage: getStorage(),
+  onChange: (board) => { state = board; render(); },
+  onStorageError: (error) => {
+    console.warn("Could not save board:", error);
+    queueMicrotask(() => busStatus("Board changed, but browser storage is unavailable. Download a copy to keep it.", true));
+  },
+});
+state = editor.board;
+
 /* ---------- Boot ---------- */
 
 renderPalette();
 syncPlacingCursor();
-const saved = localStorage.getItem(STORAGE_KEY);
-if (!saved || !loadFromText(saved)) {
+let restored = null;
+try { restored = editor.loadSaved(); }
+catch (error) { console.warn("Saved document is invalid:", error); }
+if (restored) {
+  editor.replaceBoard(restored.board, { save: false });
+  if (restored.skipped.components) console.warn(`Skipped ${restored.skipped.components} invalid component(s).`);
+  if (restored.skipped.wires) console.warn(`Skipped ${restored.skipped.wires} invalid wire segment(s).`);
+} else {
   seedLayout();
   seedWires();
   render();
-  resetView();
 }
+resetView();

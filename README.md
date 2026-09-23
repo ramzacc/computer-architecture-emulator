@@ -42,18 +42,35 @@ coordinates; the saved `grid` dimensions are legacy metadata and no longer
 bound placement. Wires can start anywhere and run along component borders, but
 cannot pass through a component's interior.
 
-The code has three parts:
+The code is split by responsibility:
 
 - `components.js` defines the fixed component catalog, dimensions, pin roles,
   and rotated pins.
 - `model.js` owns board geometry, wire networks, gate evaluation, and the JSON
   document format.
-- `app.js` handles browser events, SVG rendering, and local storage.
+- `editor.js` owns accepted board edits and saves each completed change.
+- `renderer.js` draws components, pins, and wires.
+- `app.js` handles browser events, view controls, and file actions.
 
 Saved documents use schema version 8. They contain grid dimensions, component
 types, positions, and gate sizes, plus sized wire segments. Pins, logic values, and wire power are
 derived from the catalog. Loading treats missing sizes in older documents as 1 bit and skips unknown or
 overlapping components and invalid or mismatched wire segments; the browser console reports the number skipped.
 
-Run the model checks with `npm test` (Node.js 18 or newer). No install step is
-needed.
+Run `npm run check` for syntax and `npm test` for model and editor regressions
+(Node.js 18 or newer). No install step is needed. GitHub Actions runs both on
+pushes and pull requests.
+
+## Browser smoke checklist
+
+Serve the directory, open the editor, and check:
+
+1. Place a component in an empty cell; drag it to another cell. An overlapping placement or drag should be rejected.
+2. Select a Constant, change its size and value, then draw a matching wire from its output. Hover the wire to see the evaluated value. Try a mismatched wire size and confirm rejection.
+3. Select a component and press `R` to rotate it; press `Delete` to remove it. Use `Escape` to clear the active tool and selection.
+4. Pan by dragging empty canvas, zoom with `Ctrl`/`Cmd` + scroll, then reset with `Ctrl`/`Cmd` + `0`.
+5. Download the board, import an example JSON file, and reload the page. The imported board should remain, and the saved JSON should say version 8.
+
+The smoke pass was run on 2026-09-23 against the local HTTP server in Orca's
+browser. Placement, dragging, wiring, properties, import, download, rotation,
+and reload persistence passed; model tests cover rejected edits and legacy import.

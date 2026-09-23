@@ -2,6 +2,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "check": "node --check app.js && node --check components.js && node --check editor.js && node --check model.js && node --check renderer.js && node --check editor.test.js && node --check model.test.js"
   }
 }
