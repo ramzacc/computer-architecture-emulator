@@ -3,7 +3,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { dimsOf, pinsFor, spec } from "./components.js";
 import { addComponent, addWireEdge, canPlaceEdge, computeNets, createBoard,
-  edgeKey, evaluateBoard, isValidComponent, parseDocument, resizeNet, sanitizeWires, serialize } from "./model.js";
+  edgeKey, evaluateBoard, isValidComponent, parseDocument, resizeNet, sanitizeWires, serialize, wireRoute } from "./model.js";
+
+test("wire routes use a clear bend and reject blocked paths", () => {
+  const board = createBoard();
+  addComponent(board, { id: "p", t: "power", x: 1, y: 0, r: 0 });
+  const route = wireRoute(board, { x: 0, y: 1 }, { x: 4, y: 3 }, 1);
+  assert.equal(route.error, null);
+  assert.deepEqual(route.edges.map(edgeKey), [
+    "V:0,1", "V:0,2", "H:0,3", "H:1,3", "H:2,3", "H:3,3",
+  ]);
+  assert.equal(wireRoute(board, { x: 0, y: 1 }, { x: 4, y: 1 }, 1).error,
+    "Wire is blocked by a component.");
+  assert.equal(board.wires.size, 0);
+});
 
 test("component geometry rotates pins and rejects overlap", () => {
   const board = createBoard(10, 10);
