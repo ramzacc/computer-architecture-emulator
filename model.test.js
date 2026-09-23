@@ -34,7 +34,7 @@ test("component geometry rotates pins and rejects overlap", () => {
 
 test("a power net drives an LED and sanitizes after edits", () => {
   const board = createBoard(10, 10);
-  addComponent(board, { id: "p", t: "power", x: 1, y: 1, r: 0 }); // out edge V:2,2
+  addComponent(board, { id: "p", t: "power", x: 1, y: 0, r: 0 }); // out edge V:2,2
   addComponent(board, { id: "l", t: "led", x: 1, y: 3, r: 0 });   // in edge V:2,2
   assert.equal(canPlaceEdge(board, { o: "H", x: 6, y: 6 }), false);
   assert.equal(addWireEdge(board, { o: "V", x: 2, y: 2 }), true);
@@ -47,13 +47,29 @@ test("a power net drives an LED and sanitizes after edits", () => {
   assert.equal(board.wires.has(edgeKey({ o: "V", x: 2, y: 2 })), false);
 });
 
+test("older power circuits keep their output connections after the 2x2 resize", () => {
+  const text = readFileSync(new URL("./examples/power-led.json", import.meta.url), "utf8");
+  const { board, skipped } = parseDocument(text);
+  assert.deepEqual(skipped, { components: 0, wires: 0 });
+  const power = board.components.find((component) => component.t === "power");
+  assert.deepEqual(dimsOf(power), { w: 2, h: 2 });
+  assert.deepEqual(pinsFor(power)[0].edge, { o: "V", x: 3, y: 2 });
+  assert.equal(evaluateBoard(board).states.get("c2").lit, true);
+
+  const rotated = parseDocument(JSON.stringify({ version: 7, components: [
+    { t: "power", x: 10, y: 10, r: 3 },
+  ], wires: [{ o: "H", x: 11, y: 11, size: 1 }] }));
+  assert.deepEqual(rotated.skipped, { components: 0, wires: 0 });
+  assert.deepEqual(pinsFor(rotated.board.components[0])[0].edge, { o: "H", x: 11, y: 11 });
+});
+
 test("gates compute their output from the input nets", () => {
   const board = createBoard(12, 12);
-  addComponent(board, { id: "p1", t: "power", x: 0, y: 0, r: 0 }); // out edge V:1,1
-  addComponent(board, { id: "p2", t: "power", x: 2, y: 0, r: 0 }); // out edge V:3,1
+  addComponent(board, { id: "p1", t: "power", x: 0, y: -1, r: 0 }); // out edge V:1,1
+  addComponent(board, { id: "p2", t: "power", x: 2, y: -1, r: 0 }); // out edge V:3,1
   addComponent(board, { id: "g", t: "and", x: 0, y: 3, r: 0 });   // in V:1,2 V:3,2, out V:2,5
-  addComponent(board, { id: "p3", t: "power", x: 6, y: 0, r: 0 }); // out edge V:7,1
-  addComponent(board, { id: "p4", t: "power", x: 8, y: 0, r: 0 }); // out edge V:9,1
+  addComponent(board, { id: "p3", t: "power", x: 6, y: -1, r: 0 }); // out edge V:7,1
+  addComponent(board, { id: "p4", t: "power", x: 8, y: -1, r: 0 }); // out edge V:9,1
   addComponent(board, { id: "h", t: "nand", x: 6, y: 3, r: 0 });  // in V:7,2 V:9,2, out V:8,5
   for (const wire of [
     { o: "V", x: 1, y: 1 }, { o: "V", x: 1, y: 2 },
@@ -115,7 +131,7 @@ test("32 bit NAND uses a full width mask and persists sizes", () => {
   assert.equal(result.states.get("n").value, 0xffffffff);
   assert.equal([...result.nets.values()][0].value, 0xffffffff);
   const saved = JSON.parse(serialize(board));
-  assert.equal(saved.version, 7);
+  assert.equal(saved.version, 8);
   assert.equal(saved.components[0].size, 32);
   assert.equal(saved.wires[0].size, 32);
   assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
@@ -133,7 +149,7 @@ test("constant drives its configured value and enforces its width and range", ()
   assert.equal(evaluateBoard(board).states.get("k").value, 173);
   assert.equal([...computeNets(board).values()][0].value, 173);
   const saved = JSON.parse(serialize(board));
-  assert.equal(saved.version, 7);
+  assert.equal(saved.version, 8);
   assert.deepEqual(saved.components[0], { t: "constant", x: 0, y: 0, size: 8, value: 173 });
   assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
   constant.value = 256;

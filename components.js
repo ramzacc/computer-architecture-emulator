@@ -12,9 +12,9 @@
 // need 0 < y < h. So 1-tall parts carry N/S pins and 1-wide parts carry W/E.
 export const COMPONENT_TYPES = {
   power: {
-    label: "Power", w: 2, h: 1, color: "#30a46c", shape: "power", source: true,
+    label: "Power", w: 2, h: 2, color: "#30a46c", shape: "power", source: true,
     pins: [
-      { x: 1, y: 1, dir: "S", role: "out" },
+      { x: 1, y: 2, dir: "S", role: "out" },
     ],
   },
   constant: {

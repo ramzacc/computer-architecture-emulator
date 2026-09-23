@@ -1,6 +1,6 @@
-import { COMPONENT_TYPES, bitWidth, dimsOf, isSizable, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=9";
+import { COMPONENT_TYPES, bitWidth, dimsOf, isSizable, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=12";
 import { addComponent, addWireEdge, createBoard, edgeKey,
-  edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, wireSize } from "./model.js?v=9";
+  edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, wireSize } from "./model.js?v=12";
 
 const CELL = 48;
 const GAP = 3;
@@ -243,10 +243,10 @@ function svgWrap(inner, s, r) {
 function powerArt(color) {
   const stroke = "rgba(255,255,255,.4)";
   return `
-    <line x1="40" y1="31" x2="40" y2="40" stroke="${stroke}" stroke-width="2"/>
-    <circle cx="40" cy="18" r="13" fill="${color}" stroke="${stroke}" stroke-width="2"/>
-    <line x1="34" y1="18" x2="46" y2="18" stroke="#14161a" stroke-width="3"/>
-    <line x1="40" y1="12" x2="40" y2="24" stroke="#14161a" stroke-width="3"/>`;
+    <line x1="40" y1="63" x2="40" y2="83" stroke="${stroke}" stroke-width="2"/>
+    <circle cx="40" cy="38" r="25" fill="${color}" stroke="${stroke}" stroke-width="2"/>
+    <line x1="29" y1="38" x2="51" y2="38" stroke="#14161a" stroke-width="4"/>
+    <line x1="40" y1="27" x2="40" y2="49" stroke="#14161a" stroke-width="4"/>`;
 }
 
 function ledArt() {
@@ -846,13 +846,13 @@ document.getElementById("file-input").addEventListener("change", (e) => {
 function seedLayout() {
   const layout = [
     // power straight into an LED
-    ["power", 2, 1], ["led", 2, 3],
+    ["power", 2, 0], ["led", 2, 3],
     // two powers into an AND, output into an LED
-    ["power", 7, 1], ["power", 9, 1], ["and", 7, 3], ["led", 8, 6],
+    ["power", 7, 0], ["power", 9, 0], ["and", 7, 3], ["led", 8, 6],
     // two powers into a NAND -> lights nothing
-    ["power", 14, 1], ["power", 16, 1], ["nand", 14, 3], ["led", 15, 6],
+    ["power", 14, 0], ["power", 16, 0], ["nand", 14, 3], ["led", 15, 6],
     // two powers into an XOR -> also off
-    ["power", 22, 1], ["power", 24, 1], ["xor", 22, 3], ["led", 23, 6],
+    ["power", 22, 0], ["power", 24, 0], ["xor", 22, 3], ["led", 23, 6],
   ];
   state.components = [];
   for (const [t, x, y] of layout) placeComponent(t, x, y);

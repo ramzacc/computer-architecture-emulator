@@ -1,6 +1,6 @@
-import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=9";
+import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validConstant } from "./components.js?v=12";
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 export const DEFAULT_COLS = 64;
 export const DEFAULT_ROWS = 44;
 
@@ -312,6 +312,12 @@ export function parseDocument(text) {
       x: clampInt(raw.x, -COORD_LIMIT, COORD_LIMIT, 0),
       y: clampInt(raw.y, -COORD_LIMIT, COORD_LIMIT, 0),
     };
+    // Power grew from 2x1 to 2x2 in version 8. Keep its old output pin at
+    // the same lattice point so existing wires can still connect.
+    if (raw.t === "power" && (data.version ?? 0) < 8) {
+      if (r === 0) component.y--;
+      if (r === 3) component.x--;
+    }
     if (!addComponent(board, component)) skipped.components++;
   }
   if (Array.isArray(data.wires)) {

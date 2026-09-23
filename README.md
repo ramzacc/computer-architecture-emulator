@@ -13,7 +13,7 @@ Three example circuit documents are in [`examples/`](examples/). Import one with
 2. [AND gate](examples/and-gate.json) — two powered inputs light an LED through an AND gate. Remove one input wire to see it turn off.
 3. [Two-bit bus](examples/splitter-combine.json) — two power rails form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
 
-The catalog holds real logic-level parts: a **Power** rail (always drives high),
+The catalog holds real logic-level parts: a 2×2 **Power** rail (always drives high),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**
 and **NAND** gates, plus a **Splitter** and **Constant** source. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
@@ -48,7 +48,7 @@ The code has three parts:
   document format.
 - `app.js` handles browser events, SVG rendering, and local storage.
 
-Saved documents use schema version 7. They contain grid dimensions, component
+Saved documents use schema version 8. They contain grid dimensions, component
 types, positions, and gate sizes, plus sized wire segments. Pins, logic values, and wire power are
 derived from the catalog. Loading treats missing sizes in older documents as 1 bit and skips unknown or
 overlapping components and invalid or mismatched wire segments; the browser console reports the number skipped.
