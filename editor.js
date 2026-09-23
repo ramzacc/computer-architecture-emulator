@@ -1,6 +1,6 @@
 import { bitWidth, isSizable, validBitWidth, validConstant, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey, isValidComponent,
-  netContaining, parseDocument, resizeNet, sanitizeWires, serialize } from "./model.js";
+  netContaining, parseDocument, resizeNet, sanitizeWires, serialize, wireRoute } from "./model.js";
 
 export const STORAGE_KEY = "grid-canvas-prototype-v5";
 
@@ -66,6 +66,19 @@ export class BoardEditor {
     if (!addWireEdge(this.board, edge)) return false;
     this.commit();
     return true;
+  }
+
+  addWireRoute(start, end, size) {
+    const route = wireRoute(this.board, start, end, size);
+    if (route.error) return route;
+    let changed = false;
+    for (const edge of route.edges) {
+      if (this.board.wires.has(edgeKey(edge))) continue;
+      this.board.wires.set(edgeKey(edge), edge);
+      changed = true;
+    }
+    if (changed) this.commit();
+    return route;
   }
 
   removeWire(key) {

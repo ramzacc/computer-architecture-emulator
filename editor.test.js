@@ -88,3 +88,32 @@ test('storage errors leave the current board usable', () => {
 test('wire hover text includes the evaluated value', () => {
   assert.equal(wireTitle({ size: 2 }, 3), '2 bit(s), value 3');
 });
+
+test('a wire route places all segments in one saved edit and reuses existing segments', () => {
+  const ctx = setup();
+  const start = { x: -2, y: 0 };
+  const corner = { x: 1, y: 2 };
+  assert.equal(ctx.editor.addWireRoute(start, corner, 1).error, null);
+  assert.deepEqual([...ctx.editor.board.wires.keys()], [
+    'H:-2,0', 'H:-1,0', 'H:0,0', 'V:1,0', 'V:1,1',
+  ]);
+  assert.equal(ctx.saves, 1);
+  assert.equal(ctx.editor.addWireRoute(corner, { x: 1, y: 4 }, 1).error, null);
+  assert.equal(ctx.editor.board.wires.size, 7);
+  assert.equal(ctx.saves, 2);
+  assert.equal(ctx.editor.addWireRoute(start, corner, 1).error, null);
+  assert.equal(ctx.saves, 2);
+  assert.equal(ctx.editor.addWireRoute(start, corner, 2).error, 'Bus size mismatch.');
+  assert.equal(ctx.saves, 2);
+  assert.equal(ctx.editor.board.wires.size, 7);
+});
+
+test('a blocked wire route leaves the board untouched', () => {
+  const ctx = setup();
+  ctx.editor.place('power', 1, 0);
+  const before = serialize(ctx.editor.board);
+  assert.equal(ctx.editor.addWireRoute({ x: 0, y: 1 }, { x: 4, y: 1 }, 1).error,
+    'Wire is blocked by a component.');
+  assert.equal(serialize(ctx.editor.board), before);
+  assert.equal(ctx.saves, 1);
+});

@@ -99,6 +99,54 @@ export function addWireEdge(board, edge) {
   return true;
 }
 
+// Build one continuous orthogonal run. Try the other corner when the first
+// bend would cross a component or a differently sized net.
+export function wireRoute(board, start, end, size) {
+  const distance = Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
+  if (!Number.isInteger(start.x) || !Number.isInteger(start.y) ||
+      !Number.isInteger(end.x) || !Number.isInteger(end.y) ||
+      !validBitWidth(size)) return { edges: [], error: "Invalid wire route." };
+  if (distance > 256) return { edges: [], error: "Route is too long; add a corner closer by." };
+
+  const build = (horizontalFirst) => {
+    const edges = [];
+    let { x, y } = start;
+    const step = (axis, target) => {
+      while ((axis === "x" ? x : y) !== target) {
+        const direction = Math.sign(target - (axis === "x" ? x : y));
+        edges.push(axis === "x"
+          ? { o: "H", x: direction > 0 ? x : x - 1, y, size }
+          : { o: "V", x, y: direction > 0 ? y : y - 1, size });
+        if (axis === "x") x += direction;
+        else y += direction;
+      }
+    };
+    if (horizontalFirst) { step("x", end.x); step("y", end.y); }
+    else { step("y", end.y); step("x", end.x); }
+    return edges;
+  };
+
+  let firstError = null;
+  for (const horizontalFirst of [true, false]) {
+    const edges = build(horizontalFirst);
+    const trial = { ...board, wires: new Map(board.wires) };
+    let error = null;
+    for (const edge of edges) {
+      const existing = trial.wires.get(edgeKey(edge));
+      if (existing) {
+        if (wireSize(existing) !== size) { error = "Bus size mismatch."; break; }
+      } else {
+        error = edgePlacementError(trial, edge);
+        if (error) break;
+        trial.wires.set(edgeKey(edge), edge);
+      }
+    }
+    if (!error) return { edges, error: null };
+    firstError ??= error;
+  }
+  return { edges: build(true), error: firstError };
+}
+
 export function sanitizeWires(board) {
   for (const [key, edge] of board.wires) {
     if (!edgeInBounds(board, edge) || !validBitWidth(wireSize(edge)) ||
