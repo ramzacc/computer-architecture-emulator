@@ -7,6 +7,11 @@ const GAP = 3;
 const WIRE_W = 4;
 const STORAGE_KEY = "grid-canvas-prototype-v4";
 
+// Exactly one mode is always active. Add future modes here and wire them into
+// the pointer handlers below; never allow a null/empty mode.
+const MODE = Object.freeze({ PAN: "pan", WIRE: "wire" });
+
+let mode = MODE.PAN;
 let state = createBoard();
 let selectedId = null;
 let selectedWire = null;
@@ -160,6 +165,8 @@ function renderPalette() {
       <span class="size">${s.w}x${s.h}</span>`;
     btn.addEventListener("click", () => {
       placingType = placingType === type ? null : type;
+      // Arming a component is a normal-canvas activity, so leave wire mode.
+      if (placingType) mode = MODE.PAN;
       renderPalette();
       syncPlacingCursor();
     });
@@ -168,11 +175,12 @@ function renderPalette() {
 }
 
 function syncPlacingCursor() {
-  gridEl.classList.toggle("placing", placingType !== null && placingType !== "pan");
-  gridEl.classList.toggle("pan", placingType === "pan");
-  btnWire.classList.toggle("active", placingType === "wire");
-  btnPan.classList.toggle("active", placingType === "pan");
-  if (placingType !== "wire") {
+  gridEl.classList.toggle("placing", placingType !== null);
+  gridEl.classList.toggle("pan", mode === MODE.PAN && placingType === null);
+  gridEl.classList.toggle("wire", mode === MODE.WIRE);
+  btnWire.classList.toggle("active", mode === MODE.WIRE);
+  btnPan.classList.toggle("active", mode === MODE.PAN);
+  if (mode !== MODE.WIRE) {
     const pv = gridEl.querySelector(".wire-preview");
     if (pv) pv.remove();
   }
@@ -224,25 +232,13 @@ function render() {
 /* ---------- Interaction ---------- */
 
 gridEl.addEventListener("pointerdown", (e) => {
-  if (placingType === "pan") {
-    if (e.button === 2) return;
-    pan = {
-      startX: e.clientX,
-      startY: e.clientY,
-      left: canvasWrapEl.scrollLeft,
-      top: canvasWrapEl.scrollTop,
-    };
-    gridEl.classList.add("panning");
-    gridEl.setPointerCapture(e.pointerId);
-    return;
-  }
+  if (e.button === 2) return;
 
   const wireEl = e.target.closest(".wire");
   const compEl = e.target.closest(".comp");
   const cell = cellFromEvent(e);
 
-  if (placingType === "wire") {
-    if (e.button === 2) return;
+  if (mode === MODE.WIRE) {
     if (wireEl) {
       selectWire(wireEl.dataset.key);
       renderSelection();
@@ -305,19 +301,25 @@ gridEl.addEventListener("pointerdown", (e) => {
     } else {
       flashInvalid(cell);
     }
-  } else {
-    selectedId = null;
-    selectedWire = null;
-    renderSelection();
-    renderComponents();
-    renderWires();
+    return;
   }
+
+  // Pan mode: drag empty canvas to pan; a plain click clears the selection.
+  pan = {
+    startX: e.clientX,
+    startY: e.clientY,
+    left: canvasWrapEl.scrollLeft,
+    top: canvasWrapEl.scrollTop,
+    moved: false,
+  };
+  gridEl.classList.add("panning");
+  gridEl.setPointerCapture(e.pointerId);
 });
 
 gridEl.addEventListener("contextmenu", (e) => {
   const wireEl = e.target.closest(".wire");
   let key = wireEl ? wireEl.dataset.key : null;
-  if (!key && placingType === "wire") {
+  if (!key && mode === MODE.WIRE) {
     const edge = edgeFromEvent(e);
     key = edgeKey(edge);
   }
@@ -331,12 +333,15 @@ gridEl.addEventListener("contextmenu", (e) => {
 
 gridEl.addEventListener("pointermove", (e) => {
   if (pan) {
+    if (Math.abs(e.clientX - pan.startX) > 3 || Math.abs(e.clientY - pan.startY) > 3) {
+      pan.moved = true;
+    }
     canvasWrapEl.scrollLeft = pan.left - (e.clientX - pan.startX);
     canvasWrapEl.scrollTop = pan.top - (e.clientY - pan.startY);
     return;
   }
 
-  if (placingType === "wire" && !drag) {
+  if (mode === MODE.WIRE && !drag) {
     updateWirePreview(edgeFromEvent(e));
     return;
   }
@@ -374,10 +379,18 @@ gridEl.addEventListener("pointermove", (e) => {
 
 function endDrag(e) {
   if (pan) {
+    const wasClick = !pan.moved;
     pan = null;
     gridEl.classList.remove("panning");
     if (gridEl.hasPointerCapture?.(e.pointerId)) {
       gridEl.releasePointerCapture(e.pointerId);
+    }
+    if (wasClick) {
+      selectedId = null;
+      selectedWire = null;
+      renderSelection();
+      renderComponents();
+      renderWires();
     }
     return;
   }
@@ -455,6 +468,7 @@ document.addEventListener("keydown", (e) => {
     deleteSelected();
     e.preventDefault();
   } else if (e.key === "Escape") {
+    mode = MODE.PAN;
     placingType = null;
     selectedId = null;
     selectedWire = null;
@@ -497,7 +511,8 @@ document.getElementById("btn-rotate").addEventListener("click", rotateSelected);
 document.getElementById("btn-delete").addEventListener("click", deleteSelected);
 
 btnWire.addEventListener("click", () => {
-  placingType = placingType === "wire" ? null : "wire";
+  mode = MODE.WIRE;
+  placingType = null;
   selectedWire = null;
   renderPalette();
   syncPlacingCursor();
@@ -506,7 +521,8 @@ btnWire.addEventListener("click", () => {
 });
 
 btnPan.addEventListener("click", () => {
-  placingType = placingType === "pan" ? null : "pan";
+  mode = MODE.PAN;
+  placingType = null;
   renderPalette();
   syncPlacingCursor();
 });
@@ -538,6 +554,7 @@ function loadFromText(text) {
     selectedId = null;
     selectedWire = null;
     placingType = null;
+    mode = MODE.PAN;
     if (skipped.components) console.warn(`Skipped ${skipped.components} invalid component(s).`);
     if (skipped.wires) console.warn(`Skipped ${skipped.wires} invalid wire segment(s).`);
     renderPalette();
