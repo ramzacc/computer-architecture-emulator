@@ -156,6 +156,9 @@ main {
 .wire.off {
   background: #2a6b78;
 }
+.wire.on.selected {
+  box-shadow: 0 0 0 2px #fff, 0 0 6px #7ff0ff;
+}
 .wire.invalid {
   background: rgba(229, 72, 77, .5);
 }
