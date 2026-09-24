@@ -168,6 +168,46 @@ export class BoardEditor {
     return true;
   }
 
+  deleteComponents(ids) {
+    const selected = new Set(ids);
+    const before = this.board.components.length;
+    this.board.components = this.board.components.filter((component) => !selected.has(component.id));
+    if (this.board.components.length === before) return false;
+    this.commit();
+    return true;
+  }
+
+  copyComponents(ids) {
+    const selected = new Set(ids);
+    return this.board.components.filter((component) => selected.has(component.id))
+      .map(({ id, ...component }) => ({ ...component }));
+  }
+
+  pasteComponents(copies) {
+    if (!copies?.length) return [];
+    // Search outward while keeping the copied layout together. Validate the
+    // complete group on a trial board so a failed paste changes nothing.
+    for (let offset = 2; offset <= 200; offset += 2) {
+      const trial = { ...this.board, components: [...this.board.components] };
+      const added = [];
+      let nextId = this.nextComponentId;
+      let valid = true;
+      for (const copy of copies) {
+        let id;
+        do { id = `c${nextId++}`; } while (trial.components.some((c) => c.id === id));
+        const component = { ...copy, id, x: copy.x + offset, y: copy.y + offset };
+        if (!addComponent(trial, component)) { valid = false; break; }
+        added.push(component);
+      }
+      if (!valid) continue;
+      this.nextComponentId = nextId;
+      this.board.components.push(...added);
+      this.commit();
+      return added;
+    }
+    return [];
+  }
+
   deleteNet(key) {
     const net = netContaining(this.board, key);
     if (!net) return false;

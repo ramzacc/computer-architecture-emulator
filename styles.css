@@ -237,6 +237,9 @@ main {
 .canvas-wrap.wire-mode { cursor: crosshair; }
 .canvas-wrap.pan { cursor: grab; }
 .canvas-wrap.panning { cursor: grabbing; }
+.canvas-wrap.select-mode { cursor: crosshair; }
+.canvas-wrap.select-mode .comp { cursor: pointer; }
+.selection-box { position: absolute; z-index: 7; border: 1px solid var(--accent); background: rgba(76, 139, 245, .18); pointer-events: none; }
 
 .property { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; font-size: 12px; }
 .property[hidden] { display: none; }

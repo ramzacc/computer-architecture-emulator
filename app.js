@@ -15,15 +15,18 @@ const view = { x: 0, y: 0, zoom: 1 };
 
 // Exactly one mode is always active. Add future modes here and wire them into
 // the pointer handlers below; never allow a null/empty mode.
-const MODE = Object.freeze({ PAN: "pan", WIRE: "wire" });
+const MODE = Object.freeze({ PAN: "pan", WIRE: "wire", SELECT: "select" });
 
 let mode = MODE.PAN;
 let state = createBoard();
 let selectedId = null;
+let selectedIds = new Set();
 let selectedWire = null;
 let placingType = null;
 let drag = null;
 let pan = null;
+let marquee = null;
+let copiedComponents = [];
 let newWireSize = 1;
 let wireStart = null;
 
@@ -31,6 +34,10 @@ const gridEl = document.getElementById("grid");
 const paletteEl = document.getElementById("palette");
 const btnWire = document.getElementById("btn-wire");
 const btnPan = document.getElementById("btn-pan");
+const btnSelect = document.getElementById("btn-select");
+const btnCopy = document.getElementById("btn-copy");
+const btnPaste = document.getElementById("btn-paste");
+const btnDelete = document.getElementById("btn-delete");
 const canvasWrapEl = document.getElementById("canvas-wrap");
 const zoomLabelEl = document.getElementById("zoom-level");
 const newWireSizeEl = document.getElementById("new-wire-size");
@@ -46,7 +53,22 @@ const constantValueRowEl = document.getElementById("constant-value-row");
 const constantValueEl = document.getElementById("constant-value");
 const busStatusEl = document.getElementById("bus-status");
 const { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox } =
-  createRenderer(gridEl, () => state, () => selectedId, () => selectedWire);
+  createRenderer(gridEl, () => state, () => selectedIds, () => selectedWire);
+
+function setSelectedComponents(ids) {
+  selectedIds = new Set(ids);
+  selectedId = selectedIds.size === 1 ? [...selectedIds][0] : null;
+  selectedWire = null;
+  renderComponents();
+  renderWires();
+  renderProperties();
+}
+
+function syncActionButtons() {
+  btnCopy.disabled = selectedIds.size === 0;
+  btnPaste.disabled = copiedComponents.length === 0;
+  btnDelete.disabled = selectedIds.size === 0 && !selectedWire;
+}
 
 function busStatus(message, error = false) {
   busStatusEl.textContent = message;
@@ -56,7 +78,7 @@ function busStatus(message, error = false) {
 function renderProperties() {
   const component = state.components.find((c) => c.id === selectedId);
   const net = selectedWire ? netContaining(state, selectedWire) : null;
-  selectedPropertiesHeadingEl.textContent = component ? "Component properties" : net ? "Wire properties" : "Selected properties";
+  selectedPropertiesHeadingEl.textContent = selectedIds.size > 1 ? `${selectedIds.size} components selected` : component ? "Component properties" : net ? "Wire properties" : "Selected properties";
   const size = component && isSizable(component) ? bitWidth(component) : net?.size;
   selectedSizeRowEl.hidden = size === undefined;
   selectedSizeEl.disabled = size === undefined;
@@ -83,6 +105,7 @@ function renderProperties() {
     busStatus(component ? `${spec(component.t).label}: ${size} bit${size === 1 ? "" : "s"}.` :
       `Selected bus: ${size} bit${size === 1 ? "" : "s"}.`);
   }
+  syncActionButtons();
 }
 
 newWireSizeEl.addEventListener("change", () => {
@@ -131,6 +154,7 @@ constantValueEl.addEventListener("change", () => {
 function selectWire(key) {
   selectedWire = key;
   selectedId = null;
+  selectedIds.clear();
   busStatus("Wire net selected.");
   renderProperties();
 }
@@ -255,8 +279,10 @@ function syncPlacingCursor() {
   canvasWrapEl.classList.toggle("placing", placingType !== null);
   canvasWrapEl.classList.toggle("pan", mode === MODE.PAN && placingType === null);
   canvasWrapEl.classList.toggle("wire-mode", mode === MODE.WIRE);
+  canvasWrapEl.classList.toggle("select-mode", mode === MODE.SELECT);
   btnWire.classList.toggle("active", mode === MODE.WIRE);
   btnPan.classList.toggle("active", mode === MODE.PAN);
+  btnSelect.classList.toggle("active", mode === MODE.SELECT);
   if (mode !== MODE.WIRE) {
     clearWireGesture();
   }
@@ -285,6 +311,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
     if (!wireStart) {
       wireStart = point;
       selectedId = null;
+      selectedIds.clear();
       selectedWire = null;
       renderComponents();
       renderWires();
@@ -302,6 +329,23 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
     return;
   }
 
+  if (mode === MODE.SELECT) {
+    if (compEl) {
+      const ids = new Set(e.shiftKey ? selectedIds : []);
+      const id = compEl.dataset.id;
+      if (ids.has(id)) ids.delete(id);
+      else ids.add(id);
+      setSelectedComponents(ids);
+      busStatus(`${selectedIds.size} component${selectedIds.size === 1 ? "" : "s"} selected.`);
+    } else {
+      const world = worldFromEvent(e);
+      marquee = { startX: world.x, startY: world.y, endX: world.x, endY: world.y,
+        additive: e.shiftKey, initial: new Set(selectedIds), moved: false };
+      canvasWrapEl.setPointerCapture(e.pointerId);
+    }
+    return;
+  }
+
   if (wireEl) {
     selectWire(wireEl.dataset.key);
     renderWires();
@@ -312,6 +356,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
     const comp = state.components.find((c) => c.id === compEl.dataset.id);
     if (!comp) return;
     selectedId = comp.id;
+    selectedIds = new Set([comp.id]);
     selectedWire = null;
     busStatus("Component selected.");
     renderProperties();
@@ -335,6 +380,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
     const comp = editor.place(placingType, cell.x, cell.y);
     if (comp) {
       selectedId = comp.id;
+      selectedIds = new Set([comp.id]);
       selectedWire = null;
       busStatus("Component selected.");
       render();
@@ -378,6 +424,14 @@ canvasWrapEl.addEventListener("contextmenu", (e) => {
 });
 
 canvasWrapEl.addEventListener("pointermove", (e) => {
+  if (marquee) {
+    const world = worldFromEvent(e);
+    marquee.endX = world.x;
+    marquee.endY = world.y;
+    marquee.moved ||= Math.abs(world.x - marquee.startX) > 3 || Math.abs(world.y - marquee.startY) > 3;
+    drawMarquee();
+    return;
+  }
   if (pan) {
     if (Math.abs(e.clientX - pan.startX) > 3 || Math.abs(e.clientY - pan.startY) > 3) {
       pan.moved = true;
@@ -420,6 +474,26 @@ canvasWrapEl.addEventListener("pointermove", (e) => {
 });
 
 function endDrag(e) {
+  if (marquee) {
+    const { startX, startY, endX, endY, moved, additive, initial } = marquee;
+    marquee = null;
+    gridEl.querySelector(".selection-box")?.remove();
+    if (canvasWrapEl.hasPointerCapture?.(e.pointerId)) canvasWrapEl.releasePointerCapture(e.pointerId);
+    if (e.type === "pointercancel") return;
+    const ids = new Set(additive ? initial : []);
+    if (moved) {
+      const left = Math.min(startX, endX), right = Math.max(startX, endX);
+      const top = Math.min(startY, endY), bottom = Math.max(startY, endY);
+      for (const component of state.components) {
+        const { w, h } = dimsOf(component);
+        if (component.x * CELL < right && (component.x + w) * CELL > left &&
+            component.y * CELL < bottom && (component.y + h) * CELL > top) ids.add(component.id);
+      }
+    }
+    setSelectedComponents(ids);
+    busStatus(`${ids.size} component${ids.size === 1 ? "" : "s"} selected.`);
+    return;
+  }
   if (pan) {
     const wasClick = !pan.moved;
     pan = null;
@@ -429,6 +503,7 @@ function endDrag(e) {
     }
     if (wasClick) {
       selectedId = null;
+      selectedIds.clear();
       selectedWire = null;
       renderComponents();
       renderWires();
@@ -451,6 +526,19 @@ function endDrag(e) {
       render();
     }
   } else render();
+}
+
+function drawMarquee() {
+  let box = gridEl.querySelector(".selection-box");
+  if (!box) {
+    box = document.createElement("div");
+    box.className = "selection-box";
+    gridEl.appendChild(box);
+  }
+  box.style.left = Math.min(marquee.startX, marquee.endX) + "px";
+  box.style.top = Math.min(marquee.startY, marquee.endY) + "px";
+  box.style.width = Math.abs(marquee.endX - marquee.startX) + "px";
+  box.style.height = Math.abs(marquee.endY - marquee.startY) + "px";
 }
 
 canvasWrapEl.addEventListener("pointerup", endDrag);
@@ -524,7 +612,11 @@ document.addEventListener("keydown", (e) => {
   const zoomIn = e.key === "+" || e.key === "=" || e.code === "NumpadAdd";
   const zoomOut = e.key === "-" || e.key === "_" || e.code === "NumpadSubtract";
 
-  if (zoomIn) {
+  if (mod && e.key.toLowerCase() === "c") {
+    if (selectedIds.size) { copySelected(); e.preventDefault(); }
+  } else if (mod && e.key.toLowerCase() === "v") {
+    if (copiedComponents.length) { pasteCopied(); e.preventDefault(); }
+  } else if (zoomIn) {
     zoomAt(ZOOM_STEP);
     e.preventDefault();
   } else if (zoomOut) {
@@ -547,6 +639,7 @@ document.addEventListener("keydown", (e) => {
     mode = MODE.PAN;
     placingType = null;
     selectedId = null;
+    selectedIds.clear();
     selectedWire = null;
     renderPalette();
     syncPlacingCursor();
@@ -565,20 +658,60 @@ function deleteSelected() {
     const key = selectedWire;
     selectedWire = null;
     editor.deleteNet(key);
-  } else if (selectedId) {
-    const id = selectedId;
+  } else if (selectedIds.size) {
+    const ids = [...selectedIds];
+    selectedIds.clear();
     selectedId = null;
-    editor.deleteComponent(id);
+    editor.deleteComponents(ids);
   }
+  syncActionButtons();
 }
+
+function copySelected() {
+  copiedComponents = editor.copyComponents(selectedIds);
+  syncActionButtons();
+  busStatus(`${copiedComponents.length} component${copiedComponents.length === 1 ? "" : "s"} copied.`);
+}
+
+function pasteCopied() {
+  const added = editor.pasteComponents(copiedComponents);
+  if (!added.length) {
+    busStatus("Cannot paste components nearby. Check overlaps, bus sizes, and short circuits.", true);
+    return;
+  }
+  mode = MODE.SELECT;
+  placingType = null;
+  renderPalette();
+  syncPlacingCursor();
+  setSelectedComponents(added.map((component) => component.id));
+  busStatus(`${added.length} component${added.length === 1 ? "" : "s"} pasted.`);
+}
+
+btnCopy.addEventListener("click", copySelected);
+btnPaste.addEventListener("click", pasteCopied);
+btnDelete.addEventListener("click", deleteSelected);
+
+btnSelect.addEventListener("click", () => {
+  clearWireGesture();
+  mode = MODE.SELECT;
+  placingType = null;
+  selectedWire = null;
+  renderPalette();
+  syncPlacingCursor();
+  renderWires();
+  renderProperties();
+});
 
 btnWire.addEventListener("click", () => {
   clearWireGesture();
   mode = MODE.WIRE;
   placingType = null;
   selectedWire = null;
+  selectedId = null;
+  selectedIds.clear();
   renderPalette();
   syncPlacingCursor();
+  renderComponents();
   renderWires();
   renderProperties();
 });
@@ -589,6 +722,7 @@ btnPan.addEventListener("click", () => {
   placingType = null;
   renderPalette();
   syncPlacingCursor();
+  renderProperties();
 });
 
 /* ---------- Persistence ---------- */
@@ -598,6 +732,7 @@ function loadFromText(text) {
     // Parse before changing any selection or visible state.
     const { board, skipped } = parseDocument(text);
     selectedId = null;
+    selectedIds.clear();
     selectedWire = null;
     placingType = null;
     clearWireGesture();

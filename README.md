@@ -60,6 +60,13 @@ coordinates; the saved `grid` dimensions are legacy metadata and no longer
 bound placement. Wires can start anywhere and run along component borders, but
 cannot pass through a component's interior.
 
+Use **Select mode** to click a component, Shift-click to add or remove one, or
+drag across empty canvas to select several components. Shift-drag adds to the
+selection. Use **Copy**, **Paste**, and **Delete**, or `Ctrl`/`Cmd` + `C`,
+`Ctrl`/`Cmd` + `V`, and `Delete`/`Backspace`. Paste places copies together at
+the next available offset and selects them. These actions copy components and
+their properties; wires stay in place. Use **Pan mode** to move a component.
+
 The code is split by responsibility:
 
 - `components.js` defines the fixed component catalog, dimensions, pin roles,
@@ -86,9 +93,9 @@ Serve the directory, open the editor, and check:
 1. Place a component in an empty cell; drag it to another cell. An overlapping placement or drag should be rejected.
 2. Select a Constant, change its size and value, then draw a matching wire from its output. Hover the wire to see the evaluated value. Try a mismatched wire size and confirm rejection.
 3. Select a component and press `R` to rotate it; press `Delete` to remove it. Use `Escape` to clear the active tool and selection.
-4. Pan by dragging empty canvas, zoom with `Ctrl`/`Cmd` + scroll, then reset with `Ctrl`/`Cmd` + `0`.
-5. Download the board, import an example JSON file, and reload the page. The imported board should remain, and the saved JSON should say version 8.
+4. In Select mode, Shift-click or drag to select multiple components, then copy, paste, and delete the selected group.
+5. Pan by dragging empty canvas, zoom with `Ctrl`/`Cmd` + scroll, then reset with `Ctrl`/`Cmd` + `0`.
+6. Download the board, import an example JSON file, and reload the page. The imported board should remain, and the saved JSON should say version 8.
 
-The smoke pass was run on 2026-09-23 against the local HTTP server in Orca's
-browser. Placement, dragging, wiring, properties, import, download, rotation,
-and reload persistence passed; model tests cover rejected edits and legacy import.
+The original smoke pass was run on 2026-09-23 against the local HTTP server in
+Orca's browser. Automated tests also cover group copy, paste, and delete.

@@ -161,3 +161,43 @@ test('a blocked wire route leaves the board untouched', () => {
   assert.equal(serialize(ctx.editor.board), before);
   assert.equal(ctx.saves, 1);
 });
+
+test('copy and paste preserve component properties and relative positions', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  const constant = editor.place('constant', 0, 0);
+  editor.resizeComponent(constant.id, 3);
+  editor.setConstantValue(constant.id, 5);
+  const led = editor.place('led', 5, 1);
+  const copies = editor.copyComponents([constant.id, led.id]);
+  assert.deepEqual(copies.map(({ x, y }) => [x, y]), [[0, 0], [5, 1]]);
+  const saves = ctx.saves;
+  const first = editor.pasteComponents(copies);
+  assert.equal(first.length, 2);
+  assert.deepEqual(first.map(({ x, y }) => [x, y]), [[2, 2], [7, 3]]);
+  assert.equal(first[0].size, 3);
+  assert.equal(first[0].value, 5);
+  assert.equal(new Set(first.map((c) => c.id)).size, 2);
+  assert.equal(ctx.saves, saves + 1);
+  const second = editor.pasteComponents(copies);
+  assert.deepEqual(second.map(({ x, y }) => [x, y]), [[4, 4], [9, 5]]);
+  assert.equal(ctx.saves, saves + 2);
+  assert.equal(editor.deleteComponents(first.map((c) => c.id)), true);
+  assert.equal(ctx.saves, saves + 3);
+  assert.equal(editor.board.components.length, 4);
+  assert.equal(editor.deleteComponents(first.map((c) => c.id)), false);
+  assert.equal(ctx.saves, saves + 3);
+});
+
+test('a failed group paste does not add some components or save', () => {
+  const ctx = setup();
+  const before = serialize(ctx.editor.board);
+  const saves = ctx.saves;
+  const pasted = ctx.editor.pasteComponents([
+    { t: 'power', x: 0, y: 0, r: 0 },
+    { t: 'led', x: 0, y: 0, r: 0 },
+  ]);
+  assert.deepEqual(pasted, []);
+  assert.equal(serialize(ctx.editor.board), before);
+  assert.equal(ctx.saves, saves);
+});
