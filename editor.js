@@ -1,6 +1,6 @@
 import { bitWidth, isSizable, validBitWidth, validConstant, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey, isValidComponent,
-  netContaining, parseDocument, resizeNet, sanitizeWires, serialize, wireRoute } from "./model.js";
+  netContaining, parseDocument, resizeNet, sanitizeWires, serialize, shortCircuitError, wireRoute } from "./model.js";
 
 export const STORAGE_KEY = "grid-canvas-prototype-v5";
 
@@ -141,7 +141,9 @@ export class BoardEditor {
   setSplitterOrder(id, order) {
     const component = this.component(id);
     if (!component || component.t !== "splitter" || !validSplitterOrder(order) || component.order === order) return false;
+    const old = component.order;
     component.order = order;
+    if (shortCircuitError(this.board)) { component.order = old; return false; }
     this.commit();
     return true;
   }
@@ -150,7 +152,9 @@ export class BoardEditor {
     const component = this.component(id);
     if (!component || component.t !== "constant" || component.value === value ||
         !validConstant({ ...component, value })) return false;
+    const old = component.value;
     component.value = value;
+    if (shortCircuitError(this.board)) { component.value = old; return false; }
     this.commit();
     return true;
   }
