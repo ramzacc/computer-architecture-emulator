@@ -46,7 +46,7 @@ then enter **Wire mode** and click a start point and successive corners or endpo
 The preview snaps to the grid and routes horizontally then vertically, or takes
 the other bend when the first is blocked. Double-click, right-click, or press
 `Esc` to finish the current wire; click again to start another. Select existing
-wires in **Pan mode**, and right-click a wire there to remove one segment.
+wires in **Select mode** or **Pan mode**, and right-click a wire to remove one segment.
 Set **New wire size** again for a new bus,
 or select a connected wire net or logic gate and edit **Selected size**. Connected
 wires and gate pins must have the same size; the editor reports a mismatch and
@@ -75,7 +75,7 @@ coordinates; the saved `grid` dimensions are legacy metadata and no longer
 bound placement. Wires can start anywhere and run along component borders, but
 cannot pass through a component's interior.
 
-Use **Select mode** to click a component, Shift-click to add or remove one, or
+Use **Select mode** to click a wire net or a component, Shift-click to add or remove a component, or
 drag across empty canvas to select several components. Shift-drag adds to the
 selection. Use **Copy**, **Paste**, and **Delete**, or `Ctrl`/`Cmd` + `C`,
 `Ctrl`/`Cmd` + `V`, and `Delete`/`Backspace`. Paste places copies together at

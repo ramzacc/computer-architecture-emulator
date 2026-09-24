@@ -156,6 +156,8 @@ function selectWire(key) {
   selectedId = null;
   selectedIds.clear();
   busStatus("Wire net selected.");
+  renderComponents();
+  renderWires();
   renderProperties();
 }
 
@@ -337,6 +339,8 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       else ids.add(id);
       setSelectedComponents(ids);
       busStatus(`${selectedIds.size} component${selectedIds.size === 1 ? "" : "s"} selected.`);
+    } else if (wireEl) {
+      selectWire(wireEl.dataset.key);
     } else {
       const world = worldFromEvent(e);
       marquee = { startX: world.x, startY: world.y, endX: world.x, endY: world.y,
@@ -348,7 +352,6 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
 
   if (wireEl) {
     selectWire(wireEl.dataset.key);
-    renderWires();
     return;
   }
 
