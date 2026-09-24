@@ -1,16 +1,16 @@
 # Grid Canvas
 
-A small browser-based component and wire editor. Serve this directory with any
+A small browser-based component and wire editor. Serve `public/` with any
 static HTTP server, then open `index.html`. For example:
 
 ```sh
-python3 -m http.server 8000
+python3 -m http.server 8000 --directory public
 ```
 
 ## Deploy to Cloudflare Workers
 
-Wrangler serves the static files in `dist/`; no Worker script or server is needed.
-The build copies only the browser assets and example documents into that folder.
+Wrangler serves the browser files directly from `public/`; no build command or
+Worker script is needed.
 
 ```sh
 npm ci
@@ -18,16 +18,16 @@ npm run dev      # local Cloudflare preview
 npm run deploy   # publish to your Cloudflare account
 ```
 
-For a Cloudflare Git deployment, use `npm run build` as the build command and
-`npx wrangler deploy` as the deploy command. The build output directory is
-`dist`. Change `name` in `wrangler.jsonc` if you want a different Worker name.
+For a Cloudflare Git deployment, leave the build command empty and use
+`npx wrangler deploy` as the deploy command. Change `name` in `wrangler.jsonc`
+if you want a different Worker name.
 
-Four example circuit documents are in [`examples/`](examples/). Import one with **Import .json**:
+Four example circuit documents are in [`public/examples/`](public/examples/). Import one with **Import .json**:
 
-1. [Power an LED](examples/power-led.json) — connect a power rail directly to an LED.
-2. [AND gate](examples/and-gate.json) — two powered inputs light an LED through an AND gate. Remove one input wire to see it turn off.
-3. [Two-bit bus](examples/splitter-combine.json) — two power rails form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
-4. [Four-bit ALU](examples/alu.json) — constants 7 and 3 feed an ALU. The result bus reads 10; the carry and zero LEDs are off. Change the 2-bit OP constant to try other operations.
+1. [Power an LED](public/examples/power-led.json) — connect a power rail directly to an LED.
+2. [AND gate](public/examples/and-gate.json) — two powered inputs light an LED through an AND gate. Remove one input wire to see it turn off.
+3. [Two-bit bus](public/examples/splitter-combine.json) — two power rails form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
+4. [Four-bit ALU](public/examples/alu.json) — constants 7 and 3 feed an ALU. The result bus reads 10; the carry and zero LEDs are off. Change the 2-bit OP constant to try other operations.
 
 The catalog holds real logic-level parts: a 2×2 **Power** rail (always drives high),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,

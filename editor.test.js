@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BoardEditor, STORAGE_KEY } from './editor.js';
-import { edgeKey, parseDocument, serialize } from './model.js';
-import { wireTitle } from './renderer.js';
+import { BoardEditor, STORAGE_KEY } from './public/editor.js';
+import { edgeKey, parseDocument, serialize } from './public/model.js';
+import { wireTitle } from './public/renderer.js';
 
 function setup() {
   const data = new Map();
