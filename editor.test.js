@@ -60,6 +60,18 @@ test('property edits validate width, value, order and connected wires', () => {
   assert.equal(editor.deleteNet(edgeKey(wire)), true);
 });
 
+test('output width is configurable and must match its connected net', () => {
+  const { editor } = setup();
+  const output = editor.place('output', 0, 0);
+  assert.equal(output.size, 1);
+  assert.equal(editor.resizeComponent(output.id, 32), true);
+  assert.equal(editor.addWire({ o: 'V', x: 1, y: -1, size: 32 }), true);
+  assert.equal(editor.resizeComponent(output.id, 8), false);
+  assert.equal(editor.component(output.id).size, 32);
+  assert.equal(editor.deleteNet('V:1,-1'), true);
+  assert.equal(editor.resizeComponent(output.id, 8), true);
+});
+
 test('imports save only after successful parsing and older documents remain compatible', () => {
   const ctx = setup();
   const old = JSON.stringify({ version: 7, components: [{ t: 'power', x: 0, y: 1 }], wires: [{ o: 'V', x: 1, y: 2 }] });

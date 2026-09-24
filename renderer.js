@@ -51,6 +51,20 @@ export function createRenderer(gridEl, getBoard, getSelectedId, getSelectedWire)
       <line x1="${stub[0]}" y1="${stub[1]}" x2="${stub[2]}" y2="${stub[3]}" stroke="${stroke}" stroke-width="2"/>`;
   }
 
+  function outputArt(c, color, value) {
+    const stroke = "rgba(255,255,255,.55)";
+    const stub = [
+      [40, 8, 40, -1], // north
+      [72, 40, 83, 40], // east
+      [40, 72, 40, 83], // south
+      [8, 40, -1, 40], // west
+    ][((c.r ?? 0) % 4 + 4) % 4];
+    const fontSize = String(value).length > 8 ? 11 : String(value).length > 6 ? 14 : String(value).length > 4 ? 19 : 24;
+    return `<rect x="8" y="8" width="64" height="64" rx="7" fill="${color}" stroke="${stroke}" stroke-width="2"/>
+      <text x="40" y="48" text-anchor="middle" fill="#102426" font-size="${fontSize}" font-weight="700">${value}</text>
+      <line x1="${stub[0]}" y1="${stub[1]}" x2="${stub[2]}" y2="${stub[3]}" stroke="${stroke}" stroke-width="2"/>`;
+  }
+
   function gateArt(shape, color) {
     const stroke = "rgba(255,255,255,.35)";
     if (shape === "not") return `
@@ -90,7 +104,7 @@ export function createRenderer(gridEl, getBoard, getSelectedId, getSelectedWire)
       </g>`;
   }
 
-  function componentArt(c, s) {
+  function componentArt(c, s, value = 0) {
     if (s.splitter) {
       const n = bitWidth(c);
       const branches = Array.from({ length: n }, (_, index) => {
@@ -104,10 +118,11 @@ export function createRenderer(gridEl, getBoard, getSelectedId, getSelectedWire)
     let inner;
     if (s.shape === "power") inner = powerArt(s.color);
     else if (s.shape === "constant") inner = constantArt(c, s.color);
+    else if (s.shape === "output") inner = outputArt(c, s.color, value);
     else if (s.shape === "led") inner = ledArt();
     else if (s.shape === "alu") inner = aluArt(s.color);
     else inner = gateArt(s.shape, s.color);
-    return svgWrap(inner, s, s.constant ? 0 : c.r);
+    return svgWrap(inner, s, s.constant || s.shape === "output" ? 0 : c.r);
   }
 
   function renderComponents(logic = evaluateBoard(getBoard())) {
@@ -128,8 +143,8 @@ export function createRenderer(gridEl, getBoard, getSelectedId, getSelectedWire)
       if (c.id === selectedId) el.classList.add("selected");
       const st = logic.states.get(c.id);
       if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
-      el.innerHTML = componentArt(c, s);
-      el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${st && st.value ? "  value: " + st.value : ""}`;
+      el.innerHTML = componentArt(c, s, st?.value ?? 0);
+      el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${st && (c.t === "output" || st.value) ? "  value: " + st.value : ""}`;
       gridEl.appendChild(el);
     }
   }

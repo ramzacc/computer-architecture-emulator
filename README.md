@@ -16,7 +16,7 @@ Four example circuit documents are in [`examples/`](examples/). Import one with 
 
 The catalog holds real logic-level parts: a 2×2 **Power** rail (always drives high),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,
-**NAND**, and 2×2 **NOT** gates, plus a **Splitter** and **Constant** source. Each pin declares an `in` or `out` role, and the board is
+**NAND**, and 2×2 **NOT** gates, plus a **Splitter**, **Constant** source, and **Output** display. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
 
 The **ALU** has configurable A, B, and result bus width (1–32 bits), a fixed
@@ -47,6 +47,10 @@ direction: a bus can feed its branches, or powered branches can form a bus. Its 
 Place a 2×2 **Constant** and select it to edit its bit width (1–8) and decimal value
 (0 through 2^width − 1). Its output drives a bus of the selected width. Narrowing
 the width clamps the value to the new maximum.
+
+Place a 2×2 **Output** to read a bus. Its input starts at 1 bit and can be set
+to 1–32 bits with **Selected size**. The value appears on the component and in
+its selected properties. Its input pin and connected wires must have the same width.
 
 The canvas is an infinite, pannable lattice. Drag empty space to pan, scroll to
 move, and zoom with `Ctrl`/`Cmd` + scroll, `Ctrl`/`Cmd` + `+`/`-` (plain

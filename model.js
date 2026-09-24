@@ -241,6 +241,7 @@ export function evaluateBoard(board) {
       source: !!entry.source,
       constant: !!entry.constant,
       constantValue: component.value ?? 0,
+      output: !!entry.output,
       splitter: !!entry.splitter,
       alu: !!entry.alu,
       size: bitWidth(component),
@@ -305,7 +306,7 @@ export function evaluateBoard(board) {
     const flags = part.alu ? aluResult(inputs, part.size) : null;
     states.set(part.id, {
       inputs,
-      value: outputOf(part, values),
+      value: part.output ? inputs[0] : outputOf(part, values),
       ...(flags ? { carry: flags.carry, zero: flags.zero } : {}),
       lit: inputs.length === 1 && inputs[0] !== 0,
     });

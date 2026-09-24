@@ -56,7 +56,8 @@ export class BoardEditor {
     do { id = `c${this.nextComponentId++}`; } while (this.component(id));
     const component = { id, t: type, x, y, r: 0,
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
-      ...(type === "constant" ? { size: 1, value: 0 } : {}) };
+      ...(type === "constant" ? { size: 1, value: 0 } : {}),
+      ...(type === "output" ? { size: 1 } : {}) };
     if (type === "alu") component.size = 4;
     if (!addComponent(this.board, component)) return null;
     this.commitComponentEdit();

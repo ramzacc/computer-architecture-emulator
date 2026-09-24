@@ -23,6 +23,12 @@ export const COMPONENT_TYPES = {
       { x: 1, y: 2, dir: "S", role: "out" },
     ],
   },
+  output: {
+    label: "Output", w: 2, h: 2, color: "#52b6d3", shape: "output", output: true,
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in" },
+    ],
+  },
   led: {
     label: "LED", w: 2, h: 2, color: "#5a5a7a", shape: "led",
     pins: [
@@ -100,7 +106,7 @@ export const MAX_BUS_WIDTH = 32;
 
 export function isSizable(component) {
   const entry = spec(component.t);
-  return !!(entry?.op || entry?.splitter || entry?.constant || entry?.alu);
+  return !!(entry?.op || entry?.splitter || entry?.constant || entry?.alu || entry?.output);
 }
 
 export function bitWidth(component) {
