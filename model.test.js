@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dimsOf, pinsFor, spec } from "./components.js";
+import { dimsOf, pinsFor, spec } from "./public/components.js";
 import { addComponent, addWireEdge, canPlaceEdge, computeNets, createBoard,
   edgeKey, edgePlacementError, evaluateBoard, isValidComponent, parseDocument, resizeNet,
-  sanitizeWires, serialize, wireRoute } from "./model.js";
+  sanitizeWires, serialize, wireRoute } from "./public/model.js";
 
 test("a wire cannot join HIGH and LOW drivers, including driven zero bits", () => {
   const board = createBoard();
@@ -112,7 +112,7 @@ test("a power net drives an LED and sanitizes after edits", () => {
 });
 
 test("older power circuits keep their output connections after the 2x2 resize", () => {
-  const text = readFileSync(new URL("./examples/power-led.json", import.meta.url), "utf8");
+  const text = readFileSync(new URL("./public/examples/power-led.json", import.meta.url), "utf8");
   const { board, skipped } = parseDocument(text);
   assert.deepEqual(skipped, { components: 0, wires: 0 });
   const power = board.components.find((component) => component.t === "power");
@@ -453,7 +453,7 @@ test("descendant splitter order reverses branch bits and persists", () => {
 
 
 test("a splitter combines one-bit power branches and drives LEDs through a gate", () => {
-  const text = readFileSync(new URL("./examples/splitter-combine.json", import.meta.url), "utf8");
+  const text = readFileSync(new URL("./public/examples/splitter-combine.json", import.meta.url), "utf8");
   const { board, skipped } = parseDocument(text);
   assert.deepEqual(skipped, { components: 0, wires: 0 });
   const { states, nets } = evaluateBoard(board);
