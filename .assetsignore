@@ -1,7 +1,0 @@
-node_modules/
-.github/
-.git/
-
-*.test.js
-package.json
-README.md

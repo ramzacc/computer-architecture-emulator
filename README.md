@@ -7,6 +7,21 @@ static HTTP server, then open `index.html`. For example:
 python3 -m http.server 8000
 ```
 
+## Deploy to Cloudflare Workers
+
+Wrangler serves the static files in `dist/`; no Worker script or server is needed.
+The build copies only the browser assets and example documents into that folder.
+
+```sh
+npm ci
+npm run dev      # local Cloudflare preview
+npm run deploy   # publish to your Cloudflare account
+```
+
+For a Cloudflare Git deployment, use `npm run build` as the build command and
+`npx wrangler deploy` as the deploy command. The build output directory is
+`dist`. Change `name` in `wrangler.jsonc` if you want a different Worker name.
+
 Four example circuit documents are in [`examples/`](examples/). Import one with **Import .json**:
 
 1. [Power an LED](examples/power-led.json) — connect a power rail directly to an LED.
@@ -83,8 +98,7 @@ derived from the catalog. Loading treats missing sizes in older documents as 1 b
 overlapping components and invalid or mismatched wire segments; the browser console reports the number skipped.
 
 Run `npm run check` for syntax and `npm test` for model and editor regressions
-(Node.js 18 or newer). No install step is needed. GitHub Actions runs both on
-pushes and pull requests.
+(Node.js 20 or newer). GitHub Actions runs both on pushes and pull requests.
 
 ## Browser smoke checklist
 
