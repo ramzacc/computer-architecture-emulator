@@ -10,7 +10,7 @@ export function wireTitle(wire, value) {
   return `${wireSize(wire)} bit(s), value ${value}`;
 }
 
-export function createRenderer(gridEl, getBoard, getSelectedId, getSelectedWire) {
+export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire) {
   function svgWrap(inner, s, r) {
     const q = ((r % 4) + 4) % 4;
     const vw = (q % 2 ? s.h : s.w) * U;
@@ -127,7 +127,7 @@ export function createRenderer(gridEl, getBoard, getSelectedId, getSelectedWire)
 
   function renderComponents(logic = evaluateBoard(getBoard())) {
     const state = getBoard();
-    const selectedId = getSelectedId();
+    const selectedIds = getSelectedIds();
     gridEl.querySelectorAll(".comp").forEach((el) => el.remove());
     for (const c of state.components) {
       const s = spec(c.t);
@@ -140,7 +140,7 @@ export function createRenderer(gridEl, getBoard, getSelectedId, getSelectedWire)
       el.style.top = c.y * CELL + "px";
       el.style.width = d.w * CELL - GAP + "px";
       el.style.height = d.h * CELL - GAP + "px";
-      if (c.id === selectedId) el.classList.add("selected");
+      if (selectedIds.has(c.id)) el.classList.add("selected");
       const st = logic.states.get(c.id);
       if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
       el.innerHTML = componentArt(c, s, st?.value ?? 0);
