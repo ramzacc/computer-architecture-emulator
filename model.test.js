@@ -301,6 +301,30 @@ test("constant drives its configured value and enforces its width and range", ()
   assert.equal(invalid.skipped.components, 2);
 });
 
+test("output reads a matching bus without driving it and survives serialization", () => {
+  const board = createBoard();
+  const source = { id: "source", t: "constant", x: 0, y: 0, size: 8, value: 173 };
+  const output = { id: "out", t: "output", x: 0, y: 4, r: 0, size: 8 };
+  assert.equal(addComponent(board, source), true);
+  assert.equal(addComponent(board, output), true);
+  assert.deepEqual(dimsOf(output), { w: 2, h: 2 });
+  assert.deepEqual(pinsFor(output).map(({ role, size, edge }) => ({ role, size, edge })),
+    [{ role: "in", size: 8, edge: { o: "V", x: 1, y: 3 } }]);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 3, size: 1 }), false);
+  for (const y of [2, 3]) assert.equal(addWireEdge(board, { o: "V", x: 1, y, size: 8 }), true);
+  assert.equal(evaluateBoard(board).states.get("out").value, 173);
+  assert.equal([...computeNets(board).values()][0].value, 173);
+  const saved = JSON.parse(serialize(board));
+  assert.deepEqual(saved.components[1], { t: "output", x: 0, y: 4, size: 8 });
+  assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
+
+  output.r = 1;
+  assert.deepEqual(pinsFor(output)[0].edge, { o: "H", x: 2, y: 5 });
+  assert.equal(evaluateBoard(board).states.get("out").value, 0);
+  output.size = 33;
+  assert.equal(isValidComponent(board, output), false);
+});
+
 test("ALU selects arithmetic and logic operations and drives result flags", () => {
   const board = createBoard();
   for (const component of [

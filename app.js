@@ -40,6 +40,7 @@ const selectedSizeEl = document.getElementById("selected-size");
 const splitterOrderRowEl = document.getElementById("splitter-order-row");
 const splitterOrderEl = document.getElementById("splitter-order");
 const selectedValueRowEl = document.getElementById("selected-value-row");
+const selectedValueLabelEl = document.getElementById("selected-value-label");
 const selectedValueEl = document.getElementById("selected-value");
 const constantValueRowEl = document.getElementById("constant-value-row");
 const constantValueEl = document.getElementById("constant-value");
@@ -70,10 +71,14 @@ function renderProperties() {
   constantValueEl.disabled = !constant;
   constantValueEl.max = constant ? String(2 ** bitWidth(component) - 1) : "1";
   constantValueEl.value = constant ? String(component.value ?? 0) : "";
-  selectedValueRowEl.hidden = !net;
-  selectedValueEl.textContent = !net ? "—" : net.size === 1
-    ? `${net.value} (${net.on ? "HIGH" : "LOW"})`
-    : `${net.value} (0b${net.value.toString(2).padStart(net.size, "0")})`;
+  const output = component?.t === "output";
+  const displayedValue = output ? evaluateBoard(state).states.get(component.id)?.value ?? 0 : net?.value;
+  const displayedSize = output ? bitWidth(component) : net?.size;
+  selectedValueRowEl.hidden = !net && !output;
+  selectedValueLabelEl.textContent = output ? "Output value" : "Selected bus value";
+  selectedValueEl.textContent = displayedValue === undefined ? "—" : displayedSize === 1
+    ? `${displayedValue} (${displayedValue ? "HIGH" : "LOW"})`
+    : `${displayedValue} (0b${displayedValue.toString(2).padStart(displayedSize, "0")})`;
   if (size !== undefined && !busStatusEl.classList.contains("error")) {
     busStatus(component ? `${spec(component.t).label}: ${size} bit${size === 1 ? "" : "s"}.` :
       `Selected bus: ${size} bit${size === 1 ? "" : "s"}.`);
