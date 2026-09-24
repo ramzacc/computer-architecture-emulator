@@ -2,7 +2,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/build.js",
+    "dev": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
     "test": "node --test",
-    "check": "node --check app.js && node --check components.js && node --check editor.js && node --check model.js && node --check renderer.js && node --check editor.test.js && node --check model.test.js"
+    "check": "node --check app.js && node --check components.js && node --check editor.js && node --check model.js && node --check renderer.js && node --check scripts/build.js && node --check editor.test.js && node --check model.test.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.137.0"
   }
 }
