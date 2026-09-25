@@ -177,6 +177,21 @@ export class BoardEditor {
     return true;
   }
 
+  deleteSelection(ids, wireKeys) {
+    const selected = new Set(ids);
+    const edges = new Set();
+    for (const key of wireKeys) {
+      const net = netContaining(this.board, key);
+      if (net) for (const edge of net.edges) edges.add(edgeKey(edge));
+    }
+    const before = this.board.components.length;
+    this.board.components = this.board.components.filter((component) => !selected.has(component.id));
+    for (const key of edges) this.board.wires.delete(key);
+    if (this.board.components.length === before && !edges.size) return false;
+    this.commit();
+    return true;
+  }
+
   copyComponents(ids) {
     const selected = new Set(ids);
     return this.board.components.filter((component) => selected.has(component.id))
