@@ -1,5 +1,5 @@
 import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, validBitWidth, validChannelCount, validClockFrequency, validConstant, validSplitterOrder } from "./components.js";
-import { addComponent, addWireEdge, createBoard, edgeKey, isValidComponent,
+import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, isValidComponent,
   evaluateBoard, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, shortCircuitError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
 
@@ -171,6 +171,54 @@ export class BoardEditor {
       return false;
     }
     this.commitComponentEdit();
+    return true;
+  }
+
+  translatedSelection(ids, wireKeys, dx, dy) {
+    if (!Number.isInteger(dx) || !Number.isInteger(dy) || (!dx && !dy)) return null;
+    const selected = new Set(ids);
+    const moving = this.board.components.filter((component) => selected.has(component.id));
+    const edges = new Map();
+    for (const key of wireKeys) {
+      const net = netContaining(this.board, key, this.evaluation);
+      if (net) for (const edge of net.edges) edges.set(edgeKey(edge), edge);
+    }
+    if (!moving.length && !edges.size) return null;
+
+    const trial = {
+      ...this.board,
+      components: this.board.components.map((component) => selected.has(component.id)
+        ? { ...component, x: component.x + dx, y: component.y + dy } : component),
+      wires: new Map(this.board.wires),
+    };
+    for (const key of edges.keys()) trial.wires.delete(key);
+    const movedEdges = [];
+    for (const edge of edges.values()) {
+      const moved = { ...edge, x: edge.x + dx, y: edge.y + dy };
+      const key = edgeKey(moved);
+      if (trial.wires.has(key)) return null;
+      trial.wires.set(key, moved);
+      movedEdges.push(moved);
+    }
+    for (const component of trial.components) {
+      if (selected.has(component.id) && !isValidComponent(trial, component)) return null;
+    }
+    for (const edge of movedEdges) {
+      const key = edgeKey(edge);
+      trial.wires.delete(key);
+      const error = edgePlacementError(trial, edge);
+      trial.wires.set(key, edge);
+      if (error) return null;
+    }
+    return trial;
+  }
+
+  moveSelection(ids, wireKeys, dx, dy) {
+    const trial = this.translatedSelection(ids, wireKeys, dx, dy);
+    if (!trial) return false;
+    this.board.components = trial.components;
+    this.board.wires = trial.wires;
+    this.commit();
     return true;
   }
 

@@ -1,5 +1,5 @@
 import { COMPONENT_TYPES, DEFAULT_CLOCK_FREQUENCY, bitWidth, channelCount, dimsOf, isSizable, pinsFor, selectWidth, spec, validBitWidth } from "./components.js";
-import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, isValidComponent, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
+import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
 import { BoardEditor } from "./editor.js";
 import { createRenderer } from "./renderer.js";
 import { formatValue, parseValue } from "./value-format.js";
@@ -215,6 +215,13 @@ function selectWire(key) {
   busStatus("Wire net selected.");
 }
 
+function beginSelectionDrag(e) {
+  const world = worldFromEvent(e);
+  drag = { kind: "selection", pointerId: e.pointerId, startX: world.x, startY: world.y,
+    ids: [...selectedIds], wires: [...selectedWires], dx: 0, dy: 0, valid: true };
+  canvasWrapEl.setPointerCapture(e.pointerId);
+}
+
 function viewportFromEvent(ev) {
   const rect = canvasWrapEl.getBoundingClientRect();
   return {
@@ -395,22 +402,30 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
 
   if (mode === MODE.SELECT) {
     if (compEl) {
-      const ids = new Set(e.shiftKey ? selectedIds : []);
       const id = compEl.dataset.id;
-      if (ids.has(id)) ids.delete(id);
-      else ids.add(id);
-      setSelection(ids, e.shiftKey ? selectedWires : []);
+      if (e.shiftKey) {
+        const ids = new Set(selectedIds);
+        if (ids.has(id)) ids.delete(id);
+        else ids.add(id);
+        setSelection(ids, selectedWires);
+      } else {
+        if (!selectedIds.has(id)) setSelection([id]);
+        beginSelectionDrag(e);
+      }
       busStatus(`${selectedIds.size} component${selectedIds.size === 1 ? "" : "s"} and ${selectedWires.size} wire net${selectedWires.size === 1 ? "" : "s"} selected.`);
     } else if (wireEl) {
+      const net = netContaining(state, wireEl.dataset.key, editor.evaluation);
+      const key = net ? edgeKey(net.edges[0]) : wireEl.dataset.key;
       if (e.shiftKey) {
-        const net = netContaining(state, wireEl.dataset.key, editor.evaluation);
-        const key = net ? edgeKey(net.edges[0]) : wireEl.dataset.key;
         const wires = new Set(selectedWires);
         if (wires.has(key)) wires.delete(key);
         else wires.add(key);
         setSelection(selectedIds, wires);
         busStatus(`${selectedIds.size} component${selectedIds.size === 1 ? "" : "s"} and ${selectedWires.size} wire net${selectedWires.size === 1 ? "" : "s"} selected.`);
-      } else selectWire(wireEl.dataset.key);
+      } else {
+        if (!selectedWires.has(key)) selectWire(key);
+        beginSelectionDrag(e);
+      }
     } else {
       const world = worldFromEvent(e);
       marquee = { startX: world.x, startY: world.y, endX: world.x, endY: world.y,
@@ -534,6 +549,26 @@ canvasWrapEl.addEventListener("pointermove", (e) => {
   }
 
   if (!drag) return;
+  if (drag.kind === "selection") {
+    const world = worldFromEvent(e);
+    const dx = Math.round((world.x - drag.startX) / CELL);
+    const dy = Math.round((world.y - drag.startY) / CELL);
+    if (dx === drag.dx && dy === drag.dy) return;
+    drag.dx = dx;
+    drag.dy = dy;
+    const trial = editor.translatedSelection(drag.ids, drag.wires, dx, dy);
+    drag.valid = !!trial || (!dx && !dy);
+    state = trial ?? editor.board;
+    selectedWires = new Set(trial ? drag.wires.map((key) => {
+      const edge = editor.board.wires.get(key);
+      return edge ? edgeKey({ ...edge, x: edge.x + dx, y: edge.y + dy }) : key;
+    }) : drag.wires);
+    const logic = trial ? evaluateBoard(trial) : editor.evaluation;
+    renderComponents(logic);
+    renderPins();
+    renderWires(logic);
+    return;
+  }
   const comp = state.components.find((c) => c.id === drag.id);
   if (!comp) return;
 
@@ -613,6 +648,27 @@ function endDrag(e) {
     return;
   }
   if (!drag) return;
+  if (drag.kind === "selection") {
+    const { ids, wires, dx, dy, valid } = drag;
+    const movedWireKeys = wires.map((key) => {
+      const edge = editor.board.wires.get(key);
+      return edge ? edgeKey({ ...edge, x: edge.x + dx, y: edge.y + dy }) : key;
+    });
+    drag = null;
+    state = editor.board;
+    selectedWires = new Set(wires);
+    if (canvasWrapEl.hasPointerCapture?.(e.pointerId)) canvasWrapEl.releasePointerCapture(e.pointerId);
+    if (e.type === "pointercancel" || (!dx && !dy)) { render(); return; }
+    if (!valid || !editor.moveSelection(ids, wires, dx, dy)) {
+      busStatus("Cannot move selection here. Check overlaps, bus sizes, and short circuits.", true);
+      render();
+      return;
+    }
+    selectedWires = new Set(movedWireKeys);
+    selectedWire = selectedWires.size === 1 && !selectedIds.size ? movedWireKeys[0] : null;
+    render();
+    return;
+  }
   const comp = editor.component(drag.id);
   const { id, originX, originY, valid } = drag;
   const target = comp ? { x: comp.x, y: comp.y } : null;
