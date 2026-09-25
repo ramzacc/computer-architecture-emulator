@@ -500,6 +500,66 @@ test('copy and paste preserve component properties and relative positions', () =
   assert.equal(ctx.saves, saves + 3);
 });
 
+test('copy and paste preserve selected complete wire nets with components', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  const led = editor.place('led', 0, 0);
+  assert.equal(editor.addWireRoute({ x: 0, y: 5 }, { x: 2, y: 5 }, 2).error, null);
+  assert.equal(editor.addWire({ o: 'V', x: 8, y: 5, size: 1 }), true);
+  const copies = editor.copySelection([led.id], ['H:0,5', 'H:1,5']);
+  assert.equal(copies.components.length, 1);
+  assert.deepEqual(copies.wires.map(edgeKey), ['H:0,5', 'H:1,5']);
+  assert.deepEqual(copies.wireKeys, ['H:0,5']);
+  const saves = ctx.saves;
+  const first = editor.pasteSelection(copies);
+  assert.ok(first);
+  assert.deepEqual(first.components.map(({ x, y }) => [x, y]), [[2, 2]]);
+  assert.deepEqual(first.wires.map(edgeKey), ['H:2,7', 'H:3,7']);
+  assert.deepEqual(first.wires.map(({ size }) => size), [2, 2]);
+  assert.deepEqual(first.wireKeys, ['H:2,7']);
+  assert.equal(ctx.saves, saves + 1);
+  const second = editor.pasteSelection(copies);
+  assert.ok(second);
+  assert.deepEqual(second.wires.map(edgeKey), ['H:4,9', 'H:5,9']);
+  assert.equal(ctx.saves, saves + 2);
+  assert.equal(editor.board.wires.has('V:8,5'), true);
+});
+
+test('pasted components stay connected through their selected wire net', () => {
+  const { editor } = setup();
+  const constant = editor.place('constant', 0, 0);
+  const led = editor.place('led', 0, 3);
+  assert.equal(editor.setConstantValue(constant.id, 1), true);
+  assert.equal(editor.addWire({ o: 'V', x: 1, y: 2 }), true);
+  const copies = editor.copySelection([constant.id, led.id], ['V:1,2']);
+  const pasted = editor.pasteSelection(copies);
+  assert.ok(pasted);
+  assert.deepEqual(pasted.wires.map(edgeKey), ['V:3,4']);
+  assert.equal(editor.evaluation.states.get(pasted.components[1].id).lit, true);
+});
+
+test('wire-only selections paste and an invalid mixed group leaves the board unchanged', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  assert.equal(editor.addWire({ o: 'V', x: 0, y: 0, size: 3 }), true);
+  const wiresOnly = editor.copySelection([], ['V:0,0']);
+  const pasted = editor.pasteSelection(wiresOnly);
+  assert.ok(pasted);
+  assert.deepEqual(pasted.wires.map(edgeKey), ['V:2,2']);
+  assert.deepEqual(pasted.wireKeys, ['V:2,2']);
+
+  const before = serialize(editor.board);
+  const saves = ctx.saves;
+  const invalid = editor.pasteSelection({
+    components: [{ t: 'led', x: 0, y: 0, r: 0 }],
+    wires: [{ o: 'H', x: 0, y: 1, size: 1 }],
+    wireKeys: ['H:0,1'],
+  });
+  assert.equal(invalid, null);
+  assert.equal(serialize(editor.board), before);
+  assert.equal(ctx.saves, saves);
+});
+
 test('a failed group paste does not add some components or save', () => {
   const ctx = setup();
   const before = serialize(ctx.editor.board);

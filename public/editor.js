@@ -347,34 +347,64 @@ export class BoardEditor {
   }
 
   copyComponents(ids) {
-    const selected = new Set(ids);
-    return this.board.components.filter((component) => selected.has(component.id))
-      .map(({ id, ...component }) => ({ ...component }));
+    return this.copySelection(ids, []).components;
   }
 
   pasteComponents(copies) {
-    if (!copies?.length) return [];
+    return this.pasteSelection({ components: copies, wires: [], wireKeys: [] })?.components ?? [];
+  }
+
+  copySelection(ids, wireKeys) {
+    const selected = new Set(ids);
+    const components = this.board.components.filter((component) => selected.has(component.id))
+      .map(({ id, ...component }) => ({ ...component }));
+    const wires = new Map();
+    const copiedNetIds = new Set();
+    const netKeys = [];
+    for (const key of wireKeys) {
+      const net = netContaining(this.board, key, this.evaluation);
+      if (!net || copiedNetIds.has(net.id)) continue;
+      copiedNetIds.add(net.id);
+      netKeys.push(edgeKey(net.edges[0]));
+      for (const edge of net.edges) wires.set(edgeKey(edge), { ...edge });
+    }
+    return { components, wires: [...wires.values()], wireKeys: netKeys };
+  }
+
+  pasteSelection(copies) {
+    if (!copies || (!copies.components?.length && !copies.wires?.length)) return null;
     // Search outward while keeping the copied layout together. Validate the
     // complete group on a trial board so a failed paste changes nothing.
     for (let offset = 2; offset <= 200; offset += 2) {
-      const trial = { ...this.board, components: [...this.board.components] };
-      const added = [];
+      const trial = { ...this.board, components: [...this.board.components], wires: new Map(this.board.wires) };
+      const components = [];
+      const wires = [];
       let nextId = this.nextComponentId;
       let valid = true;
-      for (const copy of copies) {
+      for (const copy of copies.components ?? []) {
         let id;
         do { id = `c${nextId++}`; } while (trial.components.some((c) => c.id === id));
         const component = { ...copy, id, x: copy.x + offset, y: copy.y + offset };
         if (!addComponent(trial, component)) { valid = false; break; }
-        added.push(component);
+        components.push(component);
+      }
+      if (!valid) continue;
+      for (const copy of copies.wires ?? []) {
+        const wire = { ...copy, x: copy.x + offset, y: copy.y + offset };
+        if (!addWireEdge(trial, wire)) { valid = false; break; }
+        wires.push(trial.wires.get(edgeKey(wire)));
       }
       if (!valid) continue;
       this.nextComponentId = nextId;
-      this.board.components.push(...added);
+      this.board.components = trial.components;
+      this.board.wires = trial.wires;
       this.commit();
-      return added;
+      return { components, wires, wireKeys: (copies.wireKeys ?? []).map((key) => {
+        const source = copies.wires.find((wire) => edgeKey(wire) === key);
+        return source ? edgeKey({ ...source, x: source.x + offset, y: source.y + offset }) : null;
+      }).filter(Boolean) };
     }
-    return [];
+    return null;
   }
 
   deleteNet(key) {

@@ -29,7 +29,7 @@ let drag = null;
 let pressedButton = null;
 let pan = null;
 let marquee = null;
-let copiedComponents = [];
+let copiedSelection = { components: [], wires: [], wireKeys: [] };
 let newWireSize = 1;
 let wireStart = null;
 
@@ -77,13 +77,9 @@ function setSelection(ids, wires = []) {
   renderProperties();
 }
 
-function setSelectedComponents(ids) {
-  setSelection(ids);
-}
-
 function syncActionButtons() {
-  btnCopy.disabled = selectedIds.size === 0;
-  btnPaste.disabled = copiedComponents.length === 0;
+  btnCopy.disabled = selectedIds.size === 0 && selectedWires.size === 0;
+  btnPaste.disabled = copiedSelection.components.length === 0 && copiedSelection.wires.length === 0;
   btnDelete.disabled = selectedIds.size === 0 && selectedWires.size === 0;
 }
 
@@ -781,9 +777,9 @@ document.addEventListener("keydown", (e) => {
   const zoomOut = e.key === "-" || e.key === "_" || e.code === "NumpadSubtract";
 
   if (mod && e.key.toLowerCase() === "c") {
-    if (selectedIds.size) { copySelected(); e.preventDefault(); }
+    if (selectedIds.size || selectedWires.size) { copySelected(); e.preventDefault(); }
   } else if (mod && e.key.toLowerCase() === "v") {
-    if (copiedComponents.length) { pasteCopied(); e.preventDefault(); }
+    if (copiedSelection.components.length || copiedSelection.wires.length) { pasteCopied(); e.preventDefault(); }
   } else if (zoomIn) {
     zoomAt(ZOOM_STEP);
     e.preventDefault();
@@ -834,23 +830,23 @@ function deleteSelected() {
 }
 
 function copySelected() {
-  copiedComponents = editor.copyComponents(selectedIds);
+  copiedSelection = editor.copySelection(selectedIds, selectedWires);
   syncActionButtons();
-  busStatus(`${copiedComponents.length} component${copiedComponents.length === 1 ? "" : "s"} copied.`);
+  busStatus(`${copiedSelection.components.length} component${copiedSelection.components.length === 1 ? "" : "s"} and ${copiedSelection.wireKeys.length} wire net${copiedSelection.wireKeys.length === 1 ? "" : "s"} copied.`);
 }
 
 function pasteCopied() {
-  const added = editor.pasteComponents(copiedComponents);
-  if (!added.length) {
-    busStatus("Cannot paste components nearby. Check overlaps, bus sizes, and short circuits.", true);
+  const added = editor.pasteSelection(copiedSelection);
+  if (!added) {
+    busStatus("Cannot paste selection nearby. Check overlaps, bus sizes, and short circuits.", true);
     return;
   }
   mode = MODE.SELECT;
   placingType = null;
   renderPalette();
   syncPlacingCursor();
-  setSelectedComponents(added.map((component) => component.id));
-  busStatus(`${added.length} component${added.length === 1 ? "" : "s"} pasted.`);
+  setSelection(added.components.map((component) => component.id), added.wireKeys);
+  busStatus(`${added.components.length} component${added.components.length === 1 ? "" : "s"} and ${added.wireKeys.length} wire net${added.wireKeys.length === 1 ? "" : "s"} pasted.`);
 }
 
 btnCopy.addEventListener("click", copySelected);
