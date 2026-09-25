@@ -1,5 +1,6 @@
 import { bitWidth, channelCount, dimsOf, pinsFor, spec } from "./components.js";
 import { edgeKey, wireSize } from "./model.js";
+import { formatValue } from "./value-format.js";
 
 const CELL = 48;
 const GAP = 3;
@@ -44,7 +45,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   }
 
   function constantArt(c, color) {
-    const value = c.value ?? 0;
+    const value = formatValue(c.value ?? 0, bitWidth(c), c.format);
     const stroke = "rgba(255,255,255,.55)";
     const stub = [
       [40, 72, 40, 83], // south
@@ -52,8 +53,9 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       [40, 8, 40, -1],  // north
       [72, 40, 83, 40], // east
     ][((c.r ?? 0) % 4 + 4) % 4];
+    const fontSize = value.length > 8 ? 11 : value.length > 6 ? 14 : value.length > 4 ? 19 : 24;
     return `<rect x="8" y="8" width="64" height="64" rx="7" fill="${color}" stroke="${stroke}" stroke-width="2"/>
-      <text x="40" y="48" text-anchor="middle" fill="#14161a" font-size="24" font-weight="700">${value}</text>
+      <text x="40" y="45" text-anchor="middle" dominant-baseline="middle" fill="#14161a" font-size="${fontSize}" font-weight="700">${value}</text>
       <line x1="${stub[0]}" y1="${stub[1]}" x2="${stub[2]}" y2="${stub[3]}" stroke="${stroke}" stroke-width="2"/>`;
   }
 
@@ -65,9 +67,16 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       [40, 72, 40, 83], // south
       [8, 40, -1, 40], // west
     ][((c.r ?? 0) % 4 + 4) % 4];
-    const fontSize = String(value).length > 8 ? 11 : String(value).length > 6 ? 14 : String(value).length > 4 ? 19 : 24;
+    const label = formatValue(value, bitWidth(c), c.format);
+    const lines = c.format === "binary" && label.length > 10
+      ? (label.slice(2).match(/.{1,8}/g) ?? []).map((chunk, index) => `${index === 0 ? "0b" : ""}${chunk}`)
+      : [label];
+    const fontSize = lines.length > 1 ? 11 : label.length > 8 ? 11 : label.length > 6 ? 14 : label.length > 4 ? 19 : 24;
+    const lineHeight = lines.length > 1 ? 13 : 0;
+    const startY = lines.length > 1 ? 40 - (lines.length - 1) * lineHeight / 2 : 45;
+    const text = lines.map((line, index) => `<text x="40" y="${startY + index * lineHeight}" text-anchor="middle" dominant-baseline="middle" fill="#102426" font-size="${fontSize}" font-weight="700">${line}</text>`).join("");
     return `<rect x="8" y="8" width="64" height="64" rx="7" fill="${color}" stroke="${stroke}" stroke-width="2"/>
-      <text x="40" y="48" text-anchor="middle" fill="#102426" font-size="${fontSize}" font-weight="700">${value}</text>
+      ${text}
       <line x1="${stub[0]}" y1="${stub[1]}" x2="${stub[2]}" y2="${stub[3]}" stroke="${stroke}" stroke-width="2"/>`;
   }
 
@@ -178,7 +187,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);
       if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
       el.innerHTML = componentArt(c, s, st?.value ?? 0);
-      el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "clock" ? `  ${c.frequency ?? 1} Hz` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${st && (c.t === "output" || st.value) ? "  value: " + st.value : ""}`;
+      el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "clock" ? `  ${c.frequency ?? 1} Hz` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${c.t === "constant" ? "  value: " + formatValue(c.value ?? 0, bitWidth(c), c.format) : st && (c.t === "output" || st.value) ? "  value: " + (c.t === "output" ? formatValue(st.value, bitWidth(c), c.format) : st.value) : ""}`;
       gridEl.appendChild(el);
     }
   }

@@ -4,6 +4,7 @@ import { BoardEditor, STORAGE_KEY } from './public/editor.js';
 import { spec } from './public/components.js';
 import { edgeKey, parseDocument, serialize } from './public/model.js';
 import { createRenderer, wireTitle } from './public/renderer.js';
+import { formatValue, parseValue } from './public/value-format.js';
 
 function setup() {
   const data = new Map();
@@ -71,6 +72,47 @@ test('output width is configurable and must match its connected net', () => {
   assert.equal(editor.component(output.id).size, 32);
   assert.equal(editor.deleteNet('V:1,-1'), true);
   assert.equal(editor.resizeComponent(output.id, 8), true);
+});
+
+test('constant and output formats convert existing values and survive saving', () => {
+  const { editor } = setup();
+  const constant = editor.place('constant', 0, 0);
+  editor.resizeComponent(constant.id, 8);
+  editor.setConstantValue(constant.id, 173);
+  const output = editor.place('output', 4, 0);
+  assert.equal(editor.setValueFormat(constant.id, 'binary'), true);
+  assert.equal(formatValue(constant.value, constant.size, constant.format), '0b10101101');
+  assert.equal(editor.setValueFormat(constant.id, 'hex'), true);
+  assert.equal(formatValue(constant.value, constant.size, constant.format), '0xAD');
+  assert.equal(constant.value, 173);
+  assert.equal(editor.setValueFormat(output.id, 'hex'), true);
+  assert.equal(editor.setValueFormat(output.id, 'invalid'), false);
+  assert.equal(editor.setValueFormat(constant.id, 'hex'), false);
+  const restored = parseDocument(serialize(editor.board)).board.components;
+  assert.equal(restored[0].format, 'hex');
+  assert.equal(restored[0].value, 173);
+  assert.equal(restored[1].format, 'hex');
+  const copies = editor.copyComponents([constant.id, output.id]);
+  assert.deepEqual(copies.map(({ format }) => format), ['hex', 'hex']);
+});
+
+test('value parser accepts selected radix and rejects malformed or empty input', () => {
+  assert.equal(parseValue('0b10101101', 'binary'), 173);
+  assert.equal(parseValue('10101101', 'binary'), 173);
+  assert.equal(parseValue('0xAD', 'hex'), 173);
+  assert.equal(parseValue('AD', 'hex'), 173);
+  assert.equal(parseValue('173', 'decimal'), 173);
+  for (const input of ['', '0b102', '0b', '-1', '1.5'])
+    assert.equal(parseValue(input, 'binary'), null);
+  assert.equal(parseValue('0xGG', 'hex'), null);
+  assert.equal(parseValue('0xAD', 'decimal'), null);
+});
+
+test('constant and output canvas art uses the selected value format', () => {
+  const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
+  assert.match(art({ t: 'constant', size: 8, value: 173, format: 'binary' }, spec('constant')), />0b10101101<\/text>/);
+  assert.match(art({ t: 'output', size: 8, format: 'hex' }, spec('output'), 173), />0xAD<\/text>/);
+  assert.match(art({ t: 'output', size: 32, format: 'binary' }, spec('output'), 0xffffffff), />0b11111111<\/text>/);
 });
 
 test('imports save only after successful parsing and older documents remain compatible', () => {

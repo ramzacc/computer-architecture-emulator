@@ -1,4 +1,5 @@
 import { bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validSplitterOrder } from "./components.js";
+import { validValueFormat } from "./value-format.js";
 
 export const SCHEMA_VERSION = 9;
 export const DEFAULT_COLS = 64;
@@ -430,10 +431,11 @@ export function serialize(board) {
   return JSON.stringify({
     version: SCHEMA_VERSION,
     grid: { ...board.grid },
-    components: board.components.map(({ t, x, y, r, size, value, order, channels, frequency }) => {
+    components: board.components.map(({ t, x, y, r, size, value, format, order, channels, frequency }) => {
       const q = normalizeRotation(r);
       return { t, x, y, ...(q ? { r: q } : {}), ...(isSizable({ t }) ? { size: size ?? 1 } : {}),
         ...(t === "constant" ? { value: value ?? 0 } : {}),
+        ...(["constant", "output"].includes(t) && validValueFormat(format) && format !== "decimal" ? { format } : {}),
         ...(t === "clock" ? { frequency: frequency ?? DEFAULT_CLOCK_FREQUENCY } : {}),
         ...(t === "splitter" ? { order: order ?? "ascendant" } : {}),
         ...(t === "mux" || t === "demux" ? { channels: channels ?? 2 } : {}) };
@@ -466,6 +468,7 @@ export function parseDocument(text) {
       ...(raw.t === "mux" || raw.t === "demux" ? { channels: raw.channels ?? 2 } : {}),
       ...(raw.t === "splitter" ? { order: raw.order ?? "ascendant" } : {}),
       ...(t === "constant" ? { value: raw.t === "power" ? 1 : raw.value ?? 0 } : {}),
+      ...(["constant", "output"].includes(raw.t) && validValueFormat(raw.format) && raw.format !== "decimal" ? { format: raw.format } : {}),
       ...(raw.t === "clock" ? { frequency: raw.frequency ?? DEFAULT_CLOCK_FREQUENCY } : {}),
       x: clampInt(raw.x, -COORD_LIMIT, COORD_LIMIT, 0),
       y: clampInt(raw.y, -COORD_LIMIT, COORD_LIMIT, 0),

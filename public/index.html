@@ -49,7 +49,14 @@
         </select>
       </label>
       <label id="constant-value-row" class="property" hidden>Constant value
-        <input id="constant-value" type="number" min="0" max="1" step="1" disabled />
+        <input id="constant-value" type="text" inputmode="text" spellcheck="false" disabled />
+      </label>
+      <label id="value-format-row" class="property" hidden>Value format
+        <select id="value-format" disabled>
+          <option value="decimal">Decimal</option>
+          <option value="binary">Binary (0b)</option>
+          <option value="hex">Hex (0x)</option>
+        </select>
       </label>
       <label id="clock-frequency-row" class="property" hidden>Frequency (Hz)
         <input id="clock-frequency" type="number" min="0.1" max="20" step="0.1" disabled />

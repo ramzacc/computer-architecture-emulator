@@ -2,6 +2,7 @@ import { COMPONENT_TYPES, DEFAULT_CLOCK_FREQUENCY, bitWidth, channelCount, dimsO
 import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, isValidComponent, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
 import { BoardEditor } from "./editor.js";
 import { createRenderer } from "./renderer.js";
+import { formatValue, parseValue } from "./value-format.js";
 
 const CELL = 48;
 const GAP = 3;
@@ -56,6 +57,8 @@ const selectedValueLabelEl = document.getElementById("selected-value-label");
 const selectedValueEl = document.getElementById("selected-value");
 const constantValueRowEl = document.getElementById("constant-value-row");
 const constantValueEl = document.getElementById("constant-value");
+const valueFormatRowEl = document.getElementById("value-format-row");
+const valueFormatEl = document.getElementById("value-format");
 const clockFrequencyRowEl = document.getElementById("clock-frequency-row");
 const clockFrequencyEl = document.getElementById("clock-frequency");
 const busStatusEl = document.getElementById("bus-status");
@@ -109,8 +112,11 @@ function renderProperties() {
   const constant = component?.t === "constant";
   constantValueRowEl.hidden = !constant;
   constantValueEl.disabled = !constant;
-  constantValueEl.max = constant ? String(2 ** bitWidth(component) - 1) : "1";
-  constantValueEl.value = constant ? String(component.value ?? 0) : "";
+  constantValueEl.value = constant ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "";
+  const valueFormat = constant || component?.t === "output";
+  valueFormatRowEl.hidden = !valueFormat;
+  valueFormatEl.disabled = !valueFormat;
+  valueFormatEl.value = valueFormat ? component.format ?? "decimal" : "decimal";
   const clock = component?.t === "clock";
   clockFrequencyRowEl.hidden = !clock;
   clockFrequencyEl.disabled = !clock;
@@ -120,9 +126,10 @@ function renderProperties() {
   const displayedSize = output ? bitWidth(component) : net?.size;
   selectedValueRowEl.hidden = !net && !output;
   selectedValueLabelEl.textContent = output ? "Output value" : "Selected bus value";
-  selectedValueEl.textContent = displayedValue === undefined ? "—" : displayedSize === 1
-    ? `${displayedValue} (${displayedValue ? "HIGH" : "LOW"})`
-    : `${displayedValue} (0b${displayedValue.toString(2).padStart(displayedSize, "0")})`;
+  selectedValueEl.textContent = displayedValue === undefined ? "—" : output
+    ? formatValue(displayedValue, displayedSize, component.format)
+    : displayedSize === 1 ? `${displayedValue} (${displayedValue ? "HIGH" : "LOW"})`
+      : `${displayedValue} (0b${displayedValue.toString(2).padStart(displayedSize, "0")})`;
   if (size !== undefined && !busStatusEl.classList.contains("error")) {
     busStatus(component ? `${spec(component.t).label}: ${size} bit${size === 1 ? "" : "s"}${plexer ? `, ${channelCount(component)} channels, ${selectWidth(component)} selector bit${selectWidth(component) === 1 ? "" : "s"}` : ""}.` :
       `Selected bus: ${size} bit${size === 1 ? "" : "s"}.`);
@@ -173,14 +180,21 @@ splitterOrderEl.addEventListener("change", () => {
 
 constantValueEl.addEventListener("change", () => {
   const component = editor.component(selectedId);
-  const value = Number(constantValueEl.value);
-  if (editor.setConstantValue(selectedId, value)) {
+  if (!component || component.t !== "constant") return;
+  const value = parseValue(constantValueEl.value, component.format);
+  if (value === component.value) { renderProperties(); return; }
+  if (value !== null && editor.setConstantValue(selectedId, value)) {
     busStatus(`Constant set to ${value}.`);
   } else {
-    if (component && value !== component.value)
-      busStatus(`Constant value must be a whole number from 0 to ${2 ** bitWidth(component) - 1}, and must not short circuit another output.`, true);
+    busStatus(`Enter a valid ${component.format ?? "decimal"} whole number from 0 to ${2 ** bitWidth(component) - 1}; the value must not short circuit another output.`, true);
     renderProperties();
   }
+});
+
+valueFormatEl.addEventListener("change", () => {
+  if (editor.setValueFormat(selectedId, valueFormatEl.value))
+    busStatus(`Value format set to ${valueFormatEl.selectedOptions[0].textContent}.`);
+  else renderProperties();
 });
 
 clockFrequencyEl.addEventListener("change", () => {
