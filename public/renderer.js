@@ -20,16 +20,20 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       : q === 2 ? `translate(${s.w * U},${s.h * U}) rotate(180)`
       : q === 3 ? `translate(0,${s.w * U}) rotate(270)`
       : null;
-    const content = transform ? `<g transform="${transform}">${inner}</g>` : inner;
+    // Counter-rotate each label around its anchor while the chassis and ports
+    // follow the component orientation.
+    const upright = q ? inner.replace(/<text x="([^"]+)" y="([^"]+)"/g,
+      (_, x, y) => `<text x="${x}" y="${y}" transform="rotate(${-q * 90} ${x} ${y})"`) : inner;
+    const content = transform ? `<g transform="${transform}">${upright}</g>` : upright;
     return `<svg class="art" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="xMidYMid meet">${content}</svg>`;
   }
 
   // All parts share the same chassis and edge connection treatment. Geometry
   // stays on the model's lattice so existing boards and rotations still align.
-  const ink = "#e7edf3";
-  const muted = "#94a4b3";
-  const surface = "#1c2833";
-  const border = "#526473";
+  const ink = "#e8e9ec";
+  const muted = "#a0a3ab";
+  const surface = "#202126";
+  const border = "#555861";
 
   function textAt(x, y, value, size = 12, color = ink, weight = 600, anchor = "middle") {
     return `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle" fill="${color}" font-family="Inter, system-ui, sans-serif" font-size="${size}" font-weight="${weight}">${value}</text>`;
@@ -86,10 +90,10 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const w = 80, h = 80;
     let graphic = "";
     if (s.shape === "button") {
-      graphic = `<circle class="button-cap" cx="40" cy="48" r="15" fill="${active ? s.color : "#344552"}" stroke="${s.color}" stroke-width="2"/>
+      graphic = `<circle class="button-cap" cx="40" cy="48" r="15" fill="${active ? s.color : "#3b3d45"}" stroke="${s.color}" stroke-width="2"/>
         <circle cx="40" cy="48" r="5" fill="${active ? surface : s.color}"/>`;
     } else if (s.shape === "switch") {
-      graphic = `<rect x="22" y="39" width="36" height="18" rx="9" fill="#101b24" stroke="${border}" stroke-width="1.5"/>
+      graphic = `<rect x="22" y="39" width="36" height="18" rx="9" fill="#141519" stroke="${border}" stroke-width="1.5"/>
         <circle cx="${active ? 48 : 32}" cy="48" r="7" fill="${active ? s.color : muted}"/>`;
     } else {
       graphic = `<path d="M20 50 H31 V39 H46 V50 H60" fill="none" stroke="${s.color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
@@ -102,8 +106,8 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
 
   function ledArt(c, s) {
     return svgWrap(frame(80, 80, s.color) + textAt(40, 23, "LED", 9, s.color, 750) +
-      `<circle cx="40" cy="49" r="17" fill="#111b24" stroke="${border}" stroke-width="1.5"/>
-       <circle class="led-lamp" cx="40" cy="49" r="10" fill="#566170"/>` +
+      `<circle cx="40" cy="49" r="17" fill="#141519" stroke="${border}" stroke-width="1.5"/>
+       <circle class="led-lamp" cx="40" cy="49" r="10" fill="#5e6068"/>` +
       ports(localPins(c, s), 80, 80, s.color, false), s, c.r);
   }
 
@@ -124,7 +128,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const labels = localPins(c, s).map((pin) => textAt(pin.x * U, pin.dir === "N" ? 19 : 183,
       pin.name, 9, muted, 700)).join("");
     return svgWrap(frame(240, 200, s.color) +
-      `<rect x="56" y="19" width="128" height="164" rx="8" fill="#151e28" stroke="#394954" stroke-width="1"/>` +
+      `<rect x="56" y="19" width="128" height="164" rx="8" fill="#17181d" stroke="#44464e" stroke-width="1"/>` +
       segments(inputs) + labels + ports(localPins(c, s), 240, 200, s.color, false), s, c.r);
   }
 
@@ -133,7 +137,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       "1111111", "1111011", "1110111", "0011111", "1001110", "0111101", "1001111", "1000111"];
     const inputs = [...patterns[value & 15]].map(Number);
     return svgWrap(frame(160, 160, s.color) + textAt(80, 146, "DBG", 9, s.color, 750) +
-      `<rect x="40" y="31" width="80" height="107" rx="7" fill="#151e28" stroke="#394954" stroke-width="1"/>
+      `<rect x="40" y="31" width="80" height="107" rx="7" fill="#17181d" stroke="#44464e" stroke-width="1"/>
        <g transform="translate(19 33) scale(.5)">${segments(inputs)}</g>` +
       ports(localPins(c, s), 160, 160, s.color), s, c.r);
   }
