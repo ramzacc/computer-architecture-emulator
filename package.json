@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "preview": "wrangler preview",
     "test": "node --test",
     "check": "node --check public/app.js && node --check public/components.js && node --check public/editor.js && node --check public/model.js && node --check public/renderer.js && node --check editor.test.js && node --check model.test.js"
   },
