@@ -171,6 +171,8 @@ const GATE_OPS = {
   or: (a, b) => a | b,
   xor: (a, b) => a ^ b,
   nand: (a, b) => ~(a & b),
+  nor: (a, b) => ~(a | b),
+  xnor: (a, b) => ~(a ^ b),
   not: (a) => ~a,
 };
 
@@ -192,6 +194,26 @@ function aluResult(inputs, size) {
   } else if (op === 2) result = (a & b) >>> 0;
   else result = (a | b) >>> 0;
   return { result, carry, zero: Number(result === 0) };
+}
+
+function blockOutputs(kind, inputs, size) {
+  const mask = bitMask(size) >>> 0;
+  const [a = 0, b = 0, control = 0] = inputs;
+  const left = (a & mask) >>> 0;
+  const right = (b & mask) >>> 0;
+  switch (kind) {
+    case "mux": return [(control & 1) ? right : left];
+    case "demux": return (b & 1) ? [0, left] : [left, 0];
+    case "adder": {
+      const sum = left + right + (control & 1);
+      return [Number(sum > mask), (sum & mask) >>> 0];
+    }
+    case "twos": return [(-left & mask) >>> 0];
+    case "comparator": return [Number(left < right), Number(left === right), Number(left > right)];
+    case "shl": return [((left << (b & 31)) & mask) >>> 0];
+    case "shr": return [(left >>> (b & 31)) >>> 0];
+    default: return [];
+  }
 }
 
 function buildUnionFind(board) {
@@ -244,6 +266,7 @@ export function evaluateBoard(board) {
       output: !!entry.output,
       splitter: !!entry.splitter,
       alu: !!entry.alu,
+      block: entry.block,
       size: bitWidth(component),
       ins: pins.filter((pin) => pin.role === "in").map(netAt),
       outs: pins.filter((pin) => pin.role === "out")
@@ -254,6 +277,11 @@ export function evaluateBoard(board) {
     if (part.constant) return part.constantValue;
     if (part.source) return 1;
     if (part.alu) return aluResult(part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0)), part.size).result;
+    if (part.block) {
+      const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
+      const outputs = blockOutputs(part.block, inputs, part.size);
+      return outputs[part.block === "adder" ? 1 : 0];
+    }
     if (part.splitter) {
       const bus = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
       return part.outs.reduce((value, root, bit) =>
@@ -287,6 +315,9 @@ export function evaluateBoard(board) {
         drive(part.outs[0], carry);
         drive(part.outs[1], result);
         drive(part.outs[2], zero);
+      } else if (part.block) {
+        const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
+        blockOutputs(part.block, inputs, part.size).forEach((output, index) => drive(part.outs[index], output));
       } else {
         const output = outputOf(part, values);
         for (const root of part.outs) drive(root, output);
@@ -304,9 +335,15 @@ export function evaluateBoard(board) {
   for (const part of parts) {
     const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
     const flags = part.alu ? aluResult(inputs, part.size) : null;
+    const value = part.output ? inputs[0] : outputOf(part, values);
+    const outputs = part.alu ? [flags.carry, flags.result, flags.zero]
+      : part.block ? blockOutputs(part.block, inputs, part.size)
+      : part.splitter ? part.outs.map((_, bit) => (value >>> bit) & 1)
+      : part.outs.map(() => value);
     states.set(part.id, {
       inputs,
-      value: part.output ? inputs[0] : outputOf(part, values),
+      value,
+      outputs,
       ...(flags ? { carry: flags.carry, zero: flags.zero } : {}),
       lit: inputs.length === 1 && inputs[0] !== 0,
     });
@@ -350,14 +387,14 @@ export function shortCircuitError(board) {
   const driven = new Map();
   for (const component of board.components) {
     const entry = spec(component.t);
-    if (!entry?.source && !entry?.constant && !entry?.op) continue;
-    const value = states.get(component.id).value;
-    for (const pin of pinsFor(component).filter((item) => item.role === "out")) {
+    if (!entry?.source && !entry?.constant && !entry?.op && !entry?.alu && !entry?.block) continue;
+    const outputs = states.get(component.id).outputs;
+    for (const [index, pin] of pinsFor(component).filter((item) => item.role === "out").entries()) {
       const net = netAt(pin);
       if (net === undefined) continue;
       for (let bit = 0; bit < pin.size; bit++) {
         const key = find(bitKey(net, bit));
-        const level = (value >>> bit) & 1;
+        const level = (outputs[index] >>> bit) & 1;
         if (driven.has(key) && driven.get(key) !== level) return "Short circuit: HIGH and LOW outputs are connected.";
         driven.set(key, level);
       }

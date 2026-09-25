@@ -78,6 +78,83 @@ export const COMPONENT_TYPES = {
       { x: 2, y: 2, dir: "S", role: "out" },
     ],
   },
+  nor: {
+    label: "NOR", w: 4, h: 2, color: "#775ec9", shape: "nor", op: "nor",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in" },
+      { x: 3, y: 0, dir: "N", role: "in" },
+      { x: 2, y: 2, dir: "S", role: "out" },
+    ],
+  },
+  xnor: {
+    label: "XNOR", w: 4, h: 2, color: "#c77849", shape: "xnor", op: "xnor",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in" },
+      { x: 3, y: 0, dir: "N", role: "in" },
+      { x: 2, y: 2, dir: "S", role: "out" },
+    ],
+  },
+  mux: {
+    label: "MUX 2:1", w: 6, h: 3, color: "#5b9deb", shape: "mux", block: "mux",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "A" },
+      { x: 3, y: 0, dir: "N", role: "in", name: "B" },
+      { x: 5, y: 0, dir: "N", role: "in", name: "S", size: 1 },
+      { x: 3, y: 3, dir: "S", role: "out", name: "Y" },
+    ],
+  },
+  demux: {
+    label: "DEMUX 1:2", w: 4, h: 3, color: "#56a5a0", shape: "demux", block: "demux",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "D" },
+      { x: 3, y: 0, dir: "N", role: "in", name: "S", size: 1 },
+      { x: 1, y: 3, dir: "S", role: "out", name: "Y0" },
+      { x: 3, y: 3, dir: "S", role: "out", name: "Y1" },
+    ],
+  },
+  adder: {
+    label: "Adder", w: 6, h: 3, color: "#e0a65a", shape: "adder", block: "adder",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "A" },
+      { x: 3, y: 0, dir: "N", role: "in", name: "B" },
+      { x: 5, y: 0, dir: "N", role: "in", name: "CI", size: 1 },
+      { x: 1, y: 3, dir: "S", role: "out", name: "CO", size: 1 },
+      { x: 3, y: 3, dir: "S", role: "out", name: "SUM" },
+    ],
+  },
+  twos: {
+    label: "Two's complement", w: 2, h: 2, color: "#d97187", shape: "twos", block: "twos",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "A" },
+      { x: 1, y: 2, dir: "S", role: "out", name: "−A" },
+    ],
+  },
+  comparator: {
+    label: "Comparator", w: 4, h: 3, color: "#a884dc", shape: "comparator", block: "comparator",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "A" },
+      { x: 3, y: 0, dir: "N", role: "in", name: "B" },
+      { x: 1, y: 3, dir: "S", role: "out", name: "LT", size: 1 },
+      { x: 2, y: 3, dir: "S", role: "out", name: "EQ", size: 1 },
+      { x: 3, y: 3, dir: "S", role: "out", name: "GT", size: 1 },
+    ],
+  },
+  shl: {
+    label: "Shift left", w: 4, h: 2, color: "#64a9ca", shape: "shl", block: "shl",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "A" },
+      { x: 3, y: 0, dir: "N", role: "in", name: "N", size: 5 },
+      { x: 2, y: 2, dir: "S", role: "out", name: "Y" },
+    ],
+  },
+  shr: {
+    label: "Shift right", w: 4, h: 2, color: "#64a9ca", shape: "shr", block: "shr",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "A" },
+      { x: 3, y: 0, dir: "N", role: "in", name: "N", size: 5 },
+      { x: 2, y: 2, dir: "S", role: "out", name: "Y" },
+    ],
+  },
   alu: {
     label: "ALU", w: 6, h: 3, color: "#36b6b0", shape: "alu", alu: true,
     // A, B and a 2-bit operation selector enter at the top. Carry, result
@@ -106,7 +183,7 @@ export const MAX_BUS_WIDTH = 32;
 
 export function isSizable(component) {
   const entry = spec(component.t);
-  return !!(entry?.op || entry?.splitter || entry?.constant || entry?.alu || entry?.output);
+  return !!(entry?.op || entry?.block || entry?.splitter || entry?.constant || entry?.alu || entry?.output);
 }
 
 export function bitWidth(component) {

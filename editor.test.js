@@ -133,6 +133,22 @@ test('ALU placement and resizing keep data and operation pin widths distinct', (
   assert.equal(editor.addWire({ o: 'V', x: 5, y: -2, size: 8 }), false);
 });
 
+test('new data-path parts start at four bits and keep control pins fixed while resizing', () => {
+  const { editor } = setup();
+  const mux = editor.place('mux', 0, 0);
+  const adder = editor.place('adder', 8, 0);
+  assert.equal(mux.size, 4);
+  assert.equal(adder.size, 4);
+  assert.equal(editor.addWire({ o: 'V', x: 5, y: -1, size: 1 }), true);
+  assert.equal(editor.addWire({ o: 'V', x: 3, y: 3, size: 4 }), true);
+  assert.equal(editor.resizeComponent(mux.id, 8), false);
+  assert.equal(editor.deleteNet('V:3,3'), true);
+  assert.equal(editor.resizeComponent(mux.id, 8), true);
+  assert.equal(editor.addWire({ o: 'V', x: 5, y: -2, size: 8 }), false);
+  assert.equal(editor.addWire({ o: 'V', x: 9, y: 3, size: 1 }), true);
+  assert.equal(editor.resizeComponent(adder.id, 16), true);
+});
+
 test('a wire route places all segments in one saved edit and reuses existing segments', () => {
   const ctx = setup();
   const start = { x: -2, y: 0 };

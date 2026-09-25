@@ -77,7 +77,7 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
       body = `<path d="M28 14 H132 V36 A52 32 0 0 1 28 36 Z" fill="${color}" stroke="${stroke}" stroke-width="2"/>`;
     } else {
       body = `<path d="M26 14 Q80 32 134 14 Q134 54 80 80 Q26 54 26 14 Z" fill="${color}" stroke="${stroke}" stroke-width="2"/>`;
-      if (shape === "xor") {
+      if (shape === "xor" || shape === "xnor") {
         body += `<path d="M18 10 Q72 28 126 10" fill="none" stroke="${stroke}" stroke-width="2"/>`;
       }
     }
@@ -85,7 +85,7 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
       <line x1="40" y1="0" x2="40" y2="18" stroke="${stroke}" stroke-width="2"/>
       <line x1="120" y1="0" x2="120" y2="18" stroke="${stroke}" stroke-width="2"/>`;
     let out = "";
-    if (shape === "nand") {
+    if (shape === "nand" || shape === "nor" || shape === "xnor") {
       out = `<circle cx="80" cy="74" r="6" fill="${color}" stroke="${stroke}" stroke-width="2"/>`;
     } else if (shape === "and") {
       out = `<line x1="80" y1="68" x2="80" y2="80" stroke="${stroke}" stroke-width="2"/>`;
@@ -102,6 +102,19 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
         <text x="40" y="27">A</text><text x="120" y="27">B</text><text x="200" y="27">OP</text>
         <text x="40" y="105">C</text><text x="120" y="105">R</text><text x="200" y="105">Z</text>
       </g>`;
+  }
+
+  function blockArt(s) {
+    const symbols = { mux: "MUX", demux: "DEMUX", adder: "+", twos: "−A", comparator: "CMP", shl: "≪", shr: "≫" };
+    const width = s.w * U, height = s.h * U;
+    const font = s.w === 2 ? 23 : 26;
+    const labels = s.pins.map((pin) => {
+      const x = pin.x * U;
+      const y = pin.role === "in" ? 26 : height - 14;
+      return `<text x="${x}" y="${y}" text-anchor="middle" fill="#102426" font-size="12" font-weight="700">${pin.name}</text>`;
+    }).join("");
+    return `<rect x="7" y="7" width="${width - 14}" height="${height - 14}" rx="10" fill="${s.color}" stroke="rgba(255,255,255,.55)" stroke-width="2"/>
+      <text x="${width / 2}" y="${height / 2 + 8}" text-anchor="middle" fill="#102426" font-size="${font}" font-weight="700">${symbols[s.shape]}</text>${labels}`;
   }
 
   function componentArt(c, s, value = 0) {
@@ -121,6 +134,7 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
     else if (s.shape === "output") inner = outputArt(c, s.color, value);
     else if (s.shape === "led") inner = ledArt();
     else if (s.shape === "alu") inner = aluArt(s.color);
+    else if (s.block) inner = blockArt(s);
     else inner = gateArt(s.shape, s.color);
     return svgWrap(inner, s, s.constant || s.shape === "output" ? 0 : c.r);
   }

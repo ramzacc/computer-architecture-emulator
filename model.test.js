@@ -187,6 +187,101 @@ test("gates compute their output from the input nets", () => {
   assert.equal(states.get("h").value, 0);
 });
 
+function wiredBlock(type, size, values) {
+  const board = createBoard();
+  const block = { id: "block", t: type, x: 0, y: 0, r: 0, size };
+  assert.equal(addComponent(board, block), true);
+  const inputs = pinsFor(block).filter((pin) => pin.role === "in");
+  const sources = inputs.map((pin, index) => {
+    const source = { id: `source${index}`, t: "constant", x: pin.px - 1, y: -4,
+      size: pin.size, value: values[index] };
+    assert.equal(addComponent(board, source), true);
+    for (const y of [-2, -1]) assert.equal(addWireEdge(board, { o: "V", x: pin.px, y, size: pin.size }), true);
+    return source;
+  });
+  const outputPins = pinsFor(block).filter((pin) => pin.role === "out");
+  for (const pin of outputPins) assert.equal(addWireEdge(board, { ...pin.edge, size: pin.size }), true);
+  const outputValues = () => {
+    const { nets } = evaluateBoard(board);
+    return outputPins.map((pin) => [...nets.values()].find((net) =>
+      net.edges.some((edge) => edgeKey(edge) === edgeKey(pin.edge)))?.value);
+  };
+  return { board, block, sources, outputValues };
+}
+
+test("mux and demux route sized data using a one-bit selector", () => {
+  const mux = wiredBlock("mux", 4, [5, 10, 0]);
+  assert.deepEqual(pinsFor(mux.block).map((pin) => pin.size), [4, 4, 1, 4]);
+  assert.deepEqual(mux.outputValues(), [5]);
+  mux.sources[2].value = 1;
+  assert.deepEqual(mux.outputValues(), [10]);
+
+  const demux = wiredBlock("demux", 4, [9, 0]);
+  assert.deepEqual(demux.outputValues(), [9, 0]);
+  demux.sources[1].value = 1;
+  assert.deepEqual(demux.outputValues(), [0, 9]);
+});
+
+test("adder wraps its sum and reports carry, including carry in", () => {
+  const { board, sources, outputValues } = wiredBlock("adder", 4, [15, 1, 0]);
+  assert.deepEqual(outputValues(), [1, 0]);
+  sources[0].value = 7;
+  sources[1].value = 3;
+  sources[2].value = 1;
+  assert.deepEqual(outputValues(), [0, 11]);
+  assert.equal(evaluateBoard(board).states.get("block").value, 11);
+});
+
+test("two's complement, unsigned comparator, and logical shifts evaluate buses", () => {
+  const twos = wiredBlock("twos", 4, [3]);
+  assert.deepEqual(twos.outputValues(), [13]);
+  twos.sources[0].value = 0;
+  assert.deepEqual(twos.outputValues(), [0]);
+
+  const cmp = wiredBlock("comparator", 4, [3, 7]);
+  assert.deepEqual(cmp.outputValues(), [1, 0, 0]);
+  cmp.sources[0].value = 7;
+  assert.deepEqual(cmp.outputValues(), [0, 1, 0]);
+  cmp.sources[0].value = 9;
+  assert.deepEqual(cmp.outputValues(), [0, 0, 1]);
+
+  const left = wiredBlock("shl", 4, [9, 1]);
+  assert.deepEqual(left.outputValues(), [2]);
+  left.sources[1].value = 4;
+  assert.deepEqual(left.outputValues(), [0]);
+  const right = wiredBlock("shr", 4, [9, 1]);
+  assert.deepEqual(right.outputValues(), [4]);
+});
+
+test("NOR and XNOR complement their results at the selected width", () => {
+  assert.deepEqual(wiredBlock("nor", 4, [0b0101, 0b0011]).outputValues(), [0b1000]);
+  assert.deepEqual(wiredBlock("xnor", 4, [0b0101, 0b0011]).outputValues(), [0b1001]);
+});
+
+test("each output of a multi-output block participates in short-circuit checks", () => {
+  const { board } = wiredBlock("demux", 4, [9, 0]);
+  assert.equal(addComponent(board, { id: "sink", t: "constant", x: 6, y: 1, size: 4, value: 1 }), true);
+  // The first DEMUX output drives 9; the second drives 0. A distinct driver
+  // on the zero output must still be rejected.
+  for (const edge of [
+    { o: "V", x: 7, y: 3, size: 4 }, { o: "H", x: 6, y: 4, size: 4 },
+    { o: "H", x: 5, y: 4, size: 4 },
+    { o: "H", x: 4, y: 4, size: 4 },
+  ]) assert.equal(addWireEdge(board, edge), true);
+  assert.match(edgePlacementError(board, { o: "H", x: 3, y: 4, size: 4 }), /Short circuit/);
+});
+
+test("new blocks persist their sizes and rotate pin widths", () => {
+  const board = createBoard();
+  const part = { id: "m", t: "mux", x: 0, y: 0, r: 1, size: 8 };
+  assert.equal(addComponent(board, part), true);
+  assert.deepEqual(dimsOf(part), { w: 3, h: 6 });
+  assert.deepEqual(pinsFor(part).map(({ size }) => size), [8, 8, 1, 8]);
+  const saved = serialize(board);
+  assert.deepEqual(parseDocument(saved).skipped, { components: 0, wires: 0 });
+  assert.deepEqual(JSON.parse(serialize(parseDocument(saved).board)), JSON.parse(saved));
+});
+
 test("documents persist all four orientations", () => {
   const board = createBoard(10, 10);
   addComponent(board, { id: "c1", t: "power", x: 1, y: 1, r: 3 });
