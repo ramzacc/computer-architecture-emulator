@@ -94,19 +94,19 @@ test('toggle switch drives a persistent one-bit value and rejects conflicting to
 test('seven-segment art lights only the supplied inputs', () => {
   const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
   const svg = art({ t: 'sevenseg', r: 0 }, spec('sevenseg'), 0, [1, 0, 0, 0, 1, 0, 0]);
-  assert.equal((svg.match(/fill="#ff6469"/g) ?? []).length, 2);
-  assert.equal((svg.match(/fill="#532d38"/g) ?? []).length, 5);
+  assert.equal((svg.match(/fill="#f2bb85"/g) ?? []).length, 2);
+  assert.equal((svg.match(/fill="#3b3840"/g) ?? []).length, 5);
   assert.match(svg, />A<\/text>/);
   assert.match(svg, />G<\/text>/);
 });
 
-test('debug display decodes the four-bit value and carries a distinct badge', () => {
+test('debug display decodes the four-bit value and carries a distinct label', () => {
   const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
   const zero = art({ t: 'debugdisplay' }, spec('debugdisplay'), 0);
   const f = art({ t: 'debugdisplay' }, spec('debugdisplay'), 15);
   assert.match(zero, />DBG<\/text>/);
-  assert.equal((zero.match(/fill="#ff6469"/g) ?? []).length, 6);
-  assert.equal((f.match(/fill="#ff6469"/g) ?? []).length, 4);
+  assert.equal((zero.match(/fill="#f2bb85"/g) ?? []).length, 6);
+  assert.equal((f.match(/fill="#f2bb85"/g) ?? []).length, 4);
   const { editor } = setup();
   const display = editor.place('debugdisplay', 0, 0);
   assert.ok(display);
@@ -186,12 +186,13 @@ test('wire hover text includes the evaluated value', () => {
   assert.equal(wireTitle({ size: 2 }, 3), '2 bit(s), value 3');
 });
 
-test('mux and demux render tapered routing symbols without block name text', () => {
+test('mux and demux render labeled chips at their generated widths', () => {
   const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
   for (const type of ['mux', 'demux']) {
     const svg = art({ t: type, x: 0, y: 0, r: 0, size: 4, channels: 4 }, spec(type));
     assert.match(svg, /<path d="M/);
-    assert.doesNotMatch(svg, />MUX<|>DEMUX</);
+    assert.match(svg, type === 'mux' ? />MUX<\/text>/ : />DEMUX<\/text>/);
+    assert.match(svg, />4 CHANNELS<\/text>/);
     assert.match(svg, /viewBox="0 0 (400|320) 120"/);
   }
 });
