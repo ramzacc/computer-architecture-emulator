@@ -100,6 +100,20 @@ test('seven-segment art lights only the supplied inputs', () => {
   assert.match(svg, />G<\/text>/);
 });
 
+test('debug display decodes the four-bit value and carries a distinct badge', () => {
+  const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
+  const zero = art({ t: 'debugdisplay' }, spec('debugdisplay'), 0);
+  const f = art({ t: 'debugdisplay' }, spec('debugdisplay'), 15);
+  assert.match(zero, />DBG<\/text>/);
+  assert.equal((zero.match(/fill="#ff6469"/g) ?? []).length, 6);
+  assert.equal((f.match(/fill="#ff6469"/g) ?? []).length, 4);
+  const { editor } = setup();
+  const display = editor.place('debugdisplay', 0, 0);
+  assert.ok(display);
+  assert.equal(editor.resizeComponent(display.id, 8), false);
+  assert.equal(editor.setValueFormat(display.id, 'decimal'), false);
+});
+
 test('constant and output formats convert existing values and survive saving', () => {
   const { editor } = setup();
   const constant = editor.place('constant', 0, 0);

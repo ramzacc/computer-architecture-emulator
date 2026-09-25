@@ -95,10 +95,10 @@ function renderProperties() {
   const net = selectedWire ? netContaining(state, selectedWire, editor.evaluation) : null;
   const selectionCount = selectedIds.size + selectedWires.size;
   selectedPropertiesHeadingEl.textContent = selectionCount > 1 ? `${selectionCount} items selected` : component ? "Component properties" : net ? "Wire properties" : "Selected properties";
-  const size = component && isSizable(component) ? bitWidth(component) : net?.size;
+  const size = component && (isSizable(component) || component.t === "debugdisplay") ? bitWidth(component) : net?.size;
   selectedSizeRowEl.hidden = size === undefined;
   selectedSizeLabelEl.textContent = component?.t === "mux" || component?.t === "demux" ? "Data width (bits)" : "Selected size (bits)";
-  selectedSizeEl.disabled = size === undefined;
+  selectedSizeEl.disabled = size === undefined || component?.t === "debugdisplay";
   selectedSizeEl.value = size === undefined ? "" : String(size);
   selectedSizeEl.max = component?.t === "constant" ? "8" : "32";
   const plexer = component?.t === "mux" || component?.t === "demux";
@@ -121,13 +121,13 @@ function renderProperties() {
   clockFrequencyRowEl.hidden = !clock;
   clockFrequencyEl.disabled = !clock;
   clockFrequencyEl.value = clock ? String(component.frequency ?? DEFAULT_CLOCK_FREQUENCY) : "";
-  const output = component?.t === "output";
+  const output = component?.t === "output" || component?.t === "debugdisplay";
   const displayedValue = output ? editor.evaluation.states.get(component.id)?.value ?? 0 : net?.value;
   const displayedSize = output ? bitWidth(component) : net?.size;
   selectedValueRowEl.hidden = !net && !output;
-  selectedValueLabelEl.textContent = output ? "Output value" : "Selected bus value";
+  selectedValueLabelEl.textContent = component?.t === "debugdisplay" ? "Debug value" : output ? "Output value" : "Selected bus value";
   selectedValueEl.textContent = displayedValue === undefined ? "—" : output
-    ? formatValue(displayedValue, displayedSize, component.format)
+    ? formatValue(displayedValue, displayedSize, component.t === "debugdisplay" ? "hex" : component.format)
     : displayedSize === 1 ? `${displayedValue} (${displayedValue ? "HIGH" : "LOW"})`
       : `${displayedValue} (0b${displayedValue.toString(2).padStart(displayedSize, "0")})`;
   if (size !== undefined && !busStatusEl.classList.contains("error")) {

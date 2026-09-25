@@ -57,6 +57,10 @@ export const COMPONENT_TYPES = {
       { x: 5, y: 5, dir: "S", role: "in", name: "G" },
     ],
   },
+  debugdisplay: {
+    label: "Debug display", w: 4, h: 4, color: "#a978e8", shape: "debugdisplay", debug: true,
+    pins: [{ x: 2, y: 0, dir: "N", role: "in", name: "HEX", size: 4 }],
+  },
   and: {
     label: "AND", w: 4, h: 2, color: "#4c8bf5", shape: "and", op: "and",
     pins: [
@@ -204,6 +208,7 @@ export function isSizable(component) {
 }
 
 export function bitWidth(component) {
+  if (component.t === "debugdisplay") return 4;
   return isSizable(component) ? (component.size ?? 1) : 1;
 }
 
