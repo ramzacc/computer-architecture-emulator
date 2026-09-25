@@ -223,7 +223,7 @@ function buildUnionFind(board) {
 // Solve the board to a fixed point: nets carry a value, each component's
 // output (or LED) follows from its inputs. Oscillating feedback is reported
 // to callers so edits can reject it.
-export function evaluateBoard(board) {
+export function evaluateBoard(board, pressedButtons = new Set()) {
   const { parent, find } = buildUnionFind(board);
   const nets = new Map();
   for (const edge of board.wires.values()) {
@@ -243,6 +243,7 @@ export function evaluateBoard(board) {
       id: component.id,
       op: entry.op,
       source: !!entry.source,
+      momentary: !!entry.momentary,
       constant: !!entry.constant,
       constantValue: component.value ?? 0,
       output: !!entry.output,
@@ -257,6 +258,7 @@ export function evaluateBoard(board) {
   const outputOf = (part, values) => {
     if (part.constant) return part.constantValue;
     if (part.source) return 1;
+    if (part.momentary) return Number(pressedButtons.has(part.id));
     if (part.block) {
       const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
       const outputs = blockOutputs(part.block, inputs, part.size);
@@ -329,8 +331,8 @@ export function evaluateBoard(board) {
 // Each splitter branch is electrically the corresponding bit of its bus.
 // Compare actual output drivers after evaluation, including drivers connected
 // through splitters; a driven zero must count just as much as a driven one.
-export function shortCircuitError(board) {
-  const { nets, states, settled } = evaluateBoard(board);
+export function shortCircuitError(board, pressedButtons) {
+  const { nets, states, settled } = evaluateBoard(board, pressedButtons);
   if (!settled) return "Short circuit: feedback loop does not settle.";
   const parent = new Map();
   const find = (key) => {
@@ -358,7 +360,7 @@ export function shortCircuitError(board) {
   const driven = new Map();
   for (const component of board.components) {
     const entry = spec(component.t);
-    if (!entry?.source && !entry?.constant && !entry?.op && !entry?.block) continue;
+    if (!entry?.source && !entry?.momentary && !entry?.constant && !entry?.op && !entry?.block) continue;
     const outputs = states.get(component.id).outputs;
     for (const [index, pin] of pinsFor(component).filter((item) => item.role === "out").entries()) {
       const net = netAt(pin);
@@ -378,8 +380,8 @@ export function computeNets(board) {
   return evaluateBoard(board).nets;
 }
 
-export function netContaining(board, key) {
-  for (const net of computeNets(board).values()) {
+export function netContaining(board, key, evaluation = evaluateBoard(board)) {
+  for (const net of evaluation.nets.values()) {
     if (net.edges.some((edge) => edgeKey(edge) === key)) return net;
   }
   return null;

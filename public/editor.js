@@ -1,6 +1,6 @@
 import { bitWidth, isSizable, validBitWidth, validConstant, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey, isValidComponent,
-  netContaining, parseDocument, resizeNet, sanitizeWires, serialize, shortCircuitError, wireRoute } from "./model.js";
+  evaluateBoard, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, shortCircuitError, wireRoute } from "./model.js";
 
 export const STORAGE_KEY = "grid-canvas-prototype-v5";
 
@@ -8,6 +8,8 @@ export const STORAGE_KEY = "grid-canvas-prototype-v5";
 export class BoardEditor {
   constructor({ storage = null, onChange = () => {}, onStorageError = () => {} } = {}) {
     this.board = createBoard();
+    this.pressedButtons = new Set();
+    this.evaluation = evaluateBoard(this.board);
     this.storage = storage;
     this.onChange = onChange;
     this.onStorageError = onStorageError;
@@ -15,12 +17,31 @@ export class BoardEditor {
   }
 
   commit() {
-    this.onChange(this.board);
+    this.evaluate();
     try {
       if (!this.storage) throw new Error("Browser storage is unavailable.");
       this.storage.setItem(STORAGE_KEY, serialize(this.board));
     }
     catch (error) { this.onStorageError(error); }
+  }
+
+  // An accepted edit produces one snapshot for every reader of circuit state.
+  // Trial boards used by validation remain separate from this published result.
+  evaluate() {
+    const buttonIds = new Set(this.board.components.filter((component) => component.t === "button")
+      .map((component) => component.id));
+    for (const id of this.pressedButtons) if (!buttonIds.has(id)) this.pressedButtons.delete(id);
+    this.evaluation = evaluateBoard(this.board, this.pressedButtons);
+    this.onChange(this.board, this.evaluation);
+    return this.evaluation;
+  }
+
+  setButtonPressed(id, pressed) {
+    if (this.component(id)?.t !== "button" || this.pressedButtons.has(id) === pressed) return false;
+    if (pressed) this.pressedButtons.add(id);
+    else this.pressedButtons.delete(id);
+    this.evaluate();
+    return true;
   }
 
   commitComponentEdit() {
@@ -38,9 +59,10 @@ export class BoardEditor {
 
   replaceBoard(board, { save = true } = {}) {
     this.board = board;
+    this.pressedButtons.clear();
     this.nextComponentId = board.components.length + 1;
     if (save) this.commit();
-    else this.onChange(this.board);
+    else this.evaluate();
   }
 
   importText(text) {
@@ -133,7 +155,7 @@ export class BoardEditor {
   }
 
   resizeWire(key, size) {
-    const net = netContaining(this.board, key);
+    const net = netContaining(this.board, key, this.evaluation);
     if (!net || net.size === size || !resizeNet(this.board, key, size)) return false;
     this.commit();
     return true;
@@ -181,7 +203,7 @@ export class BoardEditor {
     const selected = new Set(ids);
     const edges = new Set();
     for (const key of wireKeys) {
-      const net = netContaining(this.board, key);
+      const net = netContaining(this.board, key, this.evaluation);
       if (net) for (const edge of net.edges) edges.add(edgeKey(edge));
     }
     const before = this.board.components.length;
@@ -224,7 +246,7 @@ export class BoardEditor {
   }
 
   deleteNet(key) {
-    const net = netContaining(this.board, key);
+    const net = netContaining(this.board, key, this.evaluation);
     if (!net) return false;
     for (const edge of net.edges) this.board.wires.delete(edgeKey(edge));
     this.commit();
