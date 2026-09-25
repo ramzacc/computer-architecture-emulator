@@ -48,6 +48,7 @@ Four example circuit documents are in [`public/examples/`](public/examples/). Im
 The catalog holds real logic-level parts: a **Toggle switch** (click it in Pan mode to change its saved one-bit state; Shift-drag to move it), a **Button** (hold it in Pan mode to drive its single output high; release to drive low;
 Shift-drag it to move it),
 a **Clock** (toggles its one-bit output at a selected frequency),
+a **Register** (stores a 1–32-bit value on a rising clock edge),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,
 **NAND**, **NOR**, **XNOR**, and 2×2 **NOT** gates, plus a **Splitter**, **Constant** source, an **Output** display, and a **Seven-segment** display. Its seven one-bit inputs A–G directly light the corresponding segments; unwired inputs stay dark. The **Debug display** takes one fixed four-bit input and decodes it as a hex digit; its DBG badge distinguishes it from the numeric Output. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
@@ -62,6 +63,7 @@ The data-path catalog also includes:
 | Two's complement | A | −A, wrapped to the selected width |
 | Comparator | A, B | One-bit LT, EQ, and GT (unsigned comparison) |
 | Shift left / right | A, five-bit N | Logical shift by N, with zero fill and width-limited result |
+| Register | D, one-bit CLK | Q holds the captured 1–32-bit value |
 
 These parts use a configurable 1–32-bit data width. Mux and demux also have a
 **Data channels** property from 1 to 16; the selector bus grows automatically
@@ -102,6 +104,15 @@ Place a **Clock** to drive a one-bit signal. Select it to set its frequency from
 0.1 to 20 Hz (default 1 Hz). It starts LOW and changes level every half period,
 so one full LOW/HIGH cycle takes `1 / frequency` seconds. Tick events refresh
 the evaluated circuit without saving each phase; only the frequency is stored.
+
+Place a **Register** to hold a bus value. It starts at four bits; select it to
+set its width from 1 to 32 bits. Connect a matching bus to D and a one-bit
+signal to CLK. When CLK changes from LOW to HIGH, the register copies D to Q;
+Q holds that value while CLK stays HIGH or goes LOW. Multiple registers on the
+same edge capture their inputs together. A one-bit register behaves as a D
+flip-flop. The selected register shows its stored Q value. Registers start at
+zero when the board is loaded; saved documents retain the register's width
+and wiring, while running values stay in the current simulation session.
 
 The canvas is an infinite, pannable lattice. Drag empty space to pan, scroll to
 move, and zoom with `Ctrl`/`Cmd` + scroll, `Ctrl`/`Cmd` + `+`/`-` (plain

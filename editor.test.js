@@ -278,6 +278,92 @@ test('clock ticks reevaluate without saving and frequency edits persist', () => 
   assert.equal(editor.evaluation.states.get(editor.board.components[1].id).lit, false);
 });
 
+test('a register captures its data on rising edges and holds it on falling edges', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  const data = editor.place('constant', 0, 0);
+  const clock = editor.place('clock', 2, 0);
+  const register = editor.place('register', 0, 5);
+  assert.equal(register.size, 4);
+  assert.deepEqual(editor.evaluation.states.get(register.id).inputs, [0, 0]);
+  assert.equal(editor.resizeComponent(data.id, 4), true);
+  assert.equal(editor.setConstantValue(data.id, 9), true);
+  for (const y of [2, 3, 4]) {
+    assert.equal(editor.addWire({ o: 'V', x: 1, y, size: 4 }), true);
+    assert.equal(editor.addWire({ o: 'V', x: 3, y }), true);
+  }
+  const saved = ctx.saves;
+  assert.equal(editor.evaluation.states.get(register.id).value, 0);
+  assert.equal(editor.tickClock(clock.id), true);
+  assert.equal(editor.evaluation.states.get(register.id).value, 9);
+  assert.equal(editor.setConstantValue(data.id, 3), true);
+  assert.equal(editor.evaluation.states.get(register.id).value, 9);
+  assert.equal(editor.tickClock(clock.id), true);
+  assert.equal(editor.evaluation.states.get(register.id).value, 9);
+  assert.equal(editor.tickClock(clock.id), true);
+  assert.equal(editor.evaluation.states.get(register.id).value, 3);
+  assert.equal(ctx.saves, saved + 1);
+  assert.equal(editor.resizeComponent(register.id, 1), false); // connected four-bit data
+  editor.replaceBoard(parseDocument(serialize(editor.board)).board, { save: false });
+  assert.equal(editor.evaluation.states.get(editor.board.components[2].id).value, 0);
+});
+
+test('cascaded registers on one clock capture the previous Q simultaneously', () => {
+  const { editor } = setup();
+  const source = editor.place('constant', 0, 0);
+  const clock = editor.place('clock', 2, 0);
+  const first = editor.place('register', 0, 5);
+  const second = editor.place('register', 0, 14);
+  assert.equal(editor.resizeComponent(source.id, 4), true);
+  assert.equal(editor.setConstantValue(source.id, 9), true);
+  for (const y of [2, 3, 4]) {
+    assert.equal(editor.addWire({ o: 'V', x: 1, y, size: 4 }), true);
+    assert.equal(editor.addWire({ o: 'V', x: 3, y }), true);
+  }
+  for (const x of [3, 4]) assert.equal(editor.addWire({ o: 'H', x, y: 3 }), true);
+  for (let y = 3; y < 13; y++) assert.equal(editor.addWire({ o: 'V', x: 5, y }), true);
+  for (const x of [3, 4]) assert.equal(editor.addWire({ o: 'H', x, y: 13 }), true);
+  assert.equal(editor.addWire({ o: 'V', x: 3, y: 13 }), true);
+  for (let y = 8; y < 13; y++) assert.equal(editor.addWire({ o: 'V', x: 2, y, size: 4 }), true);
+  assert.equal(editor.addWire({ o: 'H', x: 1, y: 13, size: 4 }), true);
+  assert.equal(editor.addWire({ o: 'V', x: 1, y: 13, size: 4 }), true);
+  assert.equal(editor.tickClock(clock.id), true);
+  assert.equal(editor.evaluation.states.get(first.id).value, 9);
+  assert.equal(editor.evaluation.states.get(second.id).value, 0);
+  editor.tickClock(clock.id);
+  editor.tickClock(clock.id);
+  assert.equal(editor.evaluation.states.get(first.id).value, 9);
+  assert.equal(editor.evaluation.states.get(second.id).value, 9);
+});
+
+test('register feedback through an inverter forms a one-bit counter', () => {
+  const { editor } = setup();
+  const clock = editor.place('clock', 2, 0);
+  const register = editor.place('register', 0, 5);
+  const inverter = editor.place('not', -4, 5);
+  assert.equal(editor.resizeComponent(register.id, 1), true);
+  assert.equal(editor.rotate(inverter.id), true);
+  assert.equal(editor.rotate(inverter.id), true);
+  for (const y of [2, 3, 4]) assert.equal(editor.addWire({ o: 'V', x: 3, y }), true);
+  for (const edge of [
+    { o: 'V', x: 2, y: 8 },
+    ...[-3, -2, -1, 0, 1].map((x) => ({ o: 'H', x, y: 9 })),
+    { o: 'V', x: -3, y: 7 }, { o: 'V', x: -3, y: 8 },
+    { o: 'V', x: -3, y: 4 },
+    ...[-3, -2, -1, 0].map((x) => ({ o: 'H', x, y: 4 })),
+    { o: 'V', x: 1, y: 4 },
+  ]) assert.equal(editor.addWire(edge), true, JSON.stringify(edge));
+  assert.equal(editor.evaluation.states.get(register.id).value, 0);
+  assert.equal(editor.evaluation.states.get(register.id).inputs[0], 1);
+  editor.tickClock(clock.id);
+  assert.equal(editor.evaluation.states.get(register.id).value, 1);
+  assert.equal(editor.evaluation.states.get(register.id).inputs[0], 0);
+  editor.tickClock(clock.id);
+  assert.equal(editor.evaluation.states.get(register.id).value, 1);
+  editor.tickClock(clock.id);
+  assert.equal(editor.evaluation.states.get(register.id).value, 0);
+});
+
 test('changing a constant cannot create a short circuit', () => {
   const ctx = setup();
   const { editor } = ctx;

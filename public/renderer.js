@@ -147,7 +147,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
 
   function blockArt(s, c) {
     if (s.shape === "mux" || s.shape === "demux") return plexerArt(c, s);
-    const symbols = { adder: "+", twos: "−A", comparator: "CMP", shl: "≪", shr: "≫" };
+    const symbols = { adder: "+", twos: "−A", comparator: "CMP", shl: "≪", shr: "≫", register: "REG" };
     const width = s.w * U, height = s.h * U;
     const font = s.w === 2 ? 23 : 26;
     const labels = s.pins.map((pin) => {
@@ -201,7 +201,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     else if (s.shape === "led") inner = ledArt();
     else if (s.shape === "sevenseg") inner = sevenSegArt(inputs);
     else if (s.shape === "debugdisplay") inner = debugDisplayArt(value);
-    else if (s.block) inner = blockArt(s, c);
+    else if (s.block || s.register) inner = blockArt(s, c);
     else inner = gateArt(s.shape, s.color);
     return svgWrap(inner, s.shape === "mux" || s.shape === "demux" ? dimsOf({ ...c, r: 0 }) : s,
       s.constant || s.shape === "output" ? 0 : c.r);

@@ -122,10 +122,11 @@ function renderProperties() {
   clockFrequencyEl.disabled = !clock;
   clockFrequencyEl.value = clock ? String(component.frequency ?? DEFAULT_CLOCK_FREQUENCY) : "";
   const output = component?.t === "output" || component?.t === "debugdisplay";
-  const displayedValue = output ? editor.evaluation.states.get(component.id)?.value ?? 0 : net?.value;
-  const displayedSize = output ? bitWidth(component) : net?.size;
-  selectedValueRowEl.hidden = !net && !output;
-  selectedValueLabelEl.textContent = component?.t === "debugdisplay" ? "Debug value" : output ? "Output value" : "Selected bus value";
+  const register = component?.t === "register";
+  const displayedValue = output || register ? editor.evaluation.states.get(component.id)?.value ?? 0 : net?.value;
+  const displayedSize = output || register ? bitWidth(component) : net?.size;
+  selectedValueRowEl.hidden = !net && !output && !register;
+  selectedValueLabelEl.textContent = register ? "Stored value (Q)" : component?.t === "debugdisplay" ? "Debug value" : output ? "Output value" : "Selected bus value";
   selectedValueEl.textContent = displayedValue === undefined ? "—" : output
     ? formatValue(displayedValue, displayedSize, component.t === "debugdisplay" ? "hex" : component.format)
     : displayedSize === 1 ? `${displayedValue} (${displayedValue ? "HIGH" : "LOW"})`

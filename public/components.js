@@ -27,6 +27,14 @@ export const COMPONENT_TYPES = {
       { x: 1, y: 2, dir: "S", role: "out" },
     ],
   },
+  register: {
+    label: "Register", w: 4, h: 3, color: "#78b997", shape: "register", register: true,
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "D" },
+      { x: 3, y: 0, dir: "N", role: "in", name: "CLK", size: 1 },
+      { x: 2, y: 3, dir: "S", role: "out", name: "Q" },
+    ],
+  },
   constant: {
     label: "Constant", w: 2, h: 2, color: "#b68af5", shape: "constant", constant: true,
     pins: [
@@ -204,7 +212,7 @@ export function selectWidth(component) {
 
 export function isSizable(component) {
   const entry = spec(component.t);
-  return !!(entry?.op || entry?.block || entry?.splitter || entry?.constant || entry?.output);
+  return !!(entry?.op || entry?.block || entry?.register || entry?.splitter || entry?.constant || entry?.output);
 }
 
 export function bitWidth(component) {
