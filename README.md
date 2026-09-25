@@ -48,6 +48,7 @@ Four example circuit documents are in [`public/examples/`](public/examples/). Im
 The catalog holds real logic-level parts: a 2×2 **Power** rail (always drives high),
 a **Button** (hold it in Pan mode to drive its single output high; release to drive low;
 Shift-drag it to move it),
+a **Clock** (toggles its one-bit output at a selected frequency),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,
 **NAND**, **NOR**, **XNOR**, and 2×2 **NOT** gates, plus a **Splitter**, **Constant** source, and **Output** display. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
@@ -96,6 +97,11 @@ Place a 2×2 **Output** to read a bus. Its input starts at 1 bit and can be set
 to 1–32 bits with **Selected size**. The value appears on the component and in
 its selected properties. Its input pin and connected wires must have the same width.
 
+Place a **Clock** to drive a one-bit signal. Select it to set its frequency from
+0.1 to 20 Hz (default 1 Hz). It starts LOW and changes level every half period,
+so one full LOW/HIGH cycle takes `1 / frequency` seconds. Tick events refresh
+the evaluated circuit without saving each phase; only the frequency is stored.
+
 The canvas is an infinite, pannable lattice. Drag empty space to pan, scroll to
 move, and zoom with `Ctrl`/`Cmd` + scroll, `Ctrl`/`Cmd` + `+`/`-` (plain
 `+`/`-` also work), or `Ctrl`/`Cmd` + `0` to reset the view to 100% centered on
@@ -124,7 +130,7 @@ The code is split by responsibility:
 - `renderer.js` draws components, pins, and wires from that published evaluation.
 - `app.js` handles browser events, view controls, and file actions.
 
-Saved documents use schema version 8. They contain grid dimensions, component
+Saved documents use schema version 9. They contain grid dimensions, component
 types, positions, and gate sizes, plus sized wire segments. Pins, logic values, and wire power are
 derived from the catalog. Loading treats missing sizes in older documents as 1 bit and skips unknown or
 overlapping components and invalid or mismatched wire segments; the browser console reports the number skipped.
@@ -141,7 +147,7 @@ Serve the directory, open the editor, and check:
 3. Select a component and press `R` to rotate it; press `Delete` to remove it. Use `Escape` to clear the active tool and selection.
 4. In Select mode, Shift-click or drag to select multiple components. Drag across wires to select their nets too, then delete the mixed group. Copy and paste components as a separate check.
 5. Pan by dragging empty canvas, zoom with `Ctrl`/`Cmd` + scroll, then reset with `Ctrl`/`Cmd` + `0`.
-6. Download the board, import an example JSON file, and reload the page. The imported board should remain, and the saved JSON should say version 8.
+6. Download the board, import an example JSON file, and reload the page. The imported board should remain, and the saved JSON should say version 9.
 
 The original smoke pass was run on 2026-09-23 against the local HTTP server in
 Orca's browser. Automated tests also cover group copy, paste, and delete.

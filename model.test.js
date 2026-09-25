@@ -31,6 +31,33 @@ test("a button drives its one output HIGH only during an evaluation with its inp
   assert.equal(evaluateBoard(example.board).states.get(example.board.components[1].id).lit, false);
 });
 
+test("a clock drives its output from the supplied evaluation state and persists frequency", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "clock", t: "clock", x: 0, y: 0, frequency: 2.5 }), true);
+  assert.equal(addComponent(board, { id: "led", t: "led", x: 0, y: 3 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 2 }), true);
+  assert.equal(evaluateBoard(board).states.get("led").lit, false);
+  const high = evaluateBoard(board, new Set(), new Set(["clock"]));
+  assert.equal(high.states.get("clock").value, 1);
+  assert.equal(high.states.get("led").lit, true);
+  assert.equal(evaluateBoard(board).states.get("led").lit, false);
+  assert.equal(parseDocument(serialize(board)).board.components[0].frequency, 2.5);
+  assert.equal(addComponent(board, { id: "bad", t: "clock", x: 4, y: 0, frequency: 0 }), false);
+  const invalid = parseDocument(JSON.stringify({ components: [{ t: "clock", x: 0, y: 0, frequency: 21 }] }));
+  assert.equal(invalid.skipped.components, 1);
+});
+
+test("a clock net cannot share another output driver", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "clock", t: "clock", x: 0, y: 0 }), true);
+  assert.equal(addComponent(board, { id: "low", t: "constant", x: 4, y: 0, value: 0 }), true);
+  for (const wire of [
+    { o: "V", x: 1, y: 2 }, { o: "V", x: 5, y: 2 },
+    ...[1, 2, 3].map((x) => ({ o: "H", x, y: 3 })),
+  ]) assert.equal(addWireEdge(board, wire), true);
+  assert.match(edgePlacementError(board, { o: "H", x: 4, y: 3 }), /clock output/);
+});
+
 test("a wire cannot join HIGH and LOW drivers, including driven zero bits", () => {
   const board = createBoard();
   assert.equal(addComponent(board, { id: "low", t: "constant", x: 0, y: 0, value: 0 }), true);
@@ -380,7 +407,7 @@ test("32 bit NAND uses a full width mask and persists sizes", () => {
   assert.equal(result.states.get("n").value, 0xffffffff);
   assert.equal([...result.nets.values()][0].value, 0xffffffff);
   const saved = JSON.parse(serialize(board));
-  assert.equal(saved.version, 8);
+  assert.equal(saved.version, 9);
   assert.equal(saved.components[0].size, 32);
   assert.equal(saved.wires[0].size, 32);
   assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
@@ -426,7 +453,7 @@ test("constant drives its configured value and enforces its width and range", ()
   assert.equal(evaluateBoard(board).states.get("k").value, 173);
   assert.equal([...computeNets(board).values()][0].value, 173);
   const saved = JSON.parse(serialize(board));
-  assert.equal(saved.version, 8);
+  assert.equal(saved.version, 9);
   assert.deepEqual(saved.components[0], { t: "constant", x: 0, y: 0, size: 8, value: 173 });
   assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
   constant.value = 256;

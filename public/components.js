@@ -23,6 +23,12 @@ export const COMPONENT_TYPES = {
       { x: 1, y: 2, dir: "S", role: "out" },
     ],
   },
+  clock: {
+    label: "Clock", w: 2, h: 2, color: "#6dc6e8", shape: "clock", clock: true,
+    pins: [
+      { x: 1, y: 2, dir: "S", role: "out" },
+    ],
+  },
   constant: {
     label: "Constant", w: 2, h: 2, color: "#b68af5", shape: "constant", constant: true,
     pins: [
@@ -164,6 +170,11 @@ export function normalizeRotation(r) {
 
 export const MAX_BUS_WIDTH = 32;
 export const MAX_PLEXER_CHANNELS = 16;
+export const DEFAULT_CLOCK_FREQUENCY = 1;
+
+export function validClockFrequency(frequency) {
+  return Number.isFinite(frequency) && frequency >= 0.1 && frequency <= 20;
+}
 
 export function channelCount(component) {
   return component.channels ?? 2;
