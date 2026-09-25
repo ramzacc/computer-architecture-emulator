@@ -6,6 +6,31 @@ import { addComponent, addWireEdge, canPlaceEdge, computeNets, createBoard,
   edgeKey, edgePlacementError, evaluateBoard, isValidComponent, parseDocument, resizeNet,
   sanitizeWires, serialize, wireRoute } from "./public/model.js";
 
+test("a button drives its one output HIGH only during an evaluation with its input pressed", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "button", t: "button", x: 0, y: 0 }), true);
+  assert.equal(addComponent(board, { id: "led", t: "led", x: 0, y: 3 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 2 }), true);
+  assert.deepEqual(pinsFor(board.components[0]).map(({ role, size }) => ({ role, size })),
+    [{ role: "out", size: 1 }]);
+
+  const released = evaluateBoard(board);
+  assert.equal(released.states.get("button").value, 0);
+  assert.equal(released.states.get("led").lit, false);
+  const pressed = evaluateBoard(board, new Set(["button"]));
+  assert.equal(pressed.states.get("button").value, 1);
+  assert.equal(pressed.states.get("led").lit, true);
+  assert.equal([...pressed.nets.values()][0].value, 1);
+  assert.equal(evaluateBoard(board).states.get("led").lit, false);
+  assert.equal(released.states.get("led").lit, false);
+
+  const restored = parseDocument(serialize(board)).board;
+  assert.equal(evaluateBoard(restored).states.get(restored.components[1].id).lit, false);
+  const example = parseDocument(readFileSync(new URL("./public/examples/button-led.json", import.meta.url), "utf8"));
+  assert.deepEqual(example.skipped, { components: 0, wires: 0 });
+  assert.equal(evaluateBoard(example.board).states.get(example.board.components[1].id).lit, false);
+});
+
 test("a wire cannot join HIGH and LOW drivers, including driven zero bits", () => {
   const board = createBoard();
   assert.equal(addComponent(board, { id: "low", t: "constant", x: 0, y: 0, value: 0 }), true);

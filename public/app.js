@@ -1,5 +1,5 @@
 import { COMPONENT_TYPES, bitWidth, channelCount, dimsOf, isSizable, pinsFor, selectWidth, spec, validBitWidth } from "./components.js";
-import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
+import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, isValidComponent, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
 import { BoardEditor } from "./editor.js";
 import { createRenderer } from "./renderer.js";
 
@@ -25,6 +25,7 @@ let selectedWire = null;
 let selectedWires = new Set();
 let placingType = null;
 let drag = null;
+let pressedButton = null;
 let pan = null;
 let marquee = null;
 let copiedComponents = [];
@@ -57,7 +58,7 @@ const constantValueRowEl = document.getElementById("constant-value-row");
 const constantValueEl = document.getElementById("constant-value");
 const busStatusEl = document.getElementById("bus-status");
 const { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox } =
-  createRenderer(gridEl, () => state, () => selectedIds, () => selectedWires);
+  createRenderer(gridEl, () => state, () => editor.evaluation, () => selectedIds, () => selectedWires);
 
 function setSelection(ids, wires = []) {
   selectedIds = new Set(ids);
@@ -86,7 +87,7 @@ function busStatus(message, error = false) {
 
 function renderProperties() {
   const component = state.components.find((c) => c.id === selectedId);
-  const net = selectedWire ? netContaining(state, selectedWire) : null;
+  const net = selectedWire ? netContaining(state, selectedWire, editor.evaluation) : null;
   const selectionCount = selectedIds.size + selectedWires.size;
   selectedPropertiesHeadingEl.textContent = selectionCount > 1 ? `${selectionCount} items selected` : component ? "Component properties" : net ? "Wire properties" : "Selected properties";
   const size = component && isSizable(component) ? bitWidth(component) : net?.size;
@@ -109,7 +110,7 @@ function renderProperties() {
   constantValueEl.max = constant ? String(2 ** bitWidth(component) - 1) : "1";
   constantValueEl.value = constant ? String(component.value ?? 0) : "";
   const output = component?.t === "output";
-  const displayedValue = output ? evaluateBoard(state).states.get(component.id)?.value ?? 0 : net?.value;
+  const displayedValue = output ? editor.evaluation.states.get(component.id)?.value ?? 0 : net?.value;
   const displayedSize = output ? bitWidth(component) : net?.size;
   selectedValueRowEl.hidden = !net && !output;
   selectedValueLabelEl.textContent = output ? "Output value" : "Selected bus value";
@@ -138,7 +139,7 @@ newWireSizeEl.addEventListener("change", () => {
 selectedSizeEl.addEventListener("change", () => {
   const size = Number(selectedSizeEl.value);
   const component = editor.component(selectedId);
-  const current = component ? bitWidth(component) : selectedWire ? netContaining(state, selectedWire)?.size : undefined;
+  const current = component ? bitWidth(component) : selectedWire ? netContaining(state, selectedWire, editor.evaluation)?.size : undefined;
   if (size === current) return;
   const changed = component ? editor.resizeComponent(selectedId, size) : editor.resizeWire(selectedWire, size);
   if (!changed) busStatus(component?.t === "constant"
@@ -175,7 +176,7 @@ constantValueEl.addEventListener("change", () => {
 });
 
 function selectWire(key) {
-  const net = netContaining(state, key);
+  const net = netContaining(state, key, editor.evaluation);
   setSelection([], [net ? edgeKey(net.edges[0]) : key]);
   busStatus("Wire net selected.");
 }
@@ -311,7 +312,7 @@ function syncPlacingCursor() {
 
 function render() {
   applyView();
-  const logic = evaluateBoard(state);
+  const logic = editor.evaluation;
   renderWires(logic);
   renderComponents(logic);
   renderPins();
@@ -361,7 +362,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       busStatus(`${selectedIds.size} component${selectedIds.size === 1 ? "" : "s"} and ${selectedWires.size} wire net${selectedWires.size === 1 ? "" : "s"} selected.`);
     } else if (wireEl) {
       if (e.shiftKey) {
-        const net = netContaining(state, wireEl.dataset.key);
+        const net = netContaining(state, wireEl.dataset.key, editor.evaluation);
         const key = net ? edgeKey(net.edges[0]) : wireEl.dataset.key;
         const wires = new Set(selectedWires);
         if (wires.has(key)) wires.delete(key);
@@ -386,6 +387,12 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
   if (compEl) {
     const comp = state.components.find((c) => c.id === compEl.dataset.id);
     if (!comp) return;
+    if (comp.t === "button" && !placingType && !e.shiftKey && !pressedButton) {
+      pressedButton = { id: comp.id, pointerId: e.pointerId };
+      canvasWrapEl.setPointerCapture(e.pointerId);
+      editor.setButtonPressed(comp.id, true);
+      return;
+    }
     selectedId = comp.id;
     selectedIds = new Set([comp.id]);
     selectedWire = null;
@@ -508,6 +515,11 @@ canvasWrapEl.addEventListener("pointermove", (e) => {
 });
 
 function endDrag(e) {
+  if (pressedButton?.pointerId === e.pointerId) {
+    releasePressedButton();
+    if (canvasWrapEl.hasPointerCapture?.(e.pointerId)) canvasWrapEl.releasePointerCapture(e.pointerId);
+    return;
+  }
   if (marquee) {
     const { startX, startY, endX, endY, moved, additive, initial, initialWires } = marquee;
     marquee = null;
@@ -524,7 +536,7 @@ function endDrag(e) {
         if (component.x * CELL < right && (component.x + w) * CELL > left &&
             component.y * CELL < bottom && (component.y + h) * CELL > top) ids.add(component.id);
       }
-      for (const net of evaluateBoard(state).nets.values()) {
+      for (const net of editor.evaluation.nets.values()) {
         if (net.edges.some((edge) => {
           const box = edgeBox(edge);
           const x = parseFloat(box.left), y = parseFloat(box.top);
@@ -587,6 +599,17 @@ function drawMarquee() {
 
 canvasWrapEl.addEventListener("pointerup", endDrag);
 canvasWrapEl.addEventListener("pointercancel", endDrag);
+canvasWrapEl.addEventListener("lostpointercapture", (e) => {
+  if (pressedButton?.pointerId === e.pointerId) releasePressedButton();
+});
+window.addEventListener("blur", releasePressedButton);
+
+function releasePressedButton() {
+  if (!pressedButton) return;
+  const { id } = pressedButton;
+  pressedButton = null;
+  editor.setButtonPressed(id, false);
+}
 
 canvasWrapEl.addEventListener("pointerleave", () => {
   gridEl.querySelectorAll(".wire-preview").forEach((el) => el.remove());
@@ -816,7 +839,7 @@ document.getElementById("file-input").addEventListener("change", (e) => {
 
 /* ---------- Seeds ---------- */
 
-function seedLayout() {
+function seedLayout(board) {
   const layout = [
     // power straight into an LED
     ["power", 2, 0], ["led", 2, 3],
@@ -827,19 +850,17 @@ function seedLayout() {
     // two powers into an XOR -> also off
     ["power", 22, 0], ["power", 24, 0], ["xor", 22, 3], ["led", 23, 6],
   ];
-  state.components = [];
-  for (const [t, x, y] of layout) addComponent(state, { id: `c${state.components.length + 1}`, t, x, y, r: 0 });
+  for (const [t, x, y] of layout) addComponent(board, { id: `c${board.components.length + 1}`, t, x, y, r: 0 });
 }
 
-function seedWires() {
-  state.wires = new Map();
+function seedWires(board) {
   const wires = [
     { o: "V", x: 3, y: 2 },
     { o: "V", x: 8, y: 2 }, { o: "V", x: 10, y: 2 }, { o: "V", x: 9, y: 5 },
     { o: "V", x: 15, y: 2 }, { o: "V", x: 17, y: 2 }, { o: "V", x: 16, y: 5 },
     { o: "V", x: 23, y: 2 }, { o: "V", x: 25, y: 2 }, { o: "V", x: 24, y: 5 },
   ];
-  for (const wire of wires) addWireEdge(state, wire);
+  for (const wire of wires) addWireEdge(board, wire);
 }
 
 function getStorage() {
@@ -869,8 +890,9 @@ if (restored) {
   if (restored.skipped.components) console.warn(`Skipped ${restored.skipped.components} invalid component(s).`);
   if (restored.skipped.wires) console.warn(`Skipped ${restored.skipped.wires} invalid wire segment(s).`);
 } else {
-  seedLayout();
-  seedWires();
-  render();
+  const board = createBoard();
+  seedLayout(board);
+  seedWires(board);
+  editor.replaceBoard(board, { save: false });
 }
 resetView();

@@ -1,5 +1,5 @@
 import { bitWidth, channelCount, dimsOf, pinsFor, spec } from "./components.js";
-import { edgeKey, evaluateBoard, wireSize } from "./model.js";
+import { edgeKey, wireSize } from "./model.js";
 
 const CELL = 48;
 const GAP = 3;
@@ -10,7 +10,7 @@ export function wireTitle(wire, value) {
   return `${wireSize(wire)} bit(s), value ${value}`;
 }
 
-export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWires) {
+export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, getSelectedWires) {
   function svgWrap(inner, s, r) {
     const q = ((r % 4) + 4) % 4;
     const vw = (q % 2 ? s.h : s.w) * U;
@@ -30,6 +30,14 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
       <circle cx="40" cy="38" r="25" fill="${color}" stroke="${stroke}" stroke-width="2"/>
       <line x1="29" y1="38" x2="51" y2="38" stroke="#14161a" stroke-width="4"/>
       <line x1="40" y1="27" x2="40" y2="49" stroke="#14161a" stroke-width="4"/>`;
+  }
+
+  function buttonArt(color, pressed) {
+    const stroke = "rgba(255,255,255,.55)";
+    return `<rect x="9" y="9" width="62" height="62" rx="12" fill="#473826" stroke="${stroke}" stroke-width="2"/>
+      <circle class="button-cap" cx="40" cy="38" r="23" fill="${pressed ? "#ffd58b" : color}" stroke="${stroke}" stroke-width="2"/>
+      <circle cx="40" cy="38" r="9" fill="#473826" opacity=".5"/>
+      <line x1="40" y1="70" x2="40" y2="81" stroke="${stroke}" stroke-width="2"/>`;
   }
 
   function ledArt() {
@@ -142,6 +150,7 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
     }
     let inner;
     if (s.shape === "power") inner = powerArt(s.color);
+    else if (s.shape === "button") inner = buttonArt(s.color, value !== 0);
     else if (s.shape === "constant") inner = constantArt(c, s.color);
     else if (s.shape === "output") inner = outputArt(c, s.color, value);
     else if (s.shape === "led") inner = ledArt();
@@ -151,7 +160,7 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
       s.constant || s.shape === "output" ? 0 : c.r);
   }
 
-  function renderComponents(logic = evaluateBoard(getBoard())) {
+  function renderComponents(logic = getEvaluation()) {
     const state = getBoard();
     const selectedIds = getSelectedIds();
     gridEl.querySelectorAll(".comp").forEach((el) => el.remove());
@@ -160,7 +169,7 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
       const d = dimsOf(c);
       if (!s || !d) continue;
       const el = document.createElement("div");
-      el.className = "comp shaped";
+      el.className = "comp shaped" + (c.t === "button" ? " button" : "");
       el.dataset.id = c.id;
       el.style.left = c.x * CELL + "px";
       el.style.top = c.y * CELL + "px";
@@ -168,6 +177,7 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
       el.style.height = d.h * CELL - GAP + "px";
       if (selectedIds.has(c.id)) el.classList.add("selected");
       const st = logic.states.get(c.id);
+      if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);
       if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
       el.innerHTML = componentArt(c, s, st?.value ?? 0);
       el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${st && (c.t === "output" || st.value) ? "  value: " + st.value : ""}`;
@@ -215,7 +225,7 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
     el.style.height = box.height;
   }
 
-  function renderWires(logic = evaluateBoard(getBoard())) {
+  function renderWires(logic = getEvaluation()) {
     const state = getBoard();
     const selectedWires = getSelectedWires();
     gridEl.querySelectorAll(".wire").forEach((el) => el.remove());

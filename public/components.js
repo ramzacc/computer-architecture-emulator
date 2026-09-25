@@ -17,6 +17,12 @@ export const COMPONENT_TYPES = {
       { x: 1, y: 2, dir: "S", role: "out" },
     ],
   },
+  button: {
+    label: "Button", w: 2, h: 2, color: "#e5a84d", shape: "button", momentary: true,
+    pins: [
+      { x: 1, y: 2, dir: "S", role: "out" },
+    ],
+  },
   constant: {
     label: "Constant", w: 2, h: 2, color: "#b68af5", shape: "constant", constant: true,
     pins: [
