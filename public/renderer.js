@@ -10,7 +10,7 @@ export function wireTitle(wire, value) {
   return `${wireSize(wire)} bit(s), value ${value}`;
 }
 
-export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire) {
+export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWires) {
   function svgWrap(inner, s, r) {
     const q = ((r % 4) + 4) % 4;
     const vw = (q % 2 ? s.h : s.w) * U;
@@ -191,19 +191,19 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
 
   function renderWires(logic = evaluateBoard(getBoard())) {
     const state = getBoard();
-    const selectedWire = getSelectedWire();
+    const selectedWires = getSelectedWires();
     gridEl.querySelectorAll(".wire").forEach((el) => el.remove());
     const info = new Map();
     for (const net of logic.nets.values()) {
       for (const edge of net.edges) info.set(edgeKey(edge), { on: net.on, value: net.value, netId: net.id });
     }
-    const selNetId = selectedWire && info.has(selectedWire) ? info.get(selectedWire).netId : null;
+    const selectedNetIds = new Set([...selectedWires].filter((key) => info.has(key)).map((key) => info.get(key).netId));
     for (const w of state.wires.values()) {
       const key = edgeKey(w);
       const i = info.get(key);
       const el = document.createElement("div");
       el.dataset.key = key;
-      const selected = selNetId !== null && i.netId === selNetId;
+      const selected = selectedNetIds.has(i.netId);
       el.className = "wire " + (i.on ? "on" : "off") + (wireSize(w) > 1 ? " bus" : "") + (selected ? " selected" : "");
       el.title = wireTitle(w, i.value);
       applyBox(el, edgeBox(w));

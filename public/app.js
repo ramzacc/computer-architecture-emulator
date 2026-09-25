@@ -22,6 +22,7 @@ let state = createBoard();
 let selectedId = null;
 let selectedIds = new Set();
 let selectedWire = null;
+let selectedWires = new Set();
 let placingType = null;
 let drag = null;
 let pan = null;
@@ -53,21 +54,26 @@ const constantValueRowEl = document.getElementById("constant-value-row");
 const constantValueEl = document.getElementById("constant-value");
 const busStatusEl = document.getElementById("bus-status");
 const { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox } =
-  createRenderer(gridEl, () => state, () => selectedIds, () => selectedWire);
+  createRenderer(gridEl, () => state, () => selectedIds, () => selectedWires);
 
-function setSelectedComponents(ids) {
+function setSelection(ids, wires = []) {
   selectedIds = new Set(ids);
-  selectedId = selectedIds.size === 1 ? [...selectedIds][0] : null;
-  selectedWire = null;
+  selectedWires = new Set(wires);
+  selectedId = selectedIds.size === 1 && !selectedWires.size ? [...selectedIds][0] : null;
+  selectedWire = selectedWires.size === 1 && !selectedIds.size ? [...selectedWires][0] : null;
   renderComponents();
   renderWires();
   renderProperties();
 }
 
+function setSelectedComponents(ids) {
+  setSelection(ids);
+}
+
 function syncActionButtons() {
   btnCopy.disabled = selectedIds.size === 0;
   btnPaste.disabled = copiedComponents.length === 0;
-  btnDelete.disabled = selectedIds.size === 0 && !selectedWire;
+  btnDelete.disabled = selectedIds.size === 0 && selectedWires.size === 0;
 }
 
 function busStatus(message, error = false) {
@@ -78,7 +84,8 @@ function busStatus(message, error = false) {
 function renderProperties() {
   const component = state.components.find((c) => c.id === selectedId);
   const net = selectedWire ? netContaining(state, selectedWire) : null;
-  selectedPropertiesHeadingEl.textContent = selectedIds.size > 1 ? `${selectedIds.size} components selected` : component ? "Component properties" : net ? "Wire properties" : "Selected properties";
+  const selectionCount = selectedIds.size + selectedWires.size;
+  selectedPropertiesHeadingEl.textContent = selectionCount > 1 ? `${selectionCount} items selected` : component ? "Component properties" : net ? "Wire properties" : "Selected properties";
   const size = component && isSizable(component) ? bitWidth(component) : net?.size;
   selectedSizeRowEl.hidden = size === undefined;
   selectedSizeEl.disabled = size === undefined;
@@ -152,13 +159,9 @@ constantValueEl.addEventListener("change", () => {
 });
 
 function selectWire(key) {
-  selectedWire = key;
-  selectedId = null;
-  selectedIds.clear();
+  const net = netContaining(state, key);
+  setSelection([], [net ? edgeKey(net.edges[0]) : key]);
   busStatus("Wire net selected.");
-  renderComponents();
-  renderWires();
-  renderProperties();
 }
 
 function viewportFromEvent(ev) {
@@ -315,6 +318,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       selectedId = null;
       selectedIds.clear();
       selectedWire = null;
+      selectedWires.clear();
       renderComponents();
       renderWires();
       renderProperties();
@@ -337,14 +341,22 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       const id = compEl.dataset.id;
       if (ids.has(id)) ids.delete(id);
       else ids.add(id);
-      setSelectedComponents(ids);
-      busStatus(`${selectedIds.size} component${selectedIds.size === 1 ? "" : "s"} selected.`);
+      setSelection(ids, e.shiftKey ? selectedWires : []);
+      busStatus(`${selectedIds.size} component${selectedIds.size === 1 ? "" : "s"} and ${selectedWires.size} wire net${selectedWires.size === 1 ? "" : "s"} selected.`);
     } else if (wireEl) {
-      selectWire(wireEl.dataset.key);
+      if (e.shiftKey) {
+        const net = netContaining(state, wireEl.dataset.key);
+        const key = net ? edgeKey(net.edges[0]) : wireEl.dataset.key;
+        const wires = new Set(selectedWires);
+        if (wires.has(key)) wires.delete(key);
+        else wires.add(key);
+        setSelection(selectedIds, wires);
+        busStatus(`${selectedIds.size} component${selectedIds.size === 1 ? "" : "s"} and ${selectedWires.size} wire net${selectedWires.size === 1 ? "" : "s"} selected.`);
+      } else selectWire(wireEl.dataset.key);
     } else {
       const world = worldFromEvent(e);
       marquee = { startX: world.x, startY: world.y, endX: world.x, endY: world.y,
-        additive: e.shiftKey, initial: new Set(selectedIds), moved: false };
+        additive: e.shiftKey, initial: new Set(selectedIds), initialWires: new Set(selectedWires), moved: false };
       canvasWrapEl.setPointerCapture(e.pointerId);
     }
     return;
@@ -361,6 +373,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
     selectedId = comp.id;
     selectedIds = new Set([comp.id]);
     selectedWire = null;
+    selectedWires.clear();
     busStatus("Component selected.");
     renderProperties();
     renderComponents();
@@ -385,6 +398,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       selectedId = comp.id;
       selectedIds = new Set([comp.id]);
       selectedWire = null;
+      selectedWires.clear();
       busStatus("Component selected.");
       render();
     } else {
@@ -421,7 +435,8 @@ canvasWrapEl.addEventListener("contextmenu", (e) => {
   }
   if (key && state.wires.has(key)) {
     e.preventDefault();
-    if (selectedWire === key) selectedWire = null;
+    selectedWire = null;
+    selectedWires.clear();
     editor.removeWire(key);
   }
 });
@@ -478,12 +493,13 @@ canvasWrapEl.addEventListener("pointermove", (e) => {
 
 function endDrag(e) {
   if (marquee) {
-    const { startX, startY, endX, endY, moved, additive, initial } = marquee;
+    const { startX, startY, endX, endY, moved, additive, initial, initialWires } = marquee;
     marquee = null;
     gridEl.querySelector(".selection-box")?.remove();
     if (canvasWrapEl.hasPointerCapture?.(e.pointerId)) canvasWrapEl.releasePointerCapture(e.pointerId);
     if (e.type === "pointercancel") return;
     const ids = new Set(additive ? initial : []);
+    const wires = new Set(additive ? initialWires : []);
     if (moved) {
       const left = Math.min(startX, endX), right = Math.max(startX, endX);
       const top = Math.min(startY, endY), bottom = Math.max(startY, endY);
@@ -492,9 +508,17 @@ function endDrag(e) {
         if (component.x * CELL < right && (component.x + w) * CELL > left &&
             component.y * CELL < bottom && (component.y + h) * CELL > top) ids.add(component.id);
       }
+      for (const net of evaluateBoard(state).nets.values()) {
+        if (net.edges.some((edge) => {
+          const box = edgeBox(edge);
+          const x = parseFloat(box.left), y = parseFloat(box.top);
+          return x < right && x + parseFloat(box.width) > left &&
+            y < bottom && y + parseFloat(box.height) > top;
+        })) wires.add(edgeKey(net.edges[0]));
+      }
     }
-    setSelectedComponents(ids);
-    busStatus(`${ids.size} component${ids.size === 1 ? "" : "s"} selected.`);
+    setSelection(ids, wires);
+    busStatus(`${ids.size} component${ids.size === 1 ? "" : "s"} and ${wires.size} wire net${wires.size === 1 ? "" : "s"} selected.`);
     return;
   }
   if (pan) {
@@ -508,6 +532,7 @@ function endDrag(e) {
       selectedId = null;
       selectedIds.clear();
       selectedWire = null;
+      selectedWires.clear();
       renderComponents();
       renderWires();
       renderProperties();
@@ -644,6 +669,7 @@ document.addEventListener("keydown", (e) => {
     selectedId = null;
     selectedIds.clear();
     selectedWire = null;
+    selectedWires.clear();
     renderPalette();
     syncPlacingCursor();
     render();
@@ -657,16 +683,13 @@ function rotateSelected() {
 }
 
 function deleteSelected() {
-  if (selectedWire) {
-    const key = selectedWire;
-    selectedWire = null;
-    editor.deleteNet(key);
-  } else if (selectedIds.size) {
-    const ids = [...selectedIds];
-    selectedIds.clear();
-    selectedId = null;
-    editor.deleteComponents(ids);
-  }
+  const ids = [...selectedIds];
+  const wires = [...selectedWires];
+  selectedIds.clear();
+  selectedWires.clear();
+  selectedId = null;
+  selectedWire = null;
+  editor.deleteSelection(ids, wires);
   syncActionButtons();
 }
 
@@ -699,6 +722,7 @@ btnSelect.addEventListener("click", () => {
   mode = MODE.SELECT;
   placingType = null;
   selectedWire = null;
+  selectedWires.clear();
   renderPalette();
   syncPlacingCursor();
   renderWires();
@@ -710,6 +734,7 @@ btnWire.addEventListener("click", () => {
   mode = MODE.WIRE;
   placingType = null;
   selectedWire = null;
+  selectedWires.clear();
   selectedId = null;
   selectedIds.clear();
   renderPalette();
@@ -737,6 +762,7 @@ function loadFromText(text) {
     selectedId = null;
     selectedIds.clear();
     selectedWire = null;
+    selectedWires.clear();
     placingType = null;
     clearWireGesture();
     mode = MODE.PAN;

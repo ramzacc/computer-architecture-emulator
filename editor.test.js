@@ -201,3 +201,17 @@ test('a failed group paste does not add some components or save', () => {
   assert.equal(serialize(ctx.editor.board), before);
   assert.equal(ctx.saves, saves);
 });
+
+test('deleting a mixed selection removes components and complete wire nets in one edit', () => {
+  const ctx = setup();
+  const component = ctx.editor.place('led', 6, 2);
+  assert.equal(ctx.editor.addWireRoute({ x: 0, y: 0 }, { x: 2, y: 0 }, 1).error, null);
+  assert.equal(ctx.editor.addWire({ o: 'V', x: 8, y: 0 }), true);
+  const saves = ctx.saves;
+  assert.equal(ctx.editor.deleteSelection([component.id], ['H:0,0', 'H:1,0']), true);
+  assert.equal(ctx.editor.board.components.length, 0);
+  assert.deepEqual([...ctx.editor.board.wires.keys()], ['V:8,0']);
+  assert.equal(ctx.saves, saves + 1);
+  assert.equal(ctx.editor.deleteSelection([component.id], ['H:0,0']), false);
+  assert.equal(ctx.saves, saves + 1);
+});
