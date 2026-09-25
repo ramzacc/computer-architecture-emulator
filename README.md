@@ -14,13 +14,29 @@ Worker script is needed.
 
 ```sh
 npm ci
-npm run dev      # local Cloudflare preview
+npm run dev      # local development server
+npm run preview  # publish a Preview for the current branch
 npm run deploy   # publish to your Cloudflare account
 ```
 
 For a Cloudflare Git deployment, leave the build command empty and use
 `npx wrangler deploy` as the deploy command. Change `name` in `wrangler.jsonc`
 if you want a different Worker name.
+
+### Pull request Previews
+
+Connect the GitHub repository to this Worker in Cloudflare Workers Builds. In
+**Settings > Build > Branch control**, enable **Preview Builds** and keep the
+production branch set to your main branch. Set the Preview command to
+`npx wrangler preview` (the default). Keep the build command empty because the
+site is served directly from `public/`. The Worker name in Cloudflare must match
+`name` in `wrangler.jsonc`.
+
+Each push to a non-production branch then creates or updates its Preview. When
+that branch has a pull request, Cloudflare posts the Preview URL in a PR comment.
+The top-level `previews` block in `wrangler.jsonc` is required for this command;
+an empty block works because this site has no runtime bindings or variables.
+You can also run `npm run preview` locally after authenticating Wrangler.
 
 Four example circuit documents are in [`public/examples/`](public/examples/). Import one with **Import .json**:
 
