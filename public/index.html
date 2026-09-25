@@ -36,8 +36,11 @@
       <h2>Components</h2>
       <div id="palette" class="palette"></div>
       <h2 id="selected-properties-heading">Selected properties</h2>
-      <label id="selected-size-row" class="property" hidden>Selected size (bits)
+      <label id="selected-size-row" class="property" hidden><span id="selected-size-label">Selected size (bits)</span>
         <input id="selected-size" type="number" min="1" max="32" step="1" disabled />
+      </label>
+      <label id="channels-row" class="property" hidden>Data channels
+        <input id="channels" type="number" min="1" max="16" step="1" disabled />
       </label>
       <label id="splitter-order-row" class="property" hidden>Order
         <select id="splitter-order" disabled>

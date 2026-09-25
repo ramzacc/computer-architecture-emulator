@@ -56,16 +56,19 @@ The data-path catalog also includes:
 
 | Part | Inputs | Outputs |
 | --- | --- | --- |
-| MUX 2:1 | A, B, one-bit S | Y = A when S is 0, B when S is 1 |
-| DEMUX 1:2 | D, one-bit S | Y0 = D when S is 0, Y1 = D when S is 1; the other output is 0 |
+| Multiplexer | 1–16 data channels D0…D15, selector S | Y receives the channel selected by S |
+| Demultiplexer | D, selector S | D goes to one of 1–16 outputs Y0…Y15; the other outputs are 0 |
 | Adder | A, B, one-bit CI | Width-limited SUM and one-bit carry out CO |
 | Two's complement | A | −A, wrapped to the selected width |
 | Comparator | A, B | One-bit LT, EQ, and GT (unsigned comparison) |
 | Shift left / right | A, five-bit N | Logical shift by N, with zero fill and width-limited result |
 
-These parts use a configurable 1–32-bit data width. Control and flag pins keep
-the fixed widths shown above. Unwired inputs read zero. Select a part to change
-its data width, and hover its pins to see their names and sizes.
+These parts use a configurable 1–32-bit data width. Mux and demux also have a
+**Data channels** property from 1 to 16; the selector bus grows automatically
+from 1 to 4 bits. Selector values outside the available channels produce zero.
+Other control and flag pins keep their fixed widths. Unwired inputs read zero.
+Select a part to change its properties, and hover its pins to see their names
+and sizes.
 
 Wires carry buses of 1–32 bits (the size property). Set **New wire size** before drawing,
 then enter **Wire mode** and click a start point and successive corners or endpoints.

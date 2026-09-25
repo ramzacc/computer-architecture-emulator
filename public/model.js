@@ -1,4 +1,4 @@
-import { bitWidth, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validConstant, validSplitterOrder } from "./components.js";
+import { bitWidth, channelCount, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validChannelCount, validConstant, validSplitterOrder } from "./components.js";
 
 export const SCHEMA_VERSION = 8;
 export const DEFAULT_COLS = 64;
@@ -38,12 +38,19 @@ export function isValidComponent(board, component) {
   const size = dimsOf(component);
   if (!size || !Number.isInteger(component.x) || !Number.isInteger(component.y) ||
       !validBitWidth(bitWidth(component)) ||
+      ((component.t === "mux" || component.t === "demux") && !validChannelCount(channelCount(component))) ||
       (component.t === "splitter" && !validSplitterOrder(component.order ?? "ascendant")) ||
       (component.t === "constant" && !validConstant(component))) return false;
   for (let y = component.y; y < component.y + size.h; y++) {
     for (let x = component.x; x < component.x + size.w; x++) {
       if (componentAt(board, x, y, component.id)) return false;
     }
+  }
+  for (const wire of board.wires.values()) {
+    const mx = wire.x + (wire.o === "H" ? 0.5 : 0);
+    const my = wire.y + (wire.o === "V" ? 0.5 : 0);
+    if (mx > component.x && mx < component.x + size.w &&
+        my > component.y && my < component.y + size.h) return false;
   }
   return !pinsFor(component).some((pin) => wiresAtPoint(board, pin.px, pin.py).some((wire) =>
     wireSize(wire) !== pin.size)) && !shortCircuitError(board);
@@ -178,14 +185,18 @@ const GATE_OPS = {
 
 function bitMask(size) { return size === 32 ? 0xffffffff : (2 ** size - 1); }
 
-function blockOutputs(kind, inputs, size) {
+function blockOutputs(kind, inputs, size, channels = 2) {
   const mask = bitMask(size) >>> 0;
   const [a = 0, b = 0, control = 0] = inputs;
   const left = (a & mask) >>> 0;
   const right = (b & mask) >>> 0;
   switch (kind) {
-    case "mux": return [(control & 1) ? right : left];
-    case "demux": return (b & 1) ? [0, left] : [left, 0];
+    case "mux": {
+      const selected = inputs[channels] ?? 0;
+      return [selected < channels ? ((inputs[selected] ?? 0) & mask) >>> 0 : 0];
+    }
+    case "demux": return Array.from({ length: channels }, (_, index) =>
+      (b === index ? left : 0));
     case "adder": {
       const sum = left + right + (control & 1);
       return [Number(sum > mask), (sum & mask) >>> 0];
@@ -249,6 +260,7 @@ export function evaluateBoard(board, pressedButtons = new Set()) {
       output: !!entry.output,
       splitter: !!entry.splitter,
       block: entry.block,
+      channels: channelCount(component),
       size: bitWidth(component),
       ins: pins.filter((pin) => pin.role === "in").map(netAt),
       outs: pins.filter((pin) => pin.role === "out")
@@ -261,7 +273,7 @@ export function evaluateBoard(board, pressedButtons = new Set()) {
     if (part.momentary) return Number(pressedButtons.has(part.id));
     if (part.block) {
       const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
-      const outputs = blockOutputs(part.block, inputs, part.size);
+      const outputs = blockOutputs(part.block, inputs, part.size, part.channels);
       return outputs[part.block === "adder" ? 1 : 0];
     }
     if (part.splitter) {
@@ -293,7 +305,7 @@ export function evaluateBoard(board, pressedButtons = new Set()) {
         drive(part.ins[0], combined >>> 0);
       } else if (part.block) {
         const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
-        blockOutputs(part.block, inputs, part.size).forEach((output, index) => drive(part.outs[index], output));
+        blockOutputs(part.block, inputs, part.size, part.channels).forEach((output, index) => drive(part.outs[index], output));
       } else {
         const output = outputOf(part, values);
         for (const root of part.outs) drive(root, output);
@@ -311,7 +323,7 @@ export function evaluateBoard(board, pressedButtons = new Set()) {
   for (const part of parts) {
     const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
     const value = part.output ? inputs[0] : outputOf(part, values);
-    const outputs = part.block ? blockOutputs(part.block, inputs, part.size)
+    const outputs = part.block ? blockOutputs(part.block, inputs, part.size, part.channels)
       : part.splitter ? part.outs.map((_, bit) => (value >>> bit) & 1)
       : part.outs.map(() => value);
     states.set(part.id, {
@@ -413,11 +425,12 @@ export function serialize(board) {
   return JSON.stringify({
     version: SCHEMA_VERSION,
     grid: { ...board.grid },
-    components: board.components.map(({ t, x, y, r, size, value, order }) => {
+    components: board.components.map(({ t, x, y, r, size, value, order, channels }) => {
       const q = normalizeRotation(r);
       return { t, x, y, ...(q ? { r: q } : {}), ...(isSizable({ t }) ? { size: size ?? 1 } : {}),
         ...(t === "constant" ? { value: value ?? 0 } : {}),
-        ...(t === "splitter" ? { order: order ?? "ascendant" } : {}) };
+        ...(t === "splitter" ? { order: order ?? "ascendant" } : {}),
+        ...(t === "mux" || t === "demux" ? { channels: channels ?? 2 } : {}) };
     }),
     wires: [...board.wires.values()].map(({ o, x, y, size }) => ({ o, x, y, size: size ?? 1 })),
   }, null, 2);
@@ -443,6 +456,7 @@ export function parseDocument(text) {
     const component = {
       id: `c${board.components.length + 1}`, t: raw.t, r,
       ...(isSizable({ t: raw.t }) ? { size: raw.size ?? 1 } : {}),
+      ...(raw.t === "mux" || raw.t === "demux" ? { channels: raw.channels ?? 2 } : {}),
       ...(raw.t === "splitter" ? { order: raw.order ?? "ascendant" } : {}),
       ...(raw.t === "constant" ? { value: raw.value ?? 0 } : {}),
       x: clampInt(raw.x, -COORD_LIMIT, COORD_LIMIT, 0),

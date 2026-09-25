@@ -1,4 +1,4 @@
-import { bitWidth, dimsOf, pinsFor, spec } from "./components.js";
+import { bitWidth, channelCount, dimsOf, pinsFor, spec } from "./components.js";
 import { edgeKey, wireSize } from "./model.js";
 
 const CELL = 48;
@@ -101,8 +101,9 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     return body + stubs + out;
   }
 
-  function blockArt(s) {
-    const symbols = { mux: "MUX", demux: "DEMUX", adder: "+", twos: "−A", comparator: "CMP", shl: "≪", shr: "≫" };
+  function blockArt(s, c) {
+    if (s.shape === "mux" || s.shape === "demux") return plexerArt(c, s);
+    const symbols = { adder: "+", twos: "−A", comparator: "CMP", shl: "≪", shr: "≫" };
     const width = s.w * U, height = s.h * U;
     const font = s.w === 2 ? 23 : 26;
     const labels = s.pins.map((pin) => {
@@ -112,6 +113,28 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     }).join("");
     return `<rect x="7" y="7" width="${width - 14}" height="${height - 14}" rx="10" fill="${s.color}" stroke="rgba(255,255,255,.55)" stroke-width="2"/>
       <text x="${width / 2}" y="${height / 2 + 8}" text-anchor="middle" fill="#102426" font-size="${font}" font-weight="700">${symbols[s.shape]}</text>${labels}`;
+  }
+
+  function plexerArt(c, s) {
+    const width = dimsOf({ ...c, r: 0 }).w * U, height = s.h * U;
+    const mux = s.shape === "mux";
+    const leftTop = mux ? 13 : width * .27;
+    const rightTop = width - leftTop;
+    const leftBottom = mux ? width * .27 : 13;
+    const rightBottom = width - leftBottom;
+    const stroke = "#dcecf1";
+    // The tapered outline is the usual schematic cue: many channels converge
+    // on one output for a mux, and one input fans out for a demux.
+    const outline = `<path d="M${leftTop} 33 H${rightTop} L${rightBottom} ${height - 31} H${leftBottom} Z"
+      fill="${s.color}" fill-opacity=".22" stroke="${stroke}" stroke-width="3" stroke-linejoin="round"/>`;
+    const cx = width / 2;
+    const glyph = mux
+      ? `<path d="M${cx - 20} 50 L${cx} 78 M${cx + 20} 50 L${cx} 78 M${cx} 78 V${height - 42}"/>`
+      : `<path d="M${cx} 43 V63 M${cx} 63 L${cx - 18} ${height - 43} M${cx} 63 L${cx + 18} ${height - 43}"/>`;
+    const flow = `<g fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>`;
+    const labels = pinsFor({ ...c, x: 0, y: 0, r: 0 }).map((pin) => `<text x="${pin.px * U}" y="${pin.role === "in" ? 21 : height - 10}"
+      text-anchor="middle" fill="${stroke}" font-size="11" font-weight="700">${pin.name}</text>`).join("");
+    return outline + flow + labels;
   }
 
   function componentArt(c, s, value = 0) {
@@ -131,9 +154,10 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     else if (s.shape === "constant") inner = constantArt(c, s.color);
     else if (s.shape === "output") inner = outputArt(c, s.color, value);
     else if (s.shape === "led") inner = ledArt();
-    else if (s.block) inner = blockArt(s);
+    else if (s.block) inner = blockArt(s, c);
     else inner = gateArt(s.shape, s.color);
-    return svgWrap(inner, s, s.constant || s.shape === "output" ? 0 : c.r);
+    return svgWrap(inner, s.shape === "mux" || s.shape === "demux" ? dimsOf({ ...c, r: 0 }) : s,
+      s.constant || s.shape === "output" ? 0 : c.r);
   }
 
   function renderComponents(logic = getEvaluation()) {
@@ -156,7 +180,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);
       if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
       el.innerHTML = componentArt(c, s, st?.value ?? 0);
-      el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${st && (c.t === "output" || st.value) ? "  value: " + st.value : ""}`;
+      el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${st && (c.t === "output" || st.value) ? "  value: " + st.value : ""}`;
       gridEl.appendChild(el);
     }
   }

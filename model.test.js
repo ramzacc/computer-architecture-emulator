@@ -212,9 +212,10 @@ test("gates compute their output from the input nets", () => {
   assert.equal(states.get("h").value, 0);
 });
 
-function wiredBlock(type, size, values) {
+function wiredBlock(type, size, values, channels) {
   const board = createBoard();
-  const block = { id: "block", t: type, x: 0, y: 0, r: 0, size };
+  const block = { id: "block", t: type, x: 0, y: 0, r: 0, size,
+    ...(channels === undefined ? {} : { channels }) };
   assert.equal(addComponent(board, block), true);
   const inputs = pinsFor(block).filter((pin) => pin.role === "in");
   const sources = inputs.map((pin, index) => {
@@ -245,6 +246,29 @@ test("mux and demux route sized data using a one-bit selector", () => {
   assert.deepEqual(demux.outputValues(), [9, 0]);
   demux.sources[1].value = 1;
   assert.deepEqual(demux.outputValues(), [0, 9]);
+});
+
+test("mux and demux expose 1–16 channels with a matching selector width", () => {
+  const mux = wiredBlock("mux", 4, [1, 2, 4, 8, 2], 4);
+  assert.deepEqual(pinsFor(mux.block).map((pin) => pin.size), [4, 4, 4, 4, 2, 4]);
+  assert.deepEqual(dimsOf(mux.block), { w: 10, h: 3 });
+  const rotated = { ...mux.block, r: 1 };
+  assert.deepEqual(dimsOf(rotated), { w: 3, h: 10 });
+  assert.deepEqual(pinsFor(rotated).map((pin) => pin.dir), ["E", "E", "E", "E", "E", "W"]);
+  assert.deepEqual(mux.outputValues(), [4]);
+  mux.sources[4].value = 7;
+  assert.deepEqual(mux.outputValues(), [0]);
+
+  const demux = wiredBlock("demux", 4, [9, 2], 4);
+  assert.deepEqual(pinsFor(demux.block).map((pin) => pin.size), [4, 2, 4, 4, 4, 4]);
+  assert.deepEqual(demux.outputValues(), [0, 0, 9, 0]);
+  demux.sources[1].value = 3;
+  assert.deepEqual(demux.outputValues(), [0, 0, 0, 9]);
+
+  const sixteen = wiredBlock("mux", 4, [...Array(16).keys(), 15], 16);
+  assert.deepEqual(sixteen.outputValues(), [15]);
+  assert.equal(pinsFor(sixteen.block)[16].size, 4);
+  assert.deepEqual(parseDocument(serialize(sixteen.board)).board.components[0].channels, 16);
 });
 
 test("adder wraps its sum and reports carry, including carry in", () => {

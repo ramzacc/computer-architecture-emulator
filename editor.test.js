@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BoardEditor, STORAGE_KEY } from './public/editor.js';
+import { spec } from './public/components.js';
 import { edgeKey, parseDocument, serialize } from './public/model.js';
-import { wireTitle } from './public/renderer.js';
+import { createRenderer, wireTitle } from './public/renderer.js';
 
 function setup() {
   const data = new Map();
@@ -101,6 +102,16 @@ test('wire hover text includes the evaluated value', () => {
   assert.equal(wireTitle({ size: 2 }, 3), '2 bit(s), value 3');
 });
 
+test('mux and demux render tapered routing symbols without block name text', () => {
+  const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
+  for (const type of ['mux', 'demux']) {
+    const svg = art({ t: type, x: 0, y: 0, r: 0, size: 4, channels: 4 }, spec(type));
+    assert.match(svg, /<path d="M/);
+    assert.doesNotMatch(svg, />MUX<|>DEMUX</);
+    assert.match(svg, /viewBox="0 0 (400|320) 120"/);
+  }
+});
+
 test('accepted events publish a fresh evaluation; explicit evaluation does not save', () => {
   const published = [];
   let saves = 0;
@@ -191,6 +202,23 @@ test('new data-path parts start at four bits and keep control pins fixed while r
   assert.equal(editor.addWire({ o: 'V', x: 5, y: -2, size: 8 }), false);
   assert.equal(editor.addWire({ o: 'V', x: 9, y: 3, size: 1 }), true);
   assert.equal(editor.resizeComponent(adder.id, 16), true);
+});
+
+test('mux channel counts are editable, validated, and saved', () => {
+  const { editor, data } = setup();
+  const mux = editor.place('mux', 0, 0);
+  assert.equal(mux.channels, 2);
+  assert.equal(editor.setChannelCount(mux.id, 16), true);
+  assert.equal(editor.component(mux.id).channels, 16);
+  assert.equal(editor.setChannelCount(mux.id, 17), false);
+  assert.equal(editor.setChannelCount(mux.id, 0), false);
+  assert.equal(editor.setChannelCount(mux.id, 2.5), false);
+  assert.equal(parseDocument(data.get(STORAGE_KEY)).board.components[0].channels, 16);
+  const demux = editor.place('demux', 40, 0);
+  assert.equal(editor.setChannelCount(demux.id, 4), true);
+  assert.ok(editor.place('output', 50, 0));
+  assert.equal(editor.setChannelCount(demux.id, 16), false); // overlaps output
+  assert.equal(demux.channels, 4);
 });
 
 test('a wire route places all segments in one saved edit and reuses existing segments', () => {

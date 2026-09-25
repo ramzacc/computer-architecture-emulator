@@ -1,4 +1,4 @@
-import { COMPONENT_TYPES, bitWidth, dimsOf, isSizable, pinsFor, spec, validBitWidth } from "./components.js";
+import { COMPONENT_TYPES, bitWidth, channelCount, dimsOf, isSizable, pinsFor, selectWidth, spec, validBitWidth } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, isValidComponent, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
 import { BoardEditor } from "./editor.js";
 import { createRenderer } from "./renderer.js";
@@ -45,7 +45,10 @@ const zoomLabelEl = document.getElementById("zoom-level");
 const newWireSizeEl = document.getElementById("new-wire-size");
 const selectedPropertiesHeadingEl = document.getElementById("selected-properties-heading");
 const selectedSizeRowEl = document.getElementById("selected-size-row");
+const selectedSizeLabelEl = document.getElementById("selected-size-label");
 const selectedSizeEl = document.getElementById("selected-size");
+const channelsRowEl = document.getElementById("channels-row");
+const channelsEl = document.getElementById("channels");
 const splitterOrderRowEl = document.getElementById("splitter-order-row");
 const splitterOrderEl = document.getElementById("splitter-order");
 const selectedValueRowEl = document.getElementById("selected-value-row");
@@ -89,9 +92,14 @@ function renderProperties() {
   selectedPropertiesHeadingEl.textContent = selectionCount > 1 ? `${selectionCount} items selected` : component ? "Component properties" : net ? "Wire properties" : "Selected properties";
   const size = component && isSizable(component) ? bitWidth(component) : net?.size;
   selectedSizeRowEl.hidden = size === undefined;
+  selectedSizeLabelEl.textContent = component?.t === "mux" || component?.t === "demux" ? "Data width (bits)" : "Selected size (bits)";
   selectedSizeEl.disabled = size === undefined;
   selectedSizeEl.value = size === undefined ? "" : String(size);
   selectedSizeEl.max = component?.t === "constant" ? "8" : "32";
+  const plexer = component?.t === "mux" || component?.t === "demux";
+  channelsRowEl.hidden = !plexer;
+  channelsEl.disabled = !plexer;
+  channelsEl.value = plexer ? String(channelCount(component)) : "";
   const splitter = component?.t === "splitter";
   splitterOrderRowEl.hidden = !splitter;
   splitterOrderEl.disabled = !splitter;
@@ -110,7 +118,7 @@ function renderProperties() {
     ? `${displayedValue} (${displayedValue ? "HIGH" : "LOW"})`
     : `${displayedValue} (0b${displayedValue.toString(2).padStart(displayedSize, "0")})`;
   if (size !== undefined && !busStatusEl.classList.contains("error")) {
-    busStatus(component ? `${spec(component.t).label}: ${size} bit${size === 1 ? "" : "s"}.` :
+    busStatus(component ? `${spec(component.t).label}: ${size} bit${size === 1 ? "" : "s"}${plexer ? `, ${channelCount(component)} channels, ${selectWidth(component)} selector bit${selectWidth(component) === 1 ? "" : "s"}` : ""}.` :
       `Selected bus: ${size} bit${size === 1 ? "" : "s"}.`);
   }
   syncActionButtons();
@@ -138,6 +146,14 @@ selectedSizeEl.addEventListener("change", () => {
     ? "Constant width must be 1–8 bits and match connected wires."
     : "Bus size mismatch or invalid size (use 1–32 bits).", true);
   else busStatus(`Size set to ${size} bits.`);
+  renderProperties();
+});
+
+channelsEl.addEventListener("change", () => {
+  const channels = Number(channelsEl.value);
+  if (editor.setChannelCount(selectedId, channels))
+    busStatus(`Set ${channels} data channels; selector uses ${selectWidth(editor.component(selectedId))} bit(s).`);
+  else busStatus("Channel count must be 1–16 and fit without overlapping other components or mismatched wires.", true);
   renderProperties();
 });
 

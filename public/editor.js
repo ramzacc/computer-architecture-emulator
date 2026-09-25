@@ -1,4 +1,4 @@
-import { bitWidth, isSizable, validBitWidth, validConstant, validSplitterOrder } from "./components.js";
+import { bitWidth, isSizable, validBitWidth, validChannelCount, validConstant, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey, isValidComponent,
   evaluateBoard, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, shortCircuitError, wireRoute } from "./model.js";
 
@@ -79,7 +79,8 @@ export class BoardEditor {
     const component = { id, t: type, x, y, r: 0,
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
       ...(type === "constant" ? { size: 1, value: 0 } : {}),
-      ...(type === "output" ? { size: 1 } : {}) };
+      ...(type === "output" ? { size: 1 } : {}),
+      ...(["mux", "demux"].includes(type) ? { channels: 2 } : {}) };
     if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr"].includes(type)) component.size = 4;
     if (!addComponent(this.board, component)) return null;
     this.commitComponentEdit();
@@ -148,6 +149,20 @@ export class BoardEditor {
     if (!isValidComponent(this.board, component)) {
       component.size = oldSize;
       component.value = oldValue;
+      return false;
+    }
+    this.commitComponentEdit();
+    return true;
+  }
+
+  setChannelCount(id, channels) {
+    const component = this.component(id);
+    if (!component || !["mux", "demux"].includes(component.t) ||
+        !validChannelCount(channels) || (component.channels ?? 2) === channels) return false;
+    const oldChannels = component.channels;
+    component.channels = channels;
+    if (!isValidComponent(this.board, component)) {
+      component.channels = oldChannels;
       return false;
     }
     this.commitComponentEdit();
