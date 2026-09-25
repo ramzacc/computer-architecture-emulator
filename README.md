@@ -30,8 +30,23 @@ Three example circuit documents are in [`public/examples/`](public/examples/). I
 
 The catalog holds real logic-level parts: a 2×2 **Power** rail (always drives high),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,
-**NAND**, and 2×2 **NOT** gates, plus a **Splitter**, **Constant** source, and **Output** display. Each pin declares an `in` or `out` role, and the board is
+**NAND**, **NOR**, **XNOR**, and 2×2 **NOT** gates, plus a **Splitter**, **Constant** source, and **Output** display. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
+
+The data-path catalog also includes:
+
+| Part | Inputs | Outputs |
+| --- | --- | --- |
+| MUX 2:1 | A, B, one-bit S | Y = A when S is 0, B when S is 1 |
+| DEMUX 1:2 | D, one-bit S | Y0 = D when S is 0, Y1 = D when S is 1; the other output is 0 |
+| Adder | A, B, one-bit CI | Width-limited SUM and one-bit carry out CO |
+| Two's complement | A | −A, wrapped to the selected width |
+| Comparator | A, B | One-bit LT, EQ, and GT (unsigned comparison) |
+| Shift left / right | A, five-bit N | Logical shift by N, with zero fill and width-limited result |
+
+These parts use a configurable 1–32-bit data width. Control and flag pins keep
+the fixed widths shown above. Unwired inputs read zero. Select a part to change
+its data width, and hover its pins to see their names and sizes.
 
 Wires carry buses of 1–32 bits (the size property). Set **New wire size** before drawing,
 then enter **Wire mode** and click a start point and successive corners or endpoints.
@@ -41,9 +56,9 @@ the other bend when the first is blocked. Double-click, right-click, or press
 wires in **Select mode** or **Pan mode**, and right-click a wire to remove one segment.
 Set **New wire size** again for a new bus,
 or select a connected wire net or logic gate and edit **Selected size**. Connected
-wires and gate pins must have the same size; the editor reports a mismatch and
+wires and component pins must have the same size; the editor reports a mismatch and
 rejects the change otherwise. Selecting a wire shows the current net value in
-decimal and binary under **Bus properties** (or HIGH/LOW for one bit). Gates compute AND, OR, XOR, NAND, and NOT bitwise
+decimal and binary under **Bus properties** (or HIGH/LOW for one bit). Gates compute AND, OR, XOR, NAND, NOR, XNOR, and NOT bitwise
 across their configured size. A splitter has one bus connection and one 1-bit
 branch per bit. Select it to set **Order**: Ascendant puts bit 0 at the first
 branch; Descendant puts the highest bit there. It works in either
