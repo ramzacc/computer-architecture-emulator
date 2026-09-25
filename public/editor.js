@@ -93,6 +93,21 @@ export class BoardEditor {
     this.commit();
   }
 
+  editComponent(component, changes, { validate = isValidComponent, sanitize = false } = {}) {
+    const previous = { ...component };
+    Object.assign(component, changes);
+    if (!validate(this.board, component)) {
+      for (const key of Object.keys(changes)) {
+        if (!Object.hasOwn(previous, key)) delete component[key];
+        else component[key] = previous[key];
+      }
+      return false;
+    }
+    if (sanitize) this.commitComponentEdit();
+    else this.commit();
+    return true;
+  }
+
   loadSaved() {
     let saved;
     try { saved = this.storage?.getItem(STORAGE_KEY); }
@@ -163,15 +178,7 @@ export class BoardEditor {
   move(id, x, y) {
     const component = this.component(id);
     if (!component || (component.x === x && component.y === y)) return false;
-    const old = { x: component.x, y: component.y };
-    component.x = x;
-    component.y = y;
-    if (!isValidComponent(this.board, component)) {
-      Object.assign(component, old);
-      return false;
-    }
-    this.commitComponentEdit();
-    return true;
+    return this.editComponent(component, { x, y }, { sanitize: true });
   }
 
   translatedSelection(ids, wireKeys, dx, dy) {
@@ -227,10 +234,8 @@ export class BoardEditor {
     if (!component) return false;
     const old = component.r ?? 0;
     for (let step = 1; step <= 3; step++) {
-      component.r = (old + step) % 4;
-      if (isValidComponent(this.board, component)) { this.commitComponentEdit(); return true; }
+      if (this.editComponent(component, { r: (old + step) % 4 }, { sanitize: true })) return true;
     }
-    component.r = old;
     return false;
   }
 
@@ -238,31 +243,17 @@ export class BoardEditor {
     const component = this.component(id);
     if (!component || !isSizable(component) || !validBitWidth(size) ||
         (component.t === "constant" && size > 8)) return false;
-    const oldSize = bitWidth(component), oldValue = component.value;
-    if (oldSize === size) return false;
-    component.size = size;
-    if (component.t === "constant") component.value = Math.min(component.value ?? 0, 2 ** size - 1);
-    if (!isValidComponent(this.board, component)) {
-      component.size = oldSize;
-      component.value = oldValue;
-      return false;
-    }
-    this.commitComponentEdit();
-    return true;
+    if (bitWidth(component) === size) return false;
+    const changes = { size };
+    if (component.t === "constant") changes.value = Math.min(component.value ?? 0, 2 ** size - 1);
+    return this.editComponent(component, changes, { sanitize: true });
   }
 
   setChannelCount(id, channels) {
     const component = this.component(id);
     if (!component || !["mux", "demux"].includes(component.t) ||
         !validChannelCount(channels) || (component.channels ?? 2) === channels) return false;
-    const oldChannels = component.channels;
-    component.channels = channels;
-    if (!isValidComponent(this.board, component)) {
-      component.channels = oldChannels;
-      return false;
-    }
-    this.commitComponentEdit();
-    return true;
+    return this.editComponent(component, { channels }, { sanitize: true });
   }
 
   resizeWire(key, size) {
@@ -275,34 +266,21 @@ export class BoardEditor {
   setSplitterOrder(id, order) {
     const component = this.component(id);
     if (!component || component.t !== "splitter" || !validSplitterOrder(order) || component.order === order) return false;
-    const old = component.order;
-    component.order = order;
-    if (shortCircuitError(this.board)) { component.order = old; return false; }
-    this.commit();
-    return true;
+    return this.editComponent(component, { order }, { validate: (board) => !shortCircuitError(board) });
   }
 
   setConstantValue(id, value) {
     const component = this.component(id);
     if (!component || component.t !== "constant" || component.value === value ||
         !validConstant({ ...component, value })) return false;
-    const old = component.value;
-    component.value = value;
-    if (shortCircuitError(this.board)) { component.value = old; return false; }
-    this.commit();
-    return true;
+    return this.editComponent(component, { value }, { validate: (board) => !shortCircuitError(board) });
   }
 
   toggleSwitch(id) {
     const component = this.component(id);
     if (component?.t !== "switch") return false;
-    component.value = component.value === 1 ? 0 : 1;
-    if (shortCircuitError(this.board)) {
-      component.value = component.value === 1 ? 0 : 1;
-      return false;
-    }
-    this.commit();
-    return true;
+    return this.editComponent(component, { value: component.value === 1 ? 0 : 1 },
+      { validate: (board) => !shortCircuitError(board) });
   }
 
   setValueFormat(id, format) {
@@ -315,20 +293,11 @@ export class BoardEditor {
   }
 
   deleteComponent(id) {
-    const index = this.board.components.findIndex((c) => c.id === id);
-    if (index < 0) return false;
-    this.board.components.splice(index, 1);
-    this.commit();
-    return true;
+    return this.deleteSelection([id], []);
   }
 
   deleteComponents(ids) {
-    const selected = new Set(ids);
-    const before = this.board.components.length;
-    this.board.components = this.board.components.filter((component) => !selected.has(component.id));
-    if (this.board.components.length === before) return false;
-    this.commit();
-    return true;
+    return this.deleteSelection(ids, []);
   }
 
   deleteSelection(ids, wireKeys) {
@@ -408,10 +377,6 @@ export class BoardEditor {
   }
 
   deleteNet(key) {
-    const net = netContaining(this.board, key, this.evaluation);
-    if (!net) return false;
-    for (const edge of net.edges) this.board.wires.delete(edgeKey(edge));
-    this.commit();
-    return true;
+    return this.deleteSelection([], [key]);
   }
 }
