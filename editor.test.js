@@ -197,6 +197,19 @@ test('mux and demux render labeled chips at their generated widths', () => {
   }
 });
 
+test('component labels stay upright through each quarter-turn', () => {
+  const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
+  for (const type of ['button', 'and', 'mux', 'splitter', 'sevenseg', 'debugdisplay']) {
+    for (const r of [1, 2, 3]) {
+      const svg = art({ t: type, x: 0, y: 0, r, size: 4, channels: 4 }, spec(type));
+      const labels = svg.match(/<text\b[^>]*>/g) ?? [];
+      assert.ok(labels.length > 0, `${type} has labels`);
+      for (const label of labels)
+        assert.match(label, new RegExp(`transform="rotate\\(${-r * 90} `), `${type} label at rotation ${r}`);
+    }
+  }
+});
+
 test('accepted events publish a fresh evaluation; explicit evaluation does not save', () => {
   const published = [];
   let saves = 0;
