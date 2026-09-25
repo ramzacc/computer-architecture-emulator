@@ -12,23 +12,23 @@
 // need 0 < y < h. So 1-tall parts carry N/S pins and 1-wide parts carry W/E.
 export const COMPONENT_TYPES = {
   button: {
-    label: "Button", w: 2, h: 2, color: "#7bc8b2", shape: "button", momentary: true,
+    label: "Button", w: 2, h: 2, color: "#b4b1aa", shape: "button", momentary: true,
     pins: [
       { x: 1, y: 2, dir: "S", role: "out" },
     ],
   },
   switch: {
-    label: "Toggle switch", w: 2, h: 2, color: "#7bc8b2", shape: "switch", toggle: true,
+    label: "Toggle switch", w: 2, h: 2, color: "#b4b1aa", shape: "switch", toggle: true,
     pins: [{ x: 1, y: 2, dir: "S", role: "out" }],
   },
   clock: {
-    label: "Clock", w: 2, h: 2, color: "#7bc8b2", shape: "clock", clock: true,
+    label: "Clock", w: 2, h: 2, color: "#b4b1aa", shape: "clock", clock: true,
     pins: [
       { x: 1, y: 2, dir: "S", role: "out" },
     ],
   },
   register: {
-    label: "Register", w: 4, h: 3, color: "#b4a4e2", shape: "register", register: true,
+    label: "Register", w: 4, h: 3, color: "#aaa8b1", shape: "register", register: true,
     pins: [
       { x: 1, y: 0, dir: "N", role: "in", name: "D" },
       { x: 3, y: 0, dir: "N", role: "in", name: "CLK", size: 1 },
@@ -36,25 +36,25 @@ export const COMPONENT_TYPES = {
     ],
   },
   constant: {
-    label: "Constant", w: 2, h: 2, color: "#7bc8b2", shape: "constant", constant: true,
+    label: "Constant", w: 2, h: 2, color: "#b4b1aa", shape: "constant", constant: true,
     pins: [
       { x: 1, y: 2, dir: "S", role: "out" },
     ],
   },
   output: {
-    label: "Output", w: 2, h: 2, color: "#e8b681", shape: "output", output: true,
+    label: "Output", w: 2, h: 2, color: "#c8b49b", shape: "output", output: true,
     pins: [
       { x: 1, y: 0, dir: "N", role: "in" },
     ],
   },
   led: {
-    label: "LED", w: 2, h: 2, color: "#e8b681", shape: "led",
+    label: "LED", w: 2, h: 2, color: "#c8b49b", shape: "led",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in" },
     ],
   },
   sevenseg: {
-    label: "Seven-segment", w: 6, h: 5, color: "#e8b681", shape: "sevenseg",
+    label: "Seven-segment", w: 6, h: 5, color: "#c8b49b", shape: "sevenseg",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in", name: "A" },
       { x: 2, y: 0, dir: "N", role: "in", name: "B" },
@@ -66,11 +66,11 @@ export const COMPONENT_TYPES = {
     ],
   },
   debugdisplay: {
-    label: "Debug display", w: 4, h: 4, color: "#e8b681", shape: "debugdisplay", debug: true,
+    label: "Debug display", w: 4, h: 4, color: "#c8b49b", shape: "debugdisplay", debug: true,
     pins: [{ x: 2, y: 0, dir: "N", role: "in", name: "HEX", size: 4 }],
   },
   and: {
-    label: "AND", w: 4, h: 2, color: "#8cb2e8", shape: "and", op: "and",
+    label: "AND", w: 4, h: 2, color: "#b9bec8", shape: "and", op: "and",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in" },
       { x: 3, y: 0, dir: "N", role: "in" },
@@ -78,7 +78,7 @@ export const COMPONENT_TYPES = {
     ],
   },
   or: {
-    label: "OR", w: 4, h: 2, color: "#8cb2e8", shape: "or", op: "or",
+    label: "OR", w: 4, h: 2, color: "#b9bec8", shape: "or", op: "or",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in" },
       { x: 3, y: 0, dir: "N", role: "in" },
@@ -86,7 +86,7 @@ export const COMPONENT_TYPES = {
     ],
   },
   xor: {
-    label: "XOR", w: 4, h: 2, color: "#8cb2e8", shape: "xor", op: "xor",
+    label: "XOR", w: 4, h: 2, color: "#b9bec8", shape: "xor", op: "xor",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in" },
       { x: 3, y: 0, dir: "N", role: "in" },
@@ -94,18 +94,18 @@ export const COMPONENT_TYPES = {
     ],
   },
   not: {
-    label: "NOT", w: 2, h: 2, color: "#8cb2e8", shape: "not", op: "not",
+    label: "NOT", w: 2, h: 2, color: "#b9bec8", shape: "not", op: "not",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in" },
       { x: 1, y: 2, dir: "S", role: "out" },
     ],
   },
   splitter: {
-    label: "Splitter", w: 2, h: 2, color: "#a9b8c8", shape: "splitter", splitter: true,
+    label: "Splitter", w: 2, h: 2, color: "#afb2b9", shape: "splitter", splitter: true,
     pins: [],
   },
   nand: {
-    label: "NAND", w: 4, h: 2, color: "#8cb2e8", shape: "nand", op: "nand",
+    label: "NAND", w: 4, h: 2, color: "#b9bec8", shape: "nand", op: "nand",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in" },
       { x: 3, y: 0, dir: "N", role: "in" },
@@ -113,7 +113,7 @@ export const COMPONENT_TYPES = {
     ],
   },
   nor: {
-    label: "NOR", w: 4, h: 2, color: "#8cb2e8", shape: "nor", op: "nor",
+    label: "NOR", w: 4, h: 2, color: "#b9bec8", shape: "nor", op: "nor",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in" },
       { x: 3, y: 0, dir: "N", role: "in" },
@@ -121,7 +121,7 @@ export const COMPONENT_TYPES = {
     ],
   },
   xnor: {
-    label: "XNOR", w: 4, h: 2, color: "#8cb2e8", shape: "xnor", op: "xnor",
+    label: "XNOR", w: 4, h: 2, color: "#b9bec8", shape: "xnor", op: "xnor",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in" },
       { x: 3, y: 0, dir: "N", role: "in" },
@@ -129,15 +129,15 @@ export const COMPONENT_TYPES = {
     ],
   },
   mux: {
-    label: "Multiplexer", w: 6, h: 3, color: "#b4a4e2", shape: "mux", block: "mux",
+    label: "Multiplexer", w: 6, h: 3, color: "#aaa8b1", shape: "mux", block: "mux",
     pins: [], // Generated from the instance's channel count in pinsFor.
   },
   demux: {
-    label: "Demultiplexer", w: 4, h: 3, color: "#b4a4e2", shape: "demux", block: "demux",
+    label: "Demultiplexer", w: 4, h: 3, color: "#aaa8b1", shape: "demux", block: "demux",
     pins: [], // Generated from the instance's channel count in pinsFor.
   },
   adder: {
-    label: "Adder", w: 6, h: 3, color: "#b4a4e2", shape: "adder", block: "adder",
+    label: "Adder", w: 6, h: 3, color: "#aaa8b1", shape: "adder", block: "adder",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in", name: "A" },
       { x: 3, y: 0, dir: "N", role: "in", name: "B" },
@@ -147,14 +147,14 @@ export const COMPONENT_TYPES = {
     ],
   },
   twos: {
-    label: "Two's complement", w: 2, h: 2, color: "#b4a4e2", shape: "twos", block: "twos",
+    label: "Two's complement", w: 2, h: 2, color: "#aaa8b1", shape: "twos", block: "twos",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in", name: "A" },
       { x: 1, y: 2, dir: "S", role: "out", name: "−A" },
     ],
   },
   comparator: {
-    label: "Comparator", w: 4, h: 3, color: "#b4a4e2", shape: "comparator", block: "comparator",
+    label: "Comparator", w: 4, h: 3, color: "#aaa8b1", shape: "comparator", block: "comparator",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in", name: "A" },
       { x: 3, y: 0, dir: "N", role: "in", name: "B" },
@@ -164,7 +164,7 @@ export const COMPONENT_TYPES = {
     ],
   },
   shl: {
-    label: "Shift left", w: 4, h: 2, color: "#b4a4e2", shape: "shl", block: "shl",
+    label: "Shift left", w: 4, h: 2, color: "#aaa8b1", shape: "shl", block: "shl",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in", name: "A" },
       { x: 3, y: 0, dir: "N", role: "in", name: "N", size: 5 },
@@ -172,7 +172,7 @@ export const COMPONENT_TYPES = {
     ],
   },
   shr: {
-    label: "Shift right", w: 4, h: 2, color: "#b4a4e2", shape: "shr", block: "shr",
+    label: "Shift right", w: 4, h: 2, color: "#aaa8b1", shape: "shr", block: "shr",
     pins: [
       { x: 1, y: 0, dir: "N", role: "in", name: "A" },
       { x: 3, y: 0, dir: "N", role: "in", name: "N", size: 5 },

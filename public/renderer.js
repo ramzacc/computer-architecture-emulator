@@ -12,7 +12,7 @@ export function wireTitle(wire, value) {
 }
 
 export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, getSelectedWires) {
-  function svgWrap(inner, s, r) {
+  function svgWrap(inner, s, r, overlay = "") {
     const q = ((r % 4) + 4) % 4;
     const vw = (q % 2 ? s.h : s.w) * U;
     const vh = (q % 2 ? s.w : s.h) * U;
@@ -21,15 +21,15 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       : q === 3 ? `translate(0,${s.w * U}) rotate(270)`
       : null;
     const content = transform ? `<g transform="${transform}">${inner}</g>` : inner;
-    return `<svg class="art" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="xMidYMid meet">${content}</svg>`;
+    return `<svg class="art" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="xMidYMid meet">${content}${overlay}</svg>`;
   }
 
   // All parts share the same chassis and edge connection treatment. Geometry
   // stays on the model's lattice so existing boards and rotations still align.
-  const ink = "#e7edf3";
-  const muted = "#94a4b3";
-  const surface = "#1c2833";
-  const border = "#526473";
+  const ink = "#e8e9ec";
+  const muted = "#a0a3ab";
+  const surface = "#202126";
+  const border = "#555861";
 
   function textAt(x, y, value, size = 12, color = ink, weight = 600, anchor = "middle") {
     return `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle" fill="${color}" font-family="Inter, system-ui, sans-serif" font-size="${size}" font-weight="${weight}">${value}</text>`;
@@ -40,22 +40,39 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       <path d="M16 7 H${w - 16}" stroke="${color}" stroke-width="2" stroke-linecap="round" opacity=".9"/>`;
   }
 
-  function ports(pins, w, h, color, labels = true) {
+  function ports(pins, w, h, color) {
     return pins.map((pin) => {
       const x = pin.x * U, y = pin.y * U;
       const line = pin.dir === "N" ? `<path d="M${x} 0 V7"/>`
         : pin.dir === "S" ? `<path d="M${x} ${h - 7} V${h}"/>`
         : pin.dir === "E" ? `<path d="M${w - 7} ${y} H${w}"/>`
         : `<path d="M0 ${y} H7"/>`;
-      const label = labels && pin.name ? textAt(x, pin.dir === "N" ? 19 : h - 13,
-        pin.name, pin.name.length > 2 ? 9 : 10, muted, 700) : "";
-      return `<g fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round">${line}</g>${label}`;
+      return `<g fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round">${line}</g>`;
     }).join("");
   }
 
   function localPins(c, s) {
     return pinsFor({ ...c, x: 0, y: 0, r: 0 }).map((pin) =>
       ({ x: pin.px, y: pin.py, dir: pin.dir, role: pin.role, name: pin.name, bit: pin.bit }));
+  }
+
+  function actualPins(c) {
+    const x = c.x ?? 0, y = c.y ?? 0;
+    return pinsFor({ ...c, x, y }).map((pin) => ({
+      x: pin.px - x, y: pin.py - y, dir: pin.dir,
+      role: pin.role, name: pin.name, bit: pin.bit,
+    }));
+  }
+
+  function portLabels(pins, w, h) {
+    return pins.filter((pin) => pin.name).map((pin) => {
+      const x = pin.x * U, y = pin.y * U;
+      const size = pin.name.length > 2 ? 9 : 10;
+      if (pin.dir === "N") return textAt(x, 19, pin.name, size, muted, 700);
+      if (pin.dir === "S") return textAt(x, h - 17, pin.name, size, muted, 700);
+      if (pin.dir === "E") return textAt(w - 17, y, pin.name, size, muted, 700, "end");
+      return textAt(17, y, pin.name, size, muted, 700, "start");
+    }).join("");
   }
 
   function valueLines(value, width = 8) {
@@ -75,21 +92,19 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const values = lines.map((line, i) => textAt(40, firstY + i * lineHeight, line, font, ink, 650)).join("");
     // Number displays remain upright when rotated; ports are drawn in their
     // actual direction rather than rotating the text with the body.
-    const actual = pinsFor(c).map((pin) => ({
-      x: pin.px - c.x, y: pin.py - c.y, dir: pin.dir, name: pin.name,
-    }));
+    const actual = actualPins(c);
     return svgWrap(frame(w, h, s.color) + textAt(40, 23, label, 9, s.color, 750) + values +
-      ports(actual, w, h, s.color, false), s, 0);
+      ports(actual, w, h, s.color), s, 0);
   }
 
   function sourceArt(c, s, active) {
     const w = 80, h = 80;
     let graphic = "";
     if (s.shape === "button") {
-      graphic = `<circle class="button-cap" cx="40" cy="48" r="15" fill="${active ? s.color : "#344552"}" stroke="${s.color}" stroke-width="2"/>
+      graphic = `<circle class="button-cap" cx="40" cy="48" r="15" fill="${active ? s.color : "#3b3d45"}" stroke="${s.color}" stroke-width="2"/>
         <circle cx="40" cy="48" r="5" fill="${active ? surface : s.color}"/>`;
     } else if (s.shape === "switch") {
-      graphic = `<rect x="22" y="39" width="36" height="18" rx="9" fill="#101b24" stroke="${border}" stroke-width="1.5"/>
+      graphic = `<rect x="22" y="39" width="36" height="18" rx="9" fill="#141519" stroke="${border}" stroke-width="1.5"/>
         <circle cx="${active ? 48 : 32}" cy="48" r="7" fill="${active ? s.color : muted}"/>`;
     } else {
       graphic = `<path d="M20 50 H31 V39 H46 V50 H60" fill="none" stroke="${s.color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
@@ -97,14 +112,14 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     }
     const name = s.shape === "switch" ? "SWITCH" : s.shape.toUpperCase();
     return svgWrap(frame(w, h, s.color) + textAt(40, 23, name, 9, s.color, 750) + graphic +
-      ports(localPins(c, s), w, h, s.color, false), s, c.r);
+      ports(actualPins(c), w, h, s.color), s, 0);
   }
 
   function ledArt(c, s) {
     return svgWrap(frame(80, 80, s.color) + textAt(40, 23, "LED", 9, s.color, 750) +
-      `<circle cx="40" cy="49" r="17" fill="#111b24" stroke="${border}" stroke-width="1.5"/>
-       <circle class="led-lamp" cx="40" cy="49" r="10" fill="#566170"/>` +
-      ports(localPins(c, s), 80, 80, s.color, false), s, c.r);
+      `<circle cx="40" cy="49" r="17" fill="#141519" stroke="${border}" stroke-width="1.5"/>
+       <circle class="led-lamp" cx="40" cy="49" r="10" fill="#5e6068"/>` +
+      ports(actualPins(c), 80, 80, s.color), s, 0);
   }
 
   function segmentPaths() {
@@ -121,55 +136,82 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   }
 
   function sevenSegArt(c, s, inputs) {
-    const labels = localPins(c, s).map((pin) => textAt(pin.x * U, pin.dir === "N" ? 19 : 183,
-      pin.name, 9, muted, 700)).join("");
-    return svgWrap(frame(240, 200, s.color) +
-      `<rect x="56" y="19" width="128" height="164" rx="8" fill="#151e28" stroke="#394954" stroke-width="1"/>` +
-      segments(inputs) + labels + ports(localPins(c, s), 240, 200, s.color, false), s, c.r);
+    const d = dimsOf(c), w = d.w * U, h = d.h * U;
+    const tx = (w - 240) / 2, ty = (h - 200) / 2;
+    const display = `<g transform="translate(${tx} ${ty})">
+      <rect x="56" y="19" width="128" height="164" rx="8" fill="#17181d" stroke="#44464e" stroke-width="1"/>
+      ${segments(inputs)}</g>`;
+    const pins = actualPins(c);
+    return svgWrap(frame(w, h, s.color) + display + ports(pins, w, h, s.color) +
+      portLabels(pins, w, h), d, 0);
   }
 
   function debugDisplayArt(c, s, value) {
     const patterns = ["1111110", "0110000", "1101101", "1111001", "0110011", "1011011", "1011111", "1110000",
       "1111111", "1111011", "1110111", "0011111", "1001110", "0111101", "1001111", "1000111"];
     const inputs = [...patterns[value & 15]].map(Number);
+    const pins = actualPins(c);
     return svgWrap(frame(160, 160, s.color) + textAt(80, 146, "DBG", 9, s.color, 750) +
-      `<rect x="40" y="31" width="80" height="107" rx="7" fill="#151e28" stroke="#394954" stroke-width="1"/>
+      `<rect x="40" y="31" width="80" height="107" rx="7" fill="#17181d" stroke="#44464e" stroke-width="1"/>
        <g transform="translate(19 33) scale(.5)">${segments(inputs)}</g>` +
-      ports(localPins(c, s), 160, 160, s.color), s, c.r);
+      ports(pins, 160, 160, s.color) + portLabels(pins, 160, 160), s, 0);
   }
 
   function chipArt(c, s) {
     const d = dimsOf({ ...c, r: 0 });
     const w = d.w * U, h = d.h * U;
+    const rotated = dimsOf(c), rw = rotated.w * U, rh = rotated.h * U;
     const titles = { and: "AND", or: "OR", xor: "XOR", not: "NOT", nand: "NAND", nor: "NOR", xnor: "XNOR",
       mux: "MULTIPLEXER", demux: "DEMULTIPLEXER", adder: "ADDER", twos: "NEGATE", comparator: "COMPARATOR",
       shl: "SHIFT LEFT", shr: "SHIFT RIGHT", register: "REGISTER" };
     const glyphs = { and: "&amp;", or: "1+", xor: "=1", not: "!", nand: "&amp;", nor: "1+", xnor: "=1",
       mux: "MUX", demux: "DEMUX", adder: "+", twos: "-A", comparator: "A:B", shl: "&lt;&lt;", shr: "&gt;&gt;", register: "D / Q" };
     const title = titles[s.shape];
-    const isCompact = h === 80;
-    const titleY = isCompact ? 35 : 43;
-    const glyphY = isCompact ? 51 : h / 2 + 13;
-    const symbolSize = w === 80 ? 20 : isCompact ? 22 : 25;
-    const smallLabel = title.length > 11 ? 9 : 10;
-    const glyph = textAt(w / 2, glyphY, glyphs[s.shape], symbolSize, ink, 650);
+    const pins = actualPins(c);
+    const sideRows = [...new Set(pins.filter((pin) => pin.name && (pin.dir === "E" || pin.dir === "W"))
+      .map((pin) => pin.y * U))].sort((a, b) => a - b);
+    // Put the central label block between named side ports when the rotated
+    // footprint is tall enough to provide a clear row.
+    const rows = [0, ...sideRows, rh];
+    const gaps = rows.slice(1).map((end, i) => ({
+      center: (rows[i] + end) / 2,
+      size: end - rows[i],
+    }));
+    const clearGap = gaps.filter((gap) => gap.size >= 70)
+      .sort((a, b) => Math.abs(a.center - rh / 2) - Math.abs(b.center - rh / 2))[0];
+    const labelCenter = rh > rw && clearGap ? clearGap.center : rh / 2;
+    const isCompact = rh === 80;
+    const titleY = isCompact ? 27 : labelCenter - 25;
+    const glyphY = isCompact ? 52 : labelCenter + 18;
+    const symbolSize = rw === 80 ? 20 : isCompact ? 22 : 25;
+    const smallLabel = rw <= 120 && title.length >= 11 ? 8 : title.length > 11 ? 9 : 10;
+    const glyph = textAt(rw / 2, glyphY, glyphs[s.shape], symbolSize, ink, 650);
     const negation = ["nand", "nor", "xnor"].includes(s.shape)
-      ? `<circle cx="${w / 2 + (w === 80 ? 19 : 31)}" cy="${glyphY - 1}" r="3" fill="${s.color}"/>` : "";
+      ? `<circle cx="${rw / 2 + (rw === 80 ? 19 : 31)}" cy="${glyphY - 1}" r="3" fill="${s.color}"/>` : "";
     const channel = ["mux", "demux"].includes(s.shape)
-      ? textAt(w / 2, h - 31, `${channelCount(c)} CHANNELS`, 9, muted, 650) : "";
-    return svgWrap(frame(w, h, s.color) + textAt(w / 2, titleY, title, smallLabel, s.color, 750) +
-      glyph + negation + channel + ports(localPins(c, s), w, h, s.color), d, c.r);
+      ? textAt(rw / 2, titleY + 17, `${channelCount(c)} CHANNELS`, 9, muted, 650) : "";
+    const labels = textAt(rw / 2, titleY, title, smallLabel, s.color, 750) + glyph +
+      negation + channel + portLabels(pins, rw, rh);
+    return svgWrap(frame(w, h, s.color) + ports(localPins(c, s), w, h, s.color), d, c.r, labels);
   }
 
   function splitterArt(c, s) {
     const n = bitWidth(c), h = (n + 1) * U;
     const pins = localPins(c, s);
     const branches = pins.filter((pin) => pin.role === "out").map((pin) =>
-      `<path d="M40 ${pin.y * U} H73" stroke="${s.color}" stroke-width="2" fill="none"/>
-       ${textAt(55, pin.y * U - 10, pin.bit, 9, muted, 700)}`).join("");
+      `<path d="M40 ${pin.y * U} H73" stroke="${s.color}" stroke-width="2" fill="none"/>`).join("");
     const spine = `<path d="M40 0 V${h - 12}" stroke="${s.color}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
-    return svgWrap(frame(80, h, s.color) + textAt(13, 21, "SPLIT", 8, s.color, 750, "start") + spine + branches +
-      ports(pins, 80, h, s.color, false), { w: 2, h: n + 1 }, c.r);
+    const d = dimsOf(c), rw = d.w * U, rh = d.h * U;
+    const bitLabels = actualPins(c).filter((pin) => pin.role === "out").map((pin) => {
+      const x = pin.x * U, y = pin.y * U;
+      if (pin.dir === "N") return textAt(x, 17, pin.bit, 9, muted, 700);
+      if (pin.dir === "S") return textAt(x, rh - 17, pin.bit, 9, muted, 700);
+      if (pin.dir === "E") return textAt(rw - 17, y - 10, pin.bit, 9, muted, 700);
+      return textAt(17, y - 10, pin.bit, 9, muted, 700);
+    }).join("");
+    const title = textAt(rw / 2, rh / 2, "SPLIT", 8, s.color, 750);
+    return svgWrap(frame(80, h, s.color) + spine + branches +
+      ports(pins, 80, h, s.color), { w: 2, h: n + 1 }, c.r, title + bitLabels);
   }
 
   function componentArt(c, s, value = 0, inputs = []) {

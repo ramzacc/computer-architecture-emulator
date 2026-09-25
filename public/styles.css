@@ -1,11 +1,11 @@
 :root {
-  --bg: #111921;
-  --panel: #19242e;
-  --line: #30404d;
-  --grid-line: #22313c;
-  --text: #e7edf3;
-  --muted: #9aaab8;
-  --accent: #8cb2e8;
+  --bg: #141519;
+  --panel: #1e1f24;
+  --line: #383a42;
+  --grid-line: #26282e;
+  --text: #e8e9ec;
+  --muted: #a0a3ab;
+  --accent: #aeb4c0;
   --danger: #e5484d;
 }
 
@@ -24,7 +24,7 @@ header {
   gap: 16px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--line);
-  background: #16212b;
+  background: #1a1b20;
 }
 
 h1 { font-size: 16px; font-weight: 650; letter-spacing: -.02em; margin: 0; white-space: nowrap; }
@@ -33,7 +33,7 @@ h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: va
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
 
 button, .file-label {
-  background: #23313d;
+  background: #292b32;
   color: var(--text);
   border: 1px solid var(--line);
   padding: 7px 11px;
@@ -41,7 +41,7 @@ button, .file-label {
   cursor: pointer;
   font: inherit;
 }
-button:hover, .file-label:hover { border-color: #7697b1; background: #2b3b49; }
+button:hover, .file-label:hover { border-color: #858995; background: #33353d; }
 button:focus-visible, .file-label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 button:disabled { opacity: .4; cursor: default; border-color: var(--line); }
 
@@ -75,7 +75,7 @@ main {
   overflow: hidden;
   flex: 1 1 auto;
   min-width: 0;
-  background-color: #121d26;
+  background-color: #18191e;
   background-image:
     linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
     linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
@@ -105,7 +105,7 @@ main {
   padding: 7px 10px;
   margin-bottom: 8px;
   color: var(--text);
-  background: #0f1115;
+  background: #16171c;
   border: 1px solid var(--line);
   border-radius: 6px;
   font: inherit;
@@ -122,7 +122,7 @@ main {
   width: 100%;
   min-height: 88px;
   padding: 8px 4px;
-  background: #1e2b36;
+  background: #25262d;
 }
 
 .palette-icon {
@@ -138,7 +138,7 @@ main {
   height: 100%;
 }
 
-.palette .name { font-size: 11px; line-height: 1.15; color: #c8d4de; }
+.palette .name { font-size: 11px; line-height: 1.15; color: #c6c8ce; }
 .palette button.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
 .hint { color: var(--muted); font-size: 12px; }
@@ -158,21 +158,21 @@ main {
   position: absolute;
   z-index: 3;
   border-radius: 2px;
-  background: #557582;
+  background: #747781;
   cursor: pointer;
 }
 .wire.selected {
   box-shadow: 0 0 0 2px #fff;
 }
 .wire.on {
-  background: #83d5c7;
-  box-shadow: 0 0 5px rgba(131, 213, 199, .5);
+  background: #c7c0af;
+  box-shadow: 0 0 5px rgba(199, 192, 175, .45);
 }
 .wire.off {
-  background: #557582;
+  background: #747781;
 }
 .wire.on.selected {
-  box-shadow: 0 0 0 2px #fff, 0 0 5px rgba(131, 213, 199, .5);
+  box-shadow: 0 0 0 2px #fff, 0 0 5px rgba(199, 192, 175, .45);
 }
 .wire.invalid {
   background: rgba(229, 72, 77, .5);
@@ -184,7 +184,7 @@ main {
   border-radius: 2px;
   pointer-events: none;
 }
-.wire-preview.valid { background: rgba(131, 213, 199, .65); }
+.wire-preview.valid { background: rgba(199, 192, 175, .65); }
 .wire-preview.invalid { background: rgba(229, 72, 77, .45); }
 .wire-preview.remove { background: rgba(229, 72, 77, .7); }
 .wire-anchor {
@@ -193,9 +193,9 @@ main {
   width: 12px;
   height: 12px;
   margin: -6px 0 0 -6px;
-  border: 2px solid #83d5c7;
+  border: 2px solid #c7c0af;
   border-radius: 50%;
-  background: #19332f;
+  background: #34322e;
   pointer-events: none;
 }
 
@@ -206,17 +206,17 @@ main {
   height: 7px;
   margin: -3.5px 0 0 -3.5px;
   border-radius: 50%;
-  background: #e8b681;
-  border: 1px solid #14212b;
+  background: #c8b49b;
+  border: 1px solid #1b1b20;
   pointer-events: none;
 }
-.pin.in { background: #a8c2d9; }
-.pin.out { background: #e8b681; }
+.pin.in { background: #b0b2bc; }
+.pin.out { background: #c8b49b; }
 
 .toolbar button.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
-  color: #cfe1ff;
+  color: #e0e2e8;
 }
 
 .comp {
@@ -240,7 +240,7 @@ main {
 }
 .pan .comp.button { cursor: pointer; }
 .pan .comp.switch { cursor: pointer; }
-.comp.button.pressed .button-cap { filter: drop-shadow(0 0 5px rgba(123, 200, 178, .6)); }
+.comp.button.pressed .button-cap { filter: drop-shadow(0 0 5px rgba(180, 177, 170, .6)); }
 .comp .art {
   display: block;
   width: 100%;
@@ -260,17 +260,17 @@ main {
 .canvas-wrap.panning { cursor: grabbing; }
 .canvas-wrap.select-mode { cursor: crosshair; }
 .canvas-wrap.select-mode .comp { cursor: pointer; }
-.selection-box { position: absolute; z-index: 7; border: 1px solid var(--accent); background: rgba(140, 178, 232, .16); pointer-events: none; }
+.selection-box { position: absolute; z-index: 7; border: 1px solid var(--accent); background: rgba(174, 180, 192, .16); pointer-events: none; }
 
 .property { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; font-size: 12px; }
 .property[hidden] { display: none; }
-.property input { width: 65px; padding: 6px; color: var(--text); background: #111d26; border: 1px solid var(--line); border-radius: 6px; }
+.property input { width: 65px; padding: 6px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 6px; }
 .property #constant-value { width: 110px; font-family: ui-monospace, monospace; }
-.property select { padding: 6px; color: var(--text); background: #111d26; border: 1px solid var(--line); border-radius: 6px; }
+.property select { padding: 6px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 6px; }
 #bus-status.error { color: #ff777b; }
 
 .bus-value-row { align-items: flex-start; }
-#selected-value { max-width: 180px; text-align: right; overflow-wrap: anywhere; font: 12px/1.4 ui-monospace, monospace; color: #a8dfd0; }
+#selected-value { max-width: 180px; text-align: right; overflow-wrap: anywhere; font: 12px/1.4 ui-monospace, monospace; color: #d1c9b8; }
 
 @media (max-width: 900px) {
   main { flex-direction: column; height: auto; min-height: calc(100vh - 60px); }

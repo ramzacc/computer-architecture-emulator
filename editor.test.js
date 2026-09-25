@@ -224,6 +224,29 @@ test('mux and demux render labeled chips at their generated widths', () => {
   }
 });
 
+test('component labels use the final footprint while display faces stay upright', () => {
+  const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
+  for (const type of ['button', 'and', 'mux', 'demux', 'splitter', 'sevenseg', 'debugdisplay']) {
+    for (const r of [1, 2, 3]) {
+      const svg = art({ t: type, x: 0, y: 0, r, size: 4, channels: 4 }, spec(type));
+      const labels = svg.match(/<text\b[^>]*>/g) ?? [];
+      assert.ok(labels.length > 0, `${type} has labels`);
+      if (['and', 'mux', 'demux', 'splitter'].includes(type)) {
+        assert.match(svg, new RegExp(`rotate\\(${r * 90}\\)`), `${type} chassis rotates`);
+        assert.ok(svg.indexOf('<text') > svg.lastIndexOf('</g>'), `${type} labels follow the final footprint`);
+      } else {
+        assert.doesNotMatch(svg, /rotate\(/, `${type} face stays upright`);
+      }
+    }
+  }
+  const sidewaysMux = art({ t: 'mux', x: 0, y: 0, r: 1, channels: 4 }, spec('mux'));
+  assert.match(sidewaysMux, /<text x="60" y="135"[^>]*>MULTIPLEXER<\/text>/);
+  assert.match(sidewaysMux, /<text x="60" y="152"[^>]*>4 CHANNELS<\/text>/);
+  const sidewaysDisplay = art({ t: 'sevenseg', x: 0, y: 0, r: 1 }, spec('sevenseg'));
+  assert.match(sidewaysDisplay, /viewBox="0 0 200 240"/);
+  assert.match(sidewaysDisplay, /transform="translate\(-20 20\)"/);
+});
+
 test('accepted events publish a fresh evaluation; explicit evaluation does not save', () => {
   const published = [];
   let saves = 0;
