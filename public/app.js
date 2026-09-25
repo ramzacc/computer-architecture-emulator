@@ -35,6 +35,8 @@ let wireStart = null;
 
 const gridEl = document.getElementById("grid");
 const paletteEl = document.getElementById("palette");
+const paletteSearchEl = document.getElementById("palette-search");
+const paletteEmptyEl = document.getElementById("palette-empty");
 const btnWire = document.getElementById("btn-wire");
 const btnPan = document.getElementById("btn-pan");
 const btnSelect = document.getElementById("btn-select");
@@ -310,8 +312,11 @@ function resetView() {
 }
 
 function renderPalette() {
+  const scrollTop = paletteEl.scrollTop;
+  const query = paletteSearchEl.value.trim().toLocaleLowerCase();
   paletteEl.innerHTML = "";
   for (const [type, s] of Object.entries(COMPONENT_TYPES)) {
+    if (!s.label.toLocaleLowerCase().includes(query) && !type.toLocaleLowerCase().includes(query)) continue;
     const btn = document.createElement("button");
     btn.type = "button";
     btn.dataset.type = type;
@@ -327,7 +332,11 @@ function renderPalette() {
     });
     paletteEl.appendChild(btn);
   }
+  paletteEl.scrollTop = scrollTop;
+  paletteEmptyEl.hidden = paletteEl.childElementCount !== 0;
 }
+
+paletteSearchEl.addEventListener("input", renderPalette);
 
 function syncPlacingCursor() {
   canvasWrapEl.classList.toggle("placing", placingType !== null);
