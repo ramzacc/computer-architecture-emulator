@@ -176,24 +176,6 @@ const GATE_OPS = {
 
 function bitMask(size) { return size === 32 ? 0xffffffff : (2 ** size - 1); }
 
-function aluResult(inputs, size) {
-  const mask = bitMask(size) >>> 0;
-  const a = (inputs[0] & mask) >>> 0;
-  const b = (inputs[1] & mask) >>> 0;
-  const op = inputs[2] & 3;
-  let result, carry = 0;
-  if (op === 0) {
-    const sum = a + b;
-    result = (sum & mask) >>> 0;
-    carry = Number(sum > mask);
-  } else if (op === 1) {
-    result = ((a - b) & mask) >>> 0;
-    carry = Number(a >= b); // subtraction carry means no borrow
-  } else if (op === 2) result = (a & b) >>> 0;
-  else result = (a | b) >>> 0;
-  return { result, carry, zero: Number(result === 0) };
-}
-
 function buildUnionFind(board) {
   const parent = new Map();
   const find = (point) => {
@@ -243,7 +225,6 @@ export function evaluateBoard(board) {
       constantValue: component.value ?? 0,
       output: !!entry.output,
       splitter: !!entry.splitter,
-      alu: !!entry.alu,
       size: bitWidth(component),
       ins: pins.filter((pin) => pin.role === "in").map(netAt),
       outs: pins.filter((pin) => pin.role === "out")
@@ -253,7 +234,6 @@ export function evaluateBoard(board) {
   const outputOf = (part, values) => {
     if (part.constant) return part.constantValue;
     if (part.source) return 1;
-    if (part.alu) return aluResult(part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0)), part.size).result;
     if (part.splitter) {
       const bus = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
       return part.outs.reduce((value, root, bit) =>
@@ -281,12 +261,6 @@ export function evaluateBoard(board) {
           drive(root, (bus >>> bit) & 1);
         });
         drive(part.ins[0], combined >>> 0);
-      } else if (part.alu) {
-        const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
-        const { result, carry, zero } = aluResult(inputs, part.size);
-        drive(part.outs[0], carry);
-        drive(part.outs[1], result);
-        drive(part.outs[2], zero);
       } else {
         const output = outputOf(part, values);
         for (const root of part.outs) drive(root, output);
@@ -303,11 +277,9 @@ export function evaluateBoard(board) {
   const states = new Map();
   for (const part of parts) {
     const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
-    const flags = part.alu ? aluResult(inputs, part.size) : null;
     states.set(part.id, {
       inputs,
       value: part.output ? inputs[0] : outputOf(part, values),
-      ...(flags ? { carry: flags.carry, zero: flags.zero } : {}),
       lit: inputs.length === 1 && inputs[0] !== 0,
     });
   }
