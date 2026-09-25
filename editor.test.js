@@ -91,6 +91,15 @@ test('toggle switch drives a persistent one-bit value and rejects conflicting to
   assert.equal(ctx.saves, 5);
 });
 
+test('seven-segment art lights only the supplied inputs', () => {
+  const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
+  const svg = art({ t: 'sevenseg', r: 0 }, spec('sevenseg'), 0, [1, 0, 0, 0, 1, 0, 0]);
+  assert.equal((svg.match(/fill="#ff6469"/g) ?? []).length, 2);
+  assert.equal((svg.match(/fill="#532d38"/g) ?? []).length, 5);
+  assert.match(svg, />A<\/text>/);
+  assert.match(svg, />G<\/text>/);
+});
+
 test('constant and output formats convert existing values and survive saving', () => {
   const { editor } = setup();
   const constant = editor.place('constant', 0, 0);

@@ -52,6 +52,23 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     return `<rect class="led-body" x="4" y="4" width="72" height="72" fill="#5a5a7a" stroke="${stroke}" stroke-width="2"/>`;
   }
 
+  function sevenSegArt(inputs = []) {
+    const paths = [
+      "M86 20 H154 L145 31 H95 Z", // A: top
+      "M161 27 L171 36 V91 L160 99 L152 90 V39 Z", // B: upper right
+      "M160 102 L171 110 V164 L161 173 L152 161 V112 Z", // C: lower right
+      "M95 169 H145 L154 180 H86 Z", // D: bottom
+      "M79 102 L88 112 V161 L79 173 L69 164 V110 Z", // E: lower left
+      "M79 27 L88 39 V90 L80 99 L69 91 V36 Z", // F: upper left
+      "M91 95 H149 L159 100 L149 105 H91 L81 100 Z", // G: middle
+    ];
+    const segments = paths.map((path, index) => `<path d="${path}" fill="${inputs[index] ? "#ff6469" : "#532d38"}"${inputs[index] ? ' filter="drop-shadow(0 0 5px #ff6469)"' : ""}/>`).join("");
+    const labels = [[1, 14, "A"], [2, 14, "B"], [4, 14, "C"], [5, 14, "D"],
+      [1, 194, "E"], [3, 194, "F"], [5, 194, "G"]]
+      .map(([x, y, name]) => `<text x="${x * U}" y="${y}" text-anchor="middle" fill="#e9b6bc" font-size="10" font-weight="700">${name}</text>`).join("");
+    return `<rect x="8" y="8" width="224" height="184" rx="12" fill="#221d29" stroke="#b7818a" stroke-width="2"/>${segments}${labels}`;
+  }
+
   function constantArt(c, color) {
     const value = formatValue(c.value ?? 0, bitWidth(c), c.format);
     const stroke = "rgba(255,255,255,.55)";
@@ -152,7 +169,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     return outline + flow + labels;
   }
 
-  function componentArt(c, s, value = 0) {
+  function componentArt(c, s, value = 0, inputs = []) {
     if (s.splitter) {
       const n = bitWidth(c);
       const branches = Array.from({ length: n }, (_, index) => {
@@ -170,6 +187,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     else if (s.shape === "constant") inner = constantArt(c, s.color);
     else if (s.shape === "output") inner = outputArt(c, s.color, value);
     else if (s.shape === "led") inner = ledArt();
+    else if (s.shape === "sevenseg") inner = sevenSegArt(inputs);
     else if (s.block) inner = blockArt(s, c);
     else inner = gateArt(s.shape, s.color);
     return svgWrap(inner, s.shape === "mux" || s.shape === "demux" ? dimsOf({ ...c, r: 0 }) : s,
@@ -195,7 +213,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       const st = logic.states.get(c.id);
       if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);
       if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
-      el.innerHTML = componentArt(c, s, st?.value ?? 0);
+      el.innerHTML = componentArt(c, s, st?.value ?? 0, st?.inputs ?? []);
       el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "clock" ? `  ${c.frequency ?? 1} Hz` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${c.t === "constant" ? "  value: " + formatValue(c.value ?? 0, bitWidth(c), c.format) : st && (c.t === "output" || st.value) ? "  value: " + (c.t === "output" ? formatValue(st.value, bitWidth(c), c.format) : st.value) : ""}`;
       gridEl.appendChild(el);
     }

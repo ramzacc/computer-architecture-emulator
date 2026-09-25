@@ -45,6 +45,18 @@ export const COMPONENT_TYPES = {
       { x: 1, y: 0, dir: "N", role: "in" },
     ],
   },
+  sevenseg: {
+    label: "Seven-segment", w: 6, h: 5, color: "#e85d61", shape: "sevenseg",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "A" },
+      { x: 2, y: 0, dir: "N", role: "in", name: "B" },
+      { x: 4, y: 0, dir: "N", role: "in", name: "C" },
+      { x: 5, y: 0, dir: "N", role: "in", name: "D" },
+      { x: 1, y: 5, dir: "S", role: "in", name: "E" },
+      { x: 3, y: 5, dir: "S", role: "in", name: "F" },
+      { x: 5, y: 5, dir: "S", role: "in", name: "G" },
+    ],
+  },
   and: {
     label: "AND", w: 4, h: 2, color: "#4c8bf5", shape: "and", op: "and",
     pins: [
