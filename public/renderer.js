@@ -93,17 +93,6 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
     return body + stubs + out;
   }
 
-  function aluArt(color) {
-    const stroke = "rgba(255,255,255,.55)";
-    return `<rect x="8" y="8" width="224" height="104" rx="12" fill="${color}" stroke="${stroke}" stroke-width="3"/>
-      <text x="120" y="64" text-anchor="middle" fill="#102426" font-size="30" font-weight="700">ALU</text>
-      <text x="120" y="85" text-anchor="middle" fill="#102426" font-size="11">00 +  01 −  10 &amp;  11 |</text>
-      <g fill="#102426" font-size="13" font-weight="700" text-anchor="middle">
-        <text x="40" y="27">A</text><text x="120" y="27">B</text><text x="200" y="27">OP</text>
-        <text x="40" y="105">C</text><text x="120" y="105">R</text><text x="200" y="105">Z</text>
-      </g>`;
-  }
-
   function componentArt(c, s, value = 0) {
     if (s.splitter) {
       const n = bitWidth(c);
@@ -120,7 +109,6 @@ export function createRenderer(gridEl, getBoard, getSelectedIds, getSelectedWire
     else if (s.shape === "constant") inner = constantArt(c, s.color);
     else if (s.shape === "output") inner = outputArt(c, s.color, value);
     else if (s.shape === "led") inner = ledArt();
-    else if (s.shape === "alu") inner = aluArt(s.color);
     else inner = gateArt(s.shape, s.color);
     return svgWrap(inner, s, s.constant || s.shape === "output" ? 0 : c.r);
   }

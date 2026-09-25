@@ -78,19 +78,6 @@ export const COMPONENT_TYPES = {
       { x: 2, y: 2, dir: "S", role: "out" },
     ],
   },
-  alu: {
-    label: "ALU", w: 6, h: 3, color: "#36b6b0", shape: "alu", alu: true,
-    // A, B and a 2-bit operation selector enter at the top. Carry, result
-    // and zero leave at the bottom. Names also describe the rendered pins.
-    pins: [
-      { x: 1, y: 0, dir: "N", role: "in", name: "A" },
-      { x: 3, y: 0, dir: "N", role: "in", name: "B" },
-      { x: 5, y: 0, dir: "N", role: "in", name: "OP", size: 2 },
-      { x: 1, y: 3, dir: "S", role: "out", name: "C", size: 1 },
-      { x: 3, y: 3, dir: "S", role: "out", name: "R" },
-      { x: 5, y: 3, dir: "S", role: "out", name: "Z", size: 1 },
-    ],
-  },
 };
 
 // Orientation is a quarter-turn count: 0 = 0deg, 1 = 90deg CW, 2 = 180deg,
@@ -106,7 +93,7 @@ export const MAX_BUS_WIDTH = 32;
 
 export function isSizable(component) {
   const entry = spec(component.t);
-  return !!(entry?.op || entry?.splitter || entry?.constant || entry?.alu || entry?.output);
+  return !!(entry?.op || entry?.splitter || entry?.constant || entry?.output);
 }
 
 export function bitWidth(component) {
