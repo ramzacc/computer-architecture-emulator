@@ -266,6 +266,7 @@ main {
 .property { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; font-size: 12px; }
 .property[hidden] { display: none; }
 .property input { width: 65px; padding: 6px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 6px; }
+.property input[type="checkbox"] { width: 16px; height: 16px; padding: 0; accent-color: var(--accent); }
 .property #constant-value { width: 110px; font-family: ui-monospace, monospace; }
 .property select { padding: 6px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 6px; }
 #bus-status.error { color: #ff777b; }

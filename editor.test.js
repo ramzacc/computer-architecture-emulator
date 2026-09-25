@@ -311,6 +311,10 @@ test('clock ticks reevaluate without saving and frequency edits persist', () => 
   const led = editor.place('led', 0, 3);
   editor.addWire({ o: 'V', x: 1, y: 2 });
   assert.equal(clock.frequency, 1);
+  assert.equal(clock.enable, false);
+  assert.equal(editor.tickClock(clock.id), false);
+  assert.equal(editor.evaluation.states.get(led.id).lit, false);
+  assert.equal(editor.setClockEnabled(clock.id, true), true);
   const saves = ctx.saves;
   assert.equal(editor.tickClock(clock.id), true);
   assert.equal(editor.evaluation.states.get(led.id).lit, true);
@@ -323,6 +327,11 @@ test('clock ticks reevaluate without saving and frequency edits persist', () => 
   assert.equal(editor.setClockFrequency(clock.id, 21), false);
   assert.equal(parseDocument(ctx.data.get(STORAGE_KEY)).board.components[0].frequency, 2.5);
   editor.tickClock(clock.id);
+  assert.equal(editor.setClockEnabled(clock.id, false), true);
+  assert.equal(editor.evaluation.states.get(led.id).lit, false);
+  assert.equal(editor.highClocks.has(clock.id), false);
+  assert.equal(editor.tickClock(clock.id), false);
+  assert.equal(parseDocument(ctx.data.get(STORAGE_KEY)).board.components[0].enable, false);
   editor.replaceBoard(parseDocument(serialize(editor.board)).board, { save: false });
   assert.equal(editor.highClocks.size, 0);
   assert.equal(editor.evaluation.states.get(editor.board.components[1].id).lit, false);
@@ -342,6 +351,7 @@ test('a register captures its data on rising edges and holds it on falling edges
     assert.equal(editor.addWire({ o: 'V', x: 1, y, size: 4 }), true);
     assert.equal(editor.addWire({ o: 'V', x: 3, y }), true);
   }
+  assert.equal(editor.setClockEnabled(clock.id, true), true);
   const saved = ctx.saves;
   assert.equal(editor.evaluation.states.get(register.id).value, 0);
   assert.equal(editor.tickClock(clock.id), true);
@@ -377,6 +387,7 @@ test('cascaded registers on one clock capture the previous Q simultaneously', ()
   for (let y = 8; y < 13; y++) assert.equal(editor.addWire({ o: 'V', x: 2, y, size: 4 }), true);
   assert.equal(editor.addWire({ o: 'H', x: 1, y: 13, size: 4 }), true);
   assert.equal(editor.addWire({ o: 'V', x: 1, y: 13, size: 4 }), true);
+  assert.equal(editor.setClockEnabled(clock.id, true), true);
   assert.equal(editor.tickClock(clock.id), true);
   assert.equal(editor.evaluation.states.get(first.id).value, 9);
   assert.equal(editor.evaluation.states.get(second.id).value, 0);
@@ -405,6 +416,7 @@ test('register feedback through an inverter forms a one-bit counter', () => {
   ]) assert.equal(editor.addWire(edge), true, JSON.stringify(edge));
   assert.equal(editor.evaluation.states.get(register.id).value, 0);
   assert.equal(editor.evaluation.states.get(register.id).inputs[0], 1);
+  assert.equal(editor.setClockEnabled(clock.id, true), true);
   editor.tickClock(clock.id);
   assert.equal(editor.evaluation.states.get(register.id).value, 1);
   assert.equal(editor.evaluation.states.get(register.id).inputs[0], 0);
