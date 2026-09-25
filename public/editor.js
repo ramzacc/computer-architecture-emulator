@@ -3,7 +3,7 @@ import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, is
   evaluateBoard, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, shortCircuitError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
 
-export const STORAGE_KEY = "grid-canvas-prototype-v5";
+export const STORAGE_KEY = "grid-canvas-document";
 
 // Board edits live here so the browser only has to manage gestures and selection.
 export class BoardEditor {

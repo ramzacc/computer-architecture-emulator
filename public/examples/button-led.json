@@ -1,11 +1,1 @@
-{
-  "version": 8,
-  "grid": { "cols": 64, "rows": 44 },
-  "components": [
-    { "t": "button", "x": 2, "y": 0 },
-    { "t": "led", "x": 2, "y": 3 }
-  ],
-  "wires": [
-    { "o": "V", "x": 3, "y": 2, "size": 1 }
-  ]
-}
+{"components":[["button",2,0,0],["led",2,3,0]],"wires":[["V",3,2,1]]}
