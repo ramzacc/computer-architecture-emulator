@@ -95,22 +95,12 @@ export const COMPONENT_TYPES = {
     ],
   },
   mux: {
-    label: "MUX 2:1", w: 6, h: 3, color: "#5b9deb", shape: "mux", block: "mux",
-    pins: [
-      { x: 1, y: 0, dir: "N", role: "in", name: "A" },
-      { x: 3, y: 0, dir: "N", role: "in", name: "B" },
-      { x: 5, y: 0, dir: "N", role: "in", name: "S", size: 1 },
-      { x: 3, y: 3, dir: "S", role: "out", name: "Y" },
-    ],
+    label: "Multiplexer", w: 6, h: 3, color: "#5b9deb", shape: "mux", block: "mux",
+    pins: [], // Generated from the instance's channel count in pinsFor.
   },
   demux: {
-    label: "DEMUX 1:2", w: 4, h: 3, color: "#56a5a0", shape: "demux", block: "demux",
-    pins: [
-      { x: 1, y: 0, dir: "N", role: "in", name: "D" },
-      { x: 3, y: 0, dir: "N", role: "in", name: "S", size: 1 },
-      { x: 1, y: 3, dir: "S", role: "out", name: "Y0" },
-      { x: 3, y: 3, dir: "S", role: "out", name: "Y1" },
-    ],
+    label: "Demultiplexer", w: 4, h: 3, color: "#56a5a0", shape: "demux", block: "demux",
+    pins: [], // Generated from the instance's channel count in pinsFor.
   },
   adder: {
     label: "Adder", w: 6, h: 3, color: "#e0a65a", shape: "adder", block: "adder",
@@ -167,6 +157,19 @@ export function normalizeRotation(r) {
 }
 
 export const MAX_BUS_WIDTH = 32;
+export const MAX_PLEXER_CHANNELS = 16;
+
+export function channelCount(component) {
+  return component.channels ?? 2;
+}
+
+export function validChannelCount(channels) {
+  return Number.isInteger(channels) && channels >= 1 && channels <= MAX_PLEXER_CHANNELS;
+}
+
+export function selectWidth(component) {
+  return Math.max(1, Math.ceil(Math.log2(channelCount(component))));
+}
 
 export function isSizable(component) {
   const entry = spec(component.t);
@@ -220,6 +223,10 @@ export function dimsFor(type, r = 0) {
 }
 
 export function dimsOf(component) {
+  if (component.t === "mux" || component.t === "demux") {
+    const w = component.t === "mux" ? Math.max(4, 2 * (channelCount(component) + 1)) : Math.max(4, 2 * channelCount(component));
+    return normalizeRotation(component.r) % 2 ? { w: 3, h: w } : { w, h: 3 };
+  }
   if (spec(component.t)?.splitter) {
     const h = bitWidth(component) + 1;
     return normalizeRotation(component.r) % 2 ? { w: h, h: 2 } : { w: 2, h };
@@ -241,15 +248,28 @@ export function pinsFor(component) {
   if (!entry) return [];
   const r = normalizeRotation(component.r);
   const width = bitWidth(component);
+  const plexer = component.t === "mux" || component.t === "demux";
+  const localW = plexer ? dimsOf({ ...component, r: 0 }).w : entry.w;
   const localH = entry.splitter ? width + 1 : entry.h;
-  const localPins = entry.splitter
+  const channels = plexer ? channelCount(component) : 0;
+  const localPins = plexer
+    ? component.t === "mux"
+      ? [...Array.from({ length: channels }, (_, index) =>
+          ({ x: 2 * index + 1, y: 0, dir: "N", role: "in", name: `D${index}` })),
+        { x: localW - 1, y: 0, dir: "N", role: "in", name: "S", size: selectWidth(component) },
+        { x: Math.floor(localW / 2), y: 3, dir: "S", role: "out", name: "Y" }]
+      : [{ x: 1, y: 0, dir: "N", role: "in", name: "D" },
+        { x: localW - 1, y: 0, dir: "N", role: "in", name: "S", size: selectWidth(component) },
+        ...Array.from({ length: channels }, (_, index) =>
+          ({ x: 2 * index + 1, y: 3, dir: "S", role: "out", name: `Y${index}` }))]
+    : entry.splitter
     ? [{ x: 1, y: 0, dir: "N", role: "in", size: width },
       ...Array.from({ length: width }, (_, index) =>
         ({ x: 2, y: index + 1, dir: "E", role: "out", size: 1,
           bit: component.order === "descendant" ? width - 1 - index : index }))]
     : entry.pins;
   return localPins.map((pin) => {
-    const [lx, ly] = rotatePoint(pin.x, pin.y, entry.w, localH, r);
+    const [lx, ly] = rotatePoint(pin.x, pin.y, localW, localH, r);
     const px = component.x + lx;
     const py = component.y + ly;
     const dir = rotateDir(pin.dir, r);
