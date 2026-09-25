@@ -89,13 +89,16 @@ direction: a bus can feed its branches, or powered branches can form a bus. Its 
 (1–32 bits), and it can be rotated like other components. Power and LEDs remain
 1 bit.
 
-Place a 2×2 **Constant** and select it to edit its bit width (1–8) and decimal value
-(0 through 2^width − 1). Its output drives a bus of the selected width. Narrowing
-the width clamps the value to the new maximum.
+Place a 2×2 **Constant** and select it to edit its bit width (1–8) and value
+(0 through 2^width − 1). Choose decimal, binary (`0b`), or hexadecimal (`0x`)
+for both value entry and display. Changing the format converts the existing value.
+Its output drives a bus of the selected width. Narrowing the width clamps the
+value to the new maximum.
 
 Place a 2×2 **Output** to read a bus. Its input starts at 1 bit and can be set
 to 1–32 bits with **Selected size**. The value appears on the component and in
-its selected properties. Its input pin and connected wires must have the same width.
+its selected properties. Choose decimal, binary, or hexadecimal display without
+changing the circuit value. Its input pin and connected wires must have the same width.
 
 Place a **Clock** to drive a one-bit signal. Select it to set its frequency from
 0.1 to 20 Hz (default 1 Hz). It starts LOW and changes level every half period,

@@ -1,6 +1,7 @@
 import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, validBitWidth, validChannelCount, validClockFrequency, validConstant, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey, isValidComponent,
   evaluateBoard, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, shortCircuitError, wireRoute } from "./model.js";
+import { validValueFormat } from "./value-format.js";
 
 export const STORAGE_KEY = "grid-canvas-prototype-v5";
 
@@ -216,6 +217,15 @@ export class BoardEditor {
     const old = component.value;
     component.value = value;
     if (shortCircuitError(this.board)) { component.value = old; return false; }
+    this.commit();
+    return true;
+  }
+
+  setValueFormat(id, format) {
+    const component = this.component(id);
+    if (!component || !["constant", "output"].includes(component.t) ||
+        !validValueFormat(format) || (component.format ?? "decimal") === format) return false;
+    component.format = format;
     this.commit();
     return true;
   }
