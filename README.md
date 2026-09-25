@@ -22,13 +22,16 @@ For a Cloudflare Git deployment, leave the build command empty and use
 `npx wrangler deploy` as the deploy command. Change `name` in `wrangler.jsonc`
 if you want a different Worker name.
 
-Three example circuit documents are in [`public/examples/`](public/examples/). Import one with **Import .json**:
+Four example circuit documents are in [`public/examples/`](public/examples/). Import one with **Import .json**:
 
 1. [Power an LED](public/examples/power-led.json) — connect a power rail directly to an LED.
 2. [AND gate](public/examples/and-gate.json) — two powered inputs light an LED through an AND gate. Remove one input wire to see it turn off.
 3. [Two-bit bus](public/examples/splitter-combine.json) — two power rails form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
+4. [Button and LED](public/examples/button-led.json) — hold the button in Pan mode to light the LED; release it to turn the LED off.
 
 The catalog holds real logic-level parts: a 2×2 **Power** rail (always drives high),
+a **Button** (hold it in Pan mode to drive its single output high; release to drive low;
+Shift-drag it to move it),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,
 **NAND**, **NOR**, **XNOR**, and 2×2 **NOT** gates, plus a **Splitter**, **Constant** source, and **Output** display. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
@@ -96,8 +99,10 @@ The code is split by responsibility:
   and rotated pins.
 - `model.js` owns board geometry, wire networks, gate evaluation, and the JSON
   document format.
-- `editor.js` owns accepted board edits and saves each completed change.
-- `renderer.js` draws components, pins, and wires.
+- `editor.js` owns accepted board edits, publishes a fresh `evaluation` after each
+  change, and saves each completed change. `evaluate()` also refreshes state for
+  future momentary input events without saving the document.
+- `renderer.js` draws components, pins, and wires from that published evaluation.
 - `app.js` handles browser events, view controls, and file actions.
 
 Saved documents use schema version 8. They contain grid dimensions, component

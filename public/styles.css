@@ -223,6 +223,8 @@ main {
   background: transparent;
   border-radius: 0;
 }
+.pan .comp.button { cursor: pointer; }
+.comp.button.pressed .button-cap { filter: drop-shadow(0 0 7px #ffd58b); }
 .comp .art {
   display: block;
   width: 100%;

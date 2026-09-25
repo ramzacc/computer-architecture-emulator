@@ -101,6 +101,63 @@ test('wire hover text includes the evaluated value', () => {
   assert.equal(wireTitle({ size: 2 }, 3), '2 bit(s), value 3');
 });
 
+test('accepted events publish a fresh evaluation; explicit evaluation does not save', () => {
+  const published = [];
+  let saves = 0;
+  const editor = new BoardEditor({
+    storage: { setItem: () => saves++ },
+    onChange: (board, evaluation) => published.push({ board, evaluation }),
+  });
+  const initial = editor.evaluation;
+  const power = editor.place('power', 0, 0);
+  const led = editor.place('led', 0, 3);
+  assert.equal(published.length, 2);
+  assert.notEqual(editor.evaluation, initial);
+  assert.equal(editor.evaluation.states.get(led.id).lit, false);
+
+  editor.addWire({ o: 'V', x: 1, y: 2 });
+  const powered = editor.evaluation;
+  assert.equal(powered.states.get(led.id).lit, true);
+  assert.equal([...powered.nets.values()][0].value, 1);
+  assert.equal(published.at(-1).evaluation, powered);
+
+  editor.deleteComponent(power.id);
+  assert.equal(editor.evaluation.states.get(led.id).lit, false);
+  assert.equal(powered.states.get(led.id).lit, true); // prior snapshot stays valid
+  const before = saves;
+  const refreshed = editor.evaluate(); // future momentary input events can use this path
+  assert.equal(refreshed, editor.evaluation);
+  assert.equal(published.at(-1).evaluation, refreshed);
+  assert.equal(saves, before);
+  assert.equal(published.length, 5);
+});
+
+test('button press and release reevaluate without saving, and reset on board replacement', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  const button = editor.place('button', 0, 0);
+  const led = editor.place('led', 0, 3);
+  assert.equal(editor.addWire({ o: 'V', x: 1, y: 2 }), true);
+  const saves = ctx.saves;
+  const renders = ctx.renders;
+  assert.equal(editor.evaluation.states.get(led.id).lit, false);
+  assert.equal(editor.setButtonPressed(button.id, true), true);
+  assert.equal(editor.evaluation.states.get(led.id).lit, true);
+  assert.equal(editor.setButtonPressed(button.id, true), false);
+  assert.equal(editor.setButtonPressed(led.id, true), false);
+  assert.equal(ctx.saves, saves);
+  assert.equal(ctx.renders, renders + 1);
+  assert.equal(editor.setButtonPressed(button.id, false), true);
+  assert.equal(editor.evaluation.states.get(led.id).lit, false);
+  assert.equal(ctx.saves, saves);
+  assert.equal(ctx.renders, renders + 2);
+
+  editor.setButtonPressed(button.id, true);
+  editor.replaceBoard(parseDocument(serialize(editor.board)).board, { save: false });
+  assert.equal(editor.pressedButtons.size, 0);
+  assert.equal(editor.evaluation.states.get(editor.board.components[1].id).lit, false);
+});
+
 test('changing a constant cannot create a short circuit', () => {
   const ctx = setup();
   const { editor } = ctx;
