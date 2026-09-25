@@ -1,4 +1,4 @@
-import { bitWidth, isSizable, validBitWidth, validChannelCount, validConstant, validSplitterOrder } from "./components.js";
+import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, validBitWidth, validChannelCount, validClockFrequency, validConstant, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey, isValidComponent,
   evaluateBoard, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, shortCircuitError, wireRoute } from "./model.js";
 
@@ -9,6 +9,7 @@ export class BoardEditor {
   constructor({ storage = null, onChange = () => {}, onStorageError = () => {} } = {}) {
     this.board = createBoard();
     this.pressedButtons = new Set();
+    this.highClocks = new Set();
     this.evaluation = evaluateBoard(this.board);
     this.storage = storage;
     this.onChange = onChange;
@@ -31,7 +32,10 @@ export class BoardEditor {
     const buttonIds = new Set(this.board.components.filter((component) => component.t === "button")
       .map((component) => component.id));
     for (const id of this.pressedButtons) if (!buttonIds.has(id)) this.pressedButtons.delete(id);
-    this.evaluation = evaluateBoard(this.board, this.pressedButtons);
+    const clockIds = new Set(this.board.components.filter((component) => component.t === "clock")
+      .map((component) => component.id));
+    for (const id of this.highClocks) if (!clockIds.has(id)) this.highClocks.delete(id);
+    this.evaluation = evaluateBoard(this.board, this.pressedButtons, this.highClocks);
     this.onChange(this.board, this.evaluation);
     return this.evaluation;
   }
@@ -41,6 +45,23 @@ export class BoardEditor {
     if (pressed) this.pressedButtons.add(id);
     else this.pressedButtons.delete(id);
     this.evaluate();
+    return true;
+  }
+
+  tickClock(id) {
+    if (this.component(id)?.t !== "clock") return false;
+    if (this.highClocks.has(id)) this.highClocks.delete(id);
+    else this.highClocks.add(id);
+    this.evaluate();
+    return true;
+  }
+
+  setClockFrequency(id, frequency) {
+    const component = this.component(id);
+    if (component?.t !== "clock" || !validClockFrequency(frequency) ||
+        (component.frequency ?? DEFAULT_CLOCK_FREQUENCY) === frequency) return false;
+    component.frequency = frequency;
+    this.commit();
     return true;
   }
 
@@ -60,6 +81,7 @@ export class BoardEditor {
   replaceBoard(board, { save = true } = {}) {
     this.board = board;
     this.pressedButtons.clear();
+    this.highClocks.clear();
     this.nextComponentId = board.components.length + 1;
     if (save) this.commit();
     else this.evaluate();
@@ -79,6 +101,7 @@ export class BoardEditor {
     const component = { id, t: type, x, y, r: 0,
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
       ...(type === "constant" ? { size: 1, value: 0 } : {}),
+      ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY } : {}),
       ...(type === "output" ? { size: 1 } : {}),
       ...(["mux", "demux"].includes(type) ? { channels: 2 } : {}) };
     if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr"].includes(type)) component.size = 4;

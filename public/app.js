@@ -1,4 +1,4 @@
-import { COMPONENT_TYPES, bitWidth, channelCount, dimsOf, isSizable, pinsFor, selectWidth, spec, validBitWidth } from "./components.js";
+import { COMPONENT_TYPES, DEFAULT_CLOCK_FREQUENCY, bitWidth, channelCount, dimsOf, isSizable, pinsFor, selectWidth, spec, validBitWidth } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, isValidComponent, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
 import { BoardEditor } from "./editor.js";
 import { createRenderer } from "./renderer.js";
@@ -56,6 +56,8 @@ const selectedValueLabelEl = document.getElementById("selected-value-label");
 const selectedValueEl = document.getElementById("selected-value");
 const constantValueRowEl = document.getElementById("constant-value-row");
 const constantValueEl = document.getElementById("constant-value");
+const clockFrequencyRowEl = document.getElementById("clock-frequency-row");
+const clockFrequencyEl = document.getElementById("clock-frequency");
 const busStatusEl = document.getElementById("bus-status");
 const { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox } =
   createRenderer(gridEl, () => state, () => editor.evaluation, () => selectedIds, () => selectedWires);
@@ -109,6 +111,10 @@ function renderProperties() {
   constantValueEl.disabled = !constant;
   constantValueEl.max = constant ? String(2 ** bitWidth(component) - 1) : "1";
   constantValueEl.value = constant ? String(component.value ?? 0) : "";
+  const clock = component?.t === "clock";
+  clockFrequencyRowEl.hidden = !clock;
+  clockFrequencyEl.disabled = !clock;
+  clockFrequencyEl.value = clock ? String(component.frequency ?? DEFAULT_CLOCK_FREQUENCY) : "";
   const output = component?.t === "output";
   const displayedValue = output ? editor.evaluation.states.get(component.id)?.value ?? 0 : net?.value;
   const displayedSize = output ? bitWidth(component) : net?.size;
@@ -121,6 +127,8 @@ function renderProperties() {
     busStatus(component ? `${spec(component.t).label}: ${size} bit${size === 1 ? "" : "s"}${plexer ? `, ${channelCount(component)} channels, ${selectWidth(component)} selector bit${selectWidth(component) === 1 ? "" : "s"}` : ""}.` :
       `Selected bus: ${size} bit${size === 1 ? "" : "s"}.`);
   }
+  if (clock && !busStatusEl.classList.contains("error"))
+    busStatus(`Clock: ${component.frequency ?? DEFAULT_CLOCK_FREQUENCY} Hz.`);
   syncActionButtons();
 }
 
@@ -173,6 +181,15 @@ constantValueEl.addEventListener("change", () => {
       busStatus(`Constant value must be a whole number from 0 to ${2 ** bitWidth(component) - 1}, and must not short circuit another output.`, true);
     renderProperties();
   }
+});
+
+clockFrequencyEl.addEventListener("change", () => {
+  const frequency = Number(clockFrequencyEl.value);
+  if (editor.setClockFrequency(selectedId, frequency))
+    busStatus(`Clock set to ${frequency} Hz.`);
+  else if (editor.component(selectedId)?.frequency !== frequency)
+    busStatus("Frequency must be between 0.1 and 20 Hz.", true);
+  renderProperties();
 });
 
 function selectWire(key) {
@@ -868,9 +885,32 @@ function getStorage() {
   catch (error) { console.warn("Browser storage is unavailable:", error); return null; }
 }
 
+const clockTimers = new Map();
+let timerBoard = null;
+
+function syncClockTimers() {
+  if (timerBoard !== state) {
+    for (const { interval } of clockTimers.values()) clearInterval(interval);
+    clockTimers.clear();
+    timerBoard = state;
+  }
+  const clocks = new Map(state.components.filter((component) => component.t === "clock")
+    .map((component) => [component.id, component.frequency ?? DEFAULT_CLOCK_FREQUENCY]));
+  for (const [id, timer] of clockTimers) {
+    if (clocks.get(id) === timer.frequency) continue;
+    clearInterval(timer.interval);
+    clockTimers.delete(id);
+  }
+  for (const [id, frequency] of clocks) {
+    if (clockTimers.has(id)) continue;
+    const interval = setInterval(() => editor.tickClock(id), 500 / frequency);
+    clockTimers.set(id, { frequency, interval });
+  }
+}
+
 const editor = new BoardEditor({
   storage: getStorage(),
-  onChange: (board) => { state = board; render(); },
+  onChange: (board) => { state = board; syncClockTimers(); render(); },
   onStorageError: (error) => {
     console.warn("Could not save board:", error);
     queueMicrotask(() => busStatus("Board changed, but browser storage is unavailable. Download a copy to keep it.", true));

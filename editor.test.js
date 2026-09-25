@@ -39,7 +39,7 @@ test('successful edits render and save once, while rejected edits do neither', (
   assert.equal(editor.deleteComponent(power.id), true);
   assert.equal(ctx.saves, 6);
   assert.equal(ctx.renders, ctx.saves);
-  assert.equal(JSON.parse(ctx.data.get(STORAGE_KEY)).version, 8);
+  assert.equal(JSON.parse(ctx.data.get(STORAGE_KEY)).version, 9);
 });
 
 test('property edits validate width, value, order and connected wires', () => {
@@ -80,7 +80,7 @@ test('imports save only after successful parsing and older documents remain comp
   assert.equal(result.board.components[0].y, 0);
   assert.equal(result.skipped.wires, 0);
   assert.equal(ctx.saves, 1);
-  assert.equal(JSON.parse(ctx.data.get(STORAGE_KEY)).version, 8);
+  assert.equal(JSON.parse(ctx.data.get(STORAGE_KEY)).version, 9);
   assert.deepEqual(parseDocument(ctx.data.get(STORAGE_KEY)).skipped, { components: 0, wires: 0 });
   const before = serialize(ctx.editor.board);
   assert.throws(() => ctx.editor.importText('{'));
@@ -166,6 +166,30 @@ test('button press and release reevaluate without saving, and reset on board rep
   editor.setButtonPressed(button.id, true);
   editor.replaceBoard(parseDocument(serialize(editor.board)).board, { save: false });
   assert.equal(editor.pressedButtons.size, 0);
+  assert.equal(editor.evaluation.states.get(editor.board.components[1].id).lit, false);
+});
+
+test('clock ticks reevaluate without saving and frequency edits persist', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  const clock = editor.place('clock', 0, 0);
+  const led = editor.place('led', 0, 3);
+  editor.addWire({ o: 'V', x: 1, y: 2 });
+  assert.equal(clock.frequency, 1);
+  const saves = ctx.saves;
+  assert.equal(editor.tickClock(clock.id), true);
+  assert.equal(editor.evaluation.states.get(led.id).lit, true);
+  assert.equal(editor.tickClock(clock.id), true);
+  assert.equal(editor.evaluation.states.get(led.id).lit, false);
+  assert.equal(ctx.saves, saves);
+  assert.equal(editor.tickClock(led.id), false);
+  assert.equal(editor.setClockFrequency(clock.id, 2.5), true);
+  assert.equal(editor.setClockFrequency(clock.id, 0), false);
+  assert.equal(editor.setClockFrequency(clock.id, 21), false);
+  assert.equal(parseDocument(ctx.data.get(STORAGE_KEY)).board.components[0].frequency, 2.5);
+  editor.tickClock(clock.id);
+  editor.replaceBoard(parseDocument(serialize(editor.board)).board, { save: false });
+  assert.equal(editor.highClocks.size, 0);
   assert.equal(editor.evaluation.states.get(editor.board.components[1].id).lit, false);
 });
 

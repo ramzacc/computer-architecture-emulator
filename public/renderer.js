@@ -40,6 +40,13 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       <line x1="40" y1="70" x2="40" y2="81" stroke="${stroke}" stroke-width="2"/>`;
   }
 
+  function clockArt(color, high) {
+    const stroke = "rgba(255,255,255,.55)";
+    return `<rect x="8" y="8" width="64" height="64" rx="10" fill="${high ? "#a9eaff" : color}" stroke="${stroke}" stroke-width="2"/>
+      <path d="M17 48 H30 V28 H49 V48 H63" fill="none" stroke="#102426" stroke-width="4" stroke-linejoin="round"/>
+      <line x1="40" y1="72" x2="40" y2="81" stroke="${stroke}" stroke-width="2"/>`;
+  }
+
   function ledArt() {
     const stroke = "rgba(255,255,255,.4)";
     return `<rect class="led-body" x="4" y="4" width="72" height="72" fill="#5a5a7a" stroke="${stroke}" stroke-width="2"/>`;
@@ -151,6 +158,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     let inner;
     if (s.shape === "power") inner = powerArt(s.color);
     else if (s.shape === "button") inner = buttonArt(s.color, value !== 0);
+    else if (s.shape === "clock") inner = clockArt(s.color, value !== 0);
     else if (s.shape === "constant") inner = constantArt(c, s.color);
     else if (s.shape === "output") inner = outputArt(c, s.color, value);
     else if (s.shape === "led") inner = ledArt();
@@ -180,7 +188,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);
       if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
       el.innerHTML = componentArt(c, s, st?.value ?? 0);
-      el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${st && (c.t === "output" || st.value) ? "  value: " + st.value : ""}`;
+      el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "clock" ? `  ${c.frequency ?? 1} Hz` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${st && (c.t === "output" || st.value) ? "  value: " + st.value : ""}`;
       gridEl.appendChild(el);
     }
   }

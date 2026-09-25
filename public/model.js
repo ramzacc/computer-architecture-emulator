@@ -1,6 +1,6 @@
-import { bitWidth, channelCount, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validChannelCount, validConstant, validSplitterOrder } from "./components.js";
+import { bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, normalizeRotation, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validSplitterOrder } from "./components.js";
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 export const DEFAULT_COLS = 64;
 export const DEFAULT_ROWS = 44;
 
@@ -40,6 +40,7 @@ export function isValidComponent(board, component) {
       !validBitWidth(bitWidth(component)) ||
       ((component.t === "mux" || component.t === "demux") && !validChannelCount(channelCount(component))) ||
       (component.t === "splitter" && !validSplitterOrder(component.order ?? "ascendant")) ||
+      (component.t === "clock" && !validClockFrequency(component.frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
       (component.t === "constant" && !validConstant(component))) return false;
   for (let y = component.y; y < component.y + size.h; y++) {
     for (let x = component.x; x < component.x + size.w; x++) {
@@ -234,7 +235,7 @@ function buildUnionFind(board) {
 // Solve the board to a fixed point: nets carry a value, each component's
 // output (or LED) follows from its inputs. Oscillating feedback is reported
 // to callers so edits can reject it.
-export function evaluateBoard(board, pressedButtons = new Set()) {
+export function evaluateBoard(board, pressedButtons = new Set(), highClocks = new Set()) {
   const { parent, find } = buildUnionFind(board);
   const nets = new Map();
   for (const edge of board.wires.values()) {
@@ -255,6 +256,7 @@ export function evaluateBoard(board, pressedButtons = new Set()) {
       op: entry.op,
       source: !!entry.source,
       momentary: !!entry.momentary,
+      clock: !!entry.clock,
       constant: !!entry.constant,
       constantValue: component.value ?? 0,
       output: !!entry.output,
@@ -271,6 +273,7 @@ export function evaluateBoard(board, pressedButtons = new Set()) {
     if (part.constant) return part.constantValue;
     if (part.source) return 1;
     if (part.momentary) return Number(pressedButtons.has(part.id));
+    if (part.clock) return Number(highClocks.has(part.id));
     if (part.block) {
       const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
       const outputs = blockOutputs(part.block, inputs, part.size, part.channels);
@@ -372,7 +375,7 @@ export function shortCircuitError(board, pressedButtons) {
   const driven = new Map();
   for (const component of board.components) {
     const entry = spec(component.t);
-    if (!entry?.source && !entry?.momentary && !entry?.constant && !entry?.op && !entry?.block) continue;
+    if (!entry?.source && !entry?.momentary && !entry?.clock && !entry?.constant && !entry?.op && !entry?.block) continue;
     const outputs = states.get(component.id).outputs;
     for (const [index, pin] of pinsFor(component).filter((item) => item.role === "out").entries()) {
       const net = netAt(pin);
@@ -380,8 +383,12 @@ export function shortCircuitError(board, pressedButtons) {
       for (let bit = 0; bit < pin.size; bit++) {
         const key = find(bitKey(net, bit));
         const level = (outputs[index] >>> bit) & 1;
-        if (driven.has(key) && driven.get(key) !== level) return "Short circuit: HIGH and LOW outputs are connected.";
-        driven.set(key, level);
+        const previous = driven.get(key);
+        if (previous?.level !== undefined && previous.level !== level)
+          return "Short circuit: HIGH and LOW outputs are connected.";
+        if (previous && (previous.clock || entry.clock))
+          return "Short circuit: a clock output cannot share a driven net.";
+        driven.set(key, { level, clock: !!entry.clock });
       }
     }
   }
@@ -425,10 +432,11 @@ export function serialize(board) {
   return JSON.stringify({
     version: SCHEMA_VERSION,
     grid: { ...board.grid },
-    components: board.components.map(({ t, x, y, r, size, value, order, channels }) => {
+    components: board.components.map(({ t, x, y, r, size, value, order, channels, frequency }) => {
       const q = normalizeRotation(r);
       return { t, x, y, ...(q ? { r: q } : {}), ...(isSizable({ t }) ? { size: size ?? 1 } : {}),
         ...(t === "constant" ? { value: value ?? 0 } : {}),
+        ...(t === "clock" ? { frequency: frequency ?? DEFAULT_CLOCK_FREQUENCY } : {}),
         ...(t === "splitter" ? { order: order ?? "ascendant" } : {}),
         ...(t === "mux" || t === "demux" ? { channels: channels ?? 2 } : {}) };
     }),
@@ -459,6 +467,7 @@ export function parseDocument(text) {
       ...(raw.t === "mux" || raw.t === "demux" ? { channels: raw.channels ?? 2 } : {}),
       ...(raw.t === "splitter" ? { order: raw.order ?? "ascendant" } : {}),
       ...(raw.t === "constant" ? { value: raw.value ?? 0 } : {}),
+      ...(raw.t === "clock" ? { frequency: raw.frequency ?? DEFAULT_CLOCK_FREQUENCY } : {}),
       x: clampInt(raw.x, -COORD_LIMIT, COORD_LIMIT, 0),
       y: clampInt(raw.y, -COORD_LIMIT, COORD_LIMIT, 0),
     };
