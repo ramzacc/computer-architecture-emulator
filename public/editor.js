@@ -58,7 +58,7 @@ export class BoardEditor {
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
       ...(type === "constant" ? { size: 1, value: 0 } : {}),
       ...(type === "output" ? { size: 1 } : {}) };
-    if (type === "alu" || ["mux", "demux", "adder", "twos", "comparator", "shl", "shr"].includes(type)) component.size = 4;
+    if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr"].includes(type)) component.size = 4;
     if (!addComponent(this.board, component)) return null;
     this.commitComponentEdit();
     return component;

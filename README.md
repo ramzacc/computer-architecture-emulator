@@ -22,12 +22,11 @@ For a Cloudflare Git deployment, leave the build command empty and use
 `npx wrangler deploy` as the deploy command. Change `name` in `wrangler.jsonc`
 if you want a different Worker name.
 
-Four example circuit documents are in [`public/examples/`](public/examples/). Import one with **Import .json**:
+Three example circuit documents are in [`public/examples/`](public/examples/). Import one with **Import .json**:
 
 1. [Power an LED](public/examples/power-led.json) — connect a power rail directly to an LED.
 2. [AND gate](public/examples/and-gate.json) — two powered inputs light an LED through an AND gate. Remove one input wire to see it turn off.
 3. [Two-bit bus](public/examples/splitter-combine.json) — two power rails form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
-4. [Four-bit ALU](public/examples/alu.json) — constants 7 and 3 feed an ALU. The result bus reads 10; the carry and zero LEDs are off. Change the 2-bit OP constant to try other operations.
 
 The catalog holds real logic-level parts: a 2×2 **Power** rail (always drives high),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,
@@ -48,13 +47,6 @@ The data-path catalog also includes:
 These parts use a configurable 1–32-bit data width. Control and flag pins keep
 the fixed widths shown above. Unwired inputs read zero. Select a part to change
 its data width, and hover its pins to see their names and sizes.
-
-The **ALU** has configurable A, B, and result bus width (1–32 bits), a fixed
-2-bit OP input, and 1-bit carry (C) and zero (Z) outputs. Its pins are labeled
-on the component. OP selects `00` add, `01` subtract, `10` bitwise AND, or
-`11` bitwise OR. Arithmetic wraps to the selected width. C is the carry out
-for addition, or 1 when subtraction needs no borrow; it is 0 for logic
-operations. Z is 1 when the result is zero. An unwired input reads zero.
 
 Wires carry buses of 1–32 bits (the size property). Set **New wire size** before drawing,
 then enter **Wire mode** and click a start point and successive corners or endpoints.
