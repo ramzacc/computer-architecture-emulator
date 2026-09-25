@@ -11,6 +11,7 @@ export class BoardEditor {
     this.board = createBoard();
     this.pressedButtons = new Set();
     this.highClocks = new Set();
+    this.registerValues = new Map();
     this.evaluation = evaluateBoard(this.board);
     this.storage = storage;
     this.onChange = onChange;
@@ -29,14 +30,35 @@ export class BoardEditor {
 
   // An accepted edit produces one snapshot for every reader of circuit state.
   // Trial boards used by validation remain separate from this published result.
-  evaluate() {
+  evaluate(captureEdges = false) {
     const buttonIds = new Set(this.board.components.filter((component) => component.t === "button")
       .map((component) => component.id));
     for (const id of this.pressedButtons) if (!buttonIds.has(id)) this.pressedButtons.delete(id);
     const clockIds = new Set(this.board.components.filter((component) => component.t === "clock")
       .map((component) => component.id));
     for (const id of this.highClocks) if (!clockIds.has(id)) this.highClocks.delete(id);
-    this.evaluation = evaluateBoard(this.board, this.pressedButtons, this.highClocks);
+    const registers = this.board.components.filter((component) => component.t === "register");
+    const registerIds = new Set(registers.map((component) => component.id));
+    for (const id of this.registerValues.keys()) if (!registerIds.has(id)) this.registerValues.delete(id);
+    for (const register of registers) {
+      const width = bitWidth(register);
+      const mask = width === 32 ? 0xffffffff : 2 ** width - 1;
+      this.registerValues.set(register.id, ((this.registerValues.get(register.id) ?? 0) & mask) >>> 0);
+    }
+    const next = evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues);
+    if (captureEdges) {
+      const captured = new Map();
+      for (const register of registers) {
+        const before = this.evaluation.states.get(register.id)?.inputs[1];
+        const after = next.states.get(register.id)?.inputs[1] ?? 0;
+        if (before === 0 && after !== 0)
+          captured.set(register.id, next.states.get(register.id).inputs[0] >>> 0);
+      }
+      if (captured.size) {
+        for (const [id, value] of captured) this.registerValues.set(id, value);
+        this.evaluation = evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues);
+      } else this.evaluation = next;
+    } else this.evaluation = next;
     this.onChange(this.board, this.evaluation);
     return this.evaluation;
   }
@@ -45,7 +67,7 @@ export class BoardEditor {
     if (this.component(id)?.t !== "button" || this.pressedButtons.has(id) === pressed) return false;
     if (pressed) this.pressedButtons.add(id);
     else this.pressedButtons.delete(id);
-    this.evaluate();
+    this.evaluate(true);
     return true;
   }
 
@@ -53,7 +75,7 @@ export class BoardEditor {
     if (this.component(id)?.t !== "clock") return false;
     if (this.highClocks.has(id)) this.highClocks.delete(id);
     else this.highClocks.add(id);
-    this.evaluate();
+    this.evaluate(true);
     return true;
   }
 
@@ -83,6 +105,7 @@ export class BoardEditor {
     this.board = board;
     this.pressedButtons.clear();
     this.highClocks.clear();
+    this.registerValues.clear();
     this.nextComponentId = board.components.length + 1;
     if (save) this.commit();
     else this.evaluate();
@@ -105,7 +128,7 @@ export class BoardEditor {
       ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY } : {}),
       ...(type === "output" ? { size: 1 } : {}),
       ...(["mux", "demux"].includes(type) ? { channels: 2 } : {}) };
-    if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr"].includes(type)) component.size = 4;
+    if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr", "register"].includes(type)) component.size = 4;
     if (!addComponent(this.board, component)) return null;
     this.commitComponentEdit();
     return component;

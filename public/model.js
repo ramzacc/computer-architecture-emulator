@@ -236,7 +236,7 @@ function buildUnionFind(board) {
 // Solve the board to a fixed point: nets carry a value, each component's
 // output (or LED) follows from its inputs. Oscillating feedback is reported
 // to callers so edits can reject it.
-export function evaluateBoard(board, pressedButtons = new Set(), highClocks = new Set()) {
+export function evaluateBoard(board, pressedButtons = new Set(), highClocks = new Set(), registerValues = new Map()) {
   const { parent, find } = buildUnionFind(board);
   const nets = new Map();
   for (const edge of board.wires.values()) {
@@ -257,6 +257,8 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       op: entry.op,
       momentary: !!entry.momentary,
       clock: !!entry.clock,
+      register: !!entry.register,
+      storedValue: (registerValues.get(component.id) ?? 0) & bitMask(bitWidth(component)),
       constant: !!entry.constant,
       constantValue: component.value ?? 0,
       output: !!entry.output,
@@ -273,6 +275,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     if (part.constant) return part.constantValue;
     if (part.momentary) return Number(pressedButtons.has(part.id));
     if (part.clock) return Number(highClocks.has(part.id));
+    if (part.register) return part.storedValue >>> 0;
     if (part.block) {
       const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
       const outputs = blockOutputs(part.block, inputs, part.size, part.channels);
@@ -374,7 +377,7 @@ export function shortCircuitError(board, pressedButtons) {
   const driven = new Map();
   for (const component of board.components) {
     const entry = spec(component.t);
-    if (!entry?.momentary && !entry?.clock && !entry?.constant && !entry?.op && !entry?.block) continue;
+    if (!entry?.momentary && !entry?.clock && !entry?.constant && !entry?.op && !entry?.block && !entry?.register) continue;
     const outputs = states.get(component.id).outputs;
     for (const [index, pin] of pinsFor(component).filter((item) => item.role === "out").entries()) {
       const net = netAt(pin);
@@ -387,7 +390,9 @@ export function shortCircuitError(board, pressedButtons) {
           return "Short circuit: HIGH and LOW outputs are connected.";
         if (previous && (previous.clock || entry.clock))
           return "Short circuit: a clock output cannot share a driven net.";
-        driven.set(key, { level, clock: !!entry.clock });
+        if (previous && (previous.register || entry.register))
+          return "Short circuit: a register output cannot share a driven net.";
+        driven.set(key, { level, clock: !!entry.clock, register: !!entry.register });
       }
     }
   }
