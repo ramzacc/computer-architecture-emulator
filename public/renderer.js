@@ -12,7 +12,7 @@ export function wireTitle(wire, value) {
 }
 
 export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, getSelectedWires) {
-  function svgWrap(inner, s, r, overlay = "") {
+  function svgWrap(inner, s, r, overlay = "", aspectRatio = "xMidYMid meet") {
     const q = ((r % 4) + 4) % 4;
     const vw = (q % 2 ? s.h : s.w) * U;
     const vh = (q % 2 ? s.w : s.h) * U;
@@ -21,7 +21,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       : q === 3 ? `translate(0,${s.w * U}) rotate(270)`
       : null;
     const content = transform ? `<g transform="${transform}">${inner}</g>` : inner;
-    return `<svg class="art" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="xMidYMid meet">${content}${overlay}</svg>`;
+    return `<svg class="art" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="${aspectRatio}">${content}${overlay}</svg>`;
   }
 
   // All parts share the same chassis and edge connection treatment. Geometry
@@ -199,19 +199,21 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const n = bitWidth(c), h = (n + 1) * U;
     const pins = localPins(c, s);
     const branches = pins.filter((pin) => pin.role === "out").map((pin) =>
-      `<path d="M40 ${pin.y * U} H73" stroke="${s.color}" stroke-width="2" fill="none"/>`).join("");
-    const spine = `<path d="M40 0 V${h - 12}" stroke="${s.color}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+      `<path d="M40 ${pin.y * U} H80" stroke="${s.color}" stroke-width="2" fill="none"/>` +
+      `<circle cx="40" cy="${pin.y * U}" r="3" fill="${s.color}"/>`).join("");
+    const spine = `<path d="M40 0 V${n * U}" stroke="${s.color}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
     const d = dimsOf(c), rw = d.w * U, rh = d.h * U;
     const bitLabels = actualPins(c).filter((pin) => pin.role === "out").map((pin) => {
       const x = pin.x * U, y = pin.y * U;
-      if (pin.dir === "N") return textAt(x, 17, pin.bit, 9, muted, 700);
-      if (pin.dir === "S") return textAt(x, rh - 17, pin.bit, 9, muted, 700);
-      if (pin.dir === "E") return textAt(rw - 17, y - 10, pin.bit, 9, muted, 700);
-      return textAt(17, y - 10, pin.bit, 9, muted, 700);
+      if (pin.dir === "N") return textAt(x, rh - 20, pin.bit, 10, ink, 700);
+      if (pin.dir === "S") return textAt(x, 20, pin.bit, 10, ink, 700);
+      if (pin.dir === "E") return textAt(20, y, pin.bit, 10, ink, 700);
+      return textAt(rw - 20, y, pin.bit, 10, ink, 700);
     }).join("");
-    const title = textAt(rw / 2, rh / 2, "SPLIT", 8, s.color, 750);
-    return svgWrap(frame(80, h, s.color) + spine + branches +
-      ports(pins, 80, h, s.color), { w: 2, h: n + 1 }, c.r, title + bitLabels);
+    // The rail reaches lattice points at the SVG edges; stretching it to the
+    // full component footprint keeps those endpoints on the model's pins.
+    return svgWrap(spine + branches + ports(pins, 80, h, s.color),
+      { w: 2, h: n + 1 }, c.r, bitLabels, "none");
   }
 
   function componentArt(c, s, value = 0, inputs = []) {
@@ -233,12 +235,12 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       const d = dimsOf(c);
       if (!s || !d) continue;
       const el = document.createElement("div");
-      el.className = "comp shaped" + (["button", "switch"].includes(c.t) ? ` ${c.t}` : "");
+      el.className = "comp shaped" + (["button", "switch"].includes(c.t) || s.splitter ? ` ${c.t}` : "");
       el.dataset.id = c.id;
       el.style.left = c.x * CELL + "px";
       el.style.top = c.y * CELL + "px";
-      el.style.width = d.w * CELL - GAP + "px";
-      el.style.height = d.h * CELL - GAP + "px";
+      el.style.width = d.w * CELL - (s.splitter ? 0 : GAP) + "px";
+      el.style.height = d.h * CELL - (s.splitter ? 0 : GAP) + "px";
       if (selectedIds.has(c.id)) el.classList.add("selected");
       const st = logic.states.get(c.id);
       if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);

@@ -238,6 +238,7 @@ main {
   background: transparent;
   border-radius: 0;
 }
+.comp.splitter { border: 0; }
 .pan .comp.button { cursor: pointer; }
 .pan .comp.switch { cursor: pointer; }
 .comp.button.pressed .button-cap { filter: drop-shadow(0 0 5px rgba(180, 177, 170, .6)); }
