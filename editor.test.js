@@ -21,23 +21,23 @@ function setup() {
 test('successful edits render and save once, while rejected edits do neither', () => {
   const ctx = setup();
   const { editor } = ctx;
-  const power = editor.place('power', 0, 0);
-  assert.ok(power);
+  const constant = editor.place('constant', 0, 0);
+  assert.ok(constant);
   assert.equal(ctx.saves, 1);
   assert.equal(editor.place('led', 0, 0), null);
-  assert.equal(editor.move(power.id, 0, 0), false);
+  assert.equal(editor.move(constant.id, 0, 0), false);
   assert.equal(editor.addWire({ o: 'V', x: 1, y: 2 }), true);
   assert.equal(editor.addWire({ o: 'V', x: 1, y: 2 }), false);
-  assert.equal(editor.resizeWire('V:1,2', 2), false); // power pin is one bit
+  assert.equal(editor.resizeWire('V:1,2', 2), false); // connected constant pin is one bit
   assert.equal(ctx.saves, 2);
   assert.equal(ctx.renders, 2);
-  assert.equal(editor.move(power.id, 3, 0), true);
+  assert.equal(editor.move(constant.id, 3, 0), true);
   assert.equal(ctx.saves, 3); // completed drag
-  assert.equal(editor.rotate(power.id), true);
+  assert.equal(editor.rotate(constant.id), true);
   assert.equal(ctx.saves, 4);
   assert.equal(editor.removeWire('V:1,2'), true);
   assert.equal(ctx.saves, 5);
-  assert.equal(editor.deleteComponent(power.id), true);
+  assert.equal(editor.deleteComponent(constant.id), true);
   assert.equal(ctx.saves, 6);
   assert.equal(ctx.renders, ctx.saves);
   assert.equal(JSON.parse(ctx.data.get(STORAGE_KEY)).version, 9);
@@ -120,6 +120,8 @@ test('imports save only after successful parsing and older documents remain comp
   const old = JSON.stringify({ version: 7, components: [{ t: 'power', x: 0, y: 1 }], wires: [{ o: 'V', x: 1, y: 2 }] });
   const result = ctx.editor.importText(old);
   assert.equal(result.board.components[0].y, 0);
+  assert.equal(result.board.components[0].t, 'constant');
+  assert.equal(result.board.components[0].value, 1);
   assert.equal(result.skipped.wires, 0);
   assert.equal(ctx.saves, 1);
   assert.equal(JSON.parse(ctx.data.get(STORAGE_KEY)).version, 9);
@@ -135,7 +137,7 @@ test('storage errors leave the current board usable', () => {
   let errors = 0;
   const editor = new BoardEditor({ storage: { setItem() { throw Error('quota'); }, getItem() { throw Error('blocked'); } }, onStorageError: () => errors++ });
   assert.equal(editor.loadSaved(), null);
-  assert.ok(editor.place('power', 0, 0));
+  assert.ok(editor.place('constant', 0, 0));
   assert.equal(editor.board.components.length, 1);
   assert.equal(errors, 2);
 });
@@ -162,9 +164,10 @@ test('accepted events publish a fresh evaluation; explicit evaluation does not s
     onChange: (board, evaluation) => published.push({ board, evaluation }),
   });
   const initial = editor.evaluation;
-  const power = editor.place('power', 0, 0);
+  const constant = editor.place('constant', 0, 0);
+  editor.setConstantValue(constant.id, 1);
   const led = editor.place('led', 0, 3);
-  assert.equal(published.length, 2);
+  assert.equal(published.length, 3);
   assert.notEqual(editor.evaluation, initial);
   assert.equal(editor.evaluation.states.get(led.id).lit, false);
 
@@ -174,7 +177,7 @@ test('accepted events publish a fresh evaluation; explicit evaluation does not s
   assert.equal([...powered.nets.values()][0].value, 1);
   assert.equal(published.at(-1).evaluation, powered);
 
-  editor.deleteComponent(power.id);
+  editor.deleteComponent(constant.id);
   assert.equal(editor.evaluation.states.get(led.id).lit, false);
   assert.equal(powered.states.get(led.id).lit, true); // prior snapshot stays valid
   const before = saves;
@@ -182,7 +185,7 @@ test('accepted events publish a fresh evaluation; explicit evaluation does not s
   assert.equal(refreshed, editor.evaluation);
   assert.equal(published.at(-1).evaluation, refreshed);
   assert.equal(saves, before);
-  assert.equal(published.length, 5);
+  assert.equal(published.length, 6);
 });
 
 test('button press and release reevaluate without saving, and reset on board replacement', () => {
@@ -308,7 +311,7 @@ test('a wire route places all segments in one saved edit and reuses existing seg
 
 test('a blocked wire route leaves the board untouched', () => {
   const ctx = setup();
-  ctx.editor.place('power', 1, 0);
+  ctx.editor.place('constant', 1, 0);
   const before = serialize(ctx.editor.board);
   assert.equal(ctx.editor.addWireRoute({ x: 0, y: 1 }, { x: 4, y: 1 }, 1).error,
     'Wire is blocked by a component.');
@@ -348,7 +351,7 @@ test('a failed group paste does not add some components or save', () => {
   const before = serialize(ctx.editor.board);
   const saves = ctx.saves;
   const pasted = ctx.editor.pasteComponents([
-    { t: 'power', x: 0, y: 0, r: 0 },
+    { t: 'constant', value: 1, x: 0, y: 0, r: 0 },
     { t: 'led', x: 0, y: 0, r: 0 },
   ]);
   assert.deepEqual(pasted, []);

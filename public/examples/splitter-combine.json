@@ -1,33 +1,39 @@
 {
-  "version": 6,
+  "version": 9,
   "grid": {
     "cols": 64,
     "rows": 44
   },
   "components": [
     {
-      "t": "power",
+      "t": "constant",
       "x": 6,
-      "y": -4
+      "y": -5,
+      "size": 1,
+      "value": 1
     },
     {
       "t": "splitter",
       "x": 7,
       "y": -1,
       "r": 3,
-      "size": 2
+      "size": 2,
+      "order": "ascendant"
     },
     {
-      "t": "power",
+      "t": "constant",
       "x": 9,
-      "y": -4
+      "y": -5,
+      "size": 1,
+      "value": 1
     },
     {
       "t": "splitter",
       "x": -1,
       "y": 0,
       "r": 1,
-      "size": 2
+      "size": 2,
+      "order": "ascendant"
     },
     {
       "t": "led",

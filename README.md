@@ -40,13 +40,12 @@ You can also run `npm run preview` locally after authenticating Wrangler.
 
 Four example circuit documents are in [`public/examples/`](public/examples/). Import one with **Import .json**:
 
-1. [Power an LED](public/examples/power-led.json) — connect a power rail directly to an LED.
-2. [AND gate](public/examples/and-gate.json) — two powered inputs light an LED through an AND gate. Remove one input wire to see it turn off.
-3. [Two-bit bus](public/examples/splitter-combine.json) — two power rails form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
+1. [Constant and LED](public/examples/constant-led.json) — connect a high constant directly to an LED.
+2. [AND gate](public/examples/and-gate.json) — two high constants light an LED through an AND gate. Remove one input wire to see it turn off.
+3. [Two-bit bus](public/examples/splitter-combine.json) — two high constants form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
 4. [Button and LED](public/examples/button-led.json) — hold the button in Pan mode to light the LED; release it to turn the LED off.
 
-The catalog holds real logic-level parts: a 2×2 **Power** rail (always drives high),
-a **Button** (hold it in Pan mode to drive its single output high; release to drive low;
+The catalog holds real logic-level parts: a **Button** (hold it in Pan mode to drive its single output high; release to drive low;
 Shift-drag it to move it),
 a **Clock** (toggles its one-bit output at a selected frequency),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,
@@ -85,9 +84,8 @@ decimal and binary under **Bus properties** (or HIGH/LOW for one bit). Gates com
 across their configured size. A splitter has one bus connection and one 1-bit
 branch per bit. Select it to set **Order**: Ascendant puts bit 0 at the first
 branch; Descendant puts the highest bit there. It works in either
-direction: a bus can feed its branches, or powered branches can form a bus. Its height grows with its size
-(1–32 bits), and it can be rotated like other components. Power and LEDs remain
-1 bit.
+direction: a bus can feed its branches, or driven branches can form a bus. Its height grows with its size
+(1–32 bits), and it can be rotated like other components. LEDs remain 1 bit.
 
 Place a 2×2 **Constant** and select it to edit its bit width (1–8) and value
 (0 through 2^width − 1). Choose decimal, binary (`0b`), or hexadecimal (`0x`)
@@ -134,8 +132,8 @@ The code is split by responsibility:
 - `app.js` handles browser events, view controls, and file actions.
 
 Saved documents use schema version 9. They contain grid dimensions, component
-types, positions, and gate sizes, plus sized wire segments. Pins, logic values, and wire power are
-derived from the catalog. Loading treats missing sizes in older documents as 1 bit and skips unknown or
+types, positions, and gate sizes, plus sized wire segments. Pins, logic values, and wire states are
+derived from the catalog. Loading converts legacy Power parts to one-bit Constants with value 1, treats missing sizes in older documents as 1 bit, and skips unknown or
 overlapping components and invalid or mismatched wire segments; the browser console reports the number skipped.
 
 Run `npm run check` for syntax and `npm test` for model and editor regressions
