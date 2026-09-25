@@ -83,7 +83,7 @@ test("a splitter carries short-circuit checks between a bus bit and its branch",
   const board = createBoard();
   assert.equal(addComponent(board, { id: "bus", t: "constant", x: 0, y: 0, size: 2, value: 0 }), true);
   assert.equal(addComponent(board, { id: "split", t: "splitter", x: 0, y: 4, size: 2 }), true);
-  assert.equal(addComponent(board, { id: "high", t: "power", x: 4, y: 3 }), true);
+  assert.equal(addComponent(board, { id: "high", t: "constant", value: 1, x: 4, y: 3 }), true);
   for (const edge of [
     { o: "V", x: 1, y: 2, size: 2 }, { o: "V", x: 1, y: 3, size: 2 },
     { o: "H", x: 2, y: 5 }, { o: "H", x: 3, y: 5 },
@@ -110,7 +110,7 @@ test("an inverter cannot feed its own output back into its input", () => {
 
 test("wire routes use a clear bend and reject blocked paths", () => {
   const board = createBoard();
-  addComponent(board, { id: "p", t: "power", x: 1, y: 0, r: 0 });
+  addComponent(board, { id: "p", t: "constant", value: 1, x: 1, y: 0, r: 0 });
   const route = wireRoute(board, { x: 0, y: 1 }, { x: 4, y: 3 }, 1);
   assert.equal(route.error, null);
   assert.deepEqual(route.edges.map(edgeKey), [
@@ -148,9 +148,9 @@ test("component geometry rotates pins and rejects overlap", () => {
   );
 });
 
-test("a power net drives an LED and sanitizes after edits", () => {
+test("a high constant drives an LED and sanitizes after edits", () => {
   const board = createBoard(10, 10);
-  addComponent(board, { id: "p", t: "power", x: 1, y: 0, r: 0 }); // out edge V:2,2
+  addComponent(board, { id: "p", t: "constant", value: 1, x: 1, y: 0, r: 0 }); // out edge V:2,2
   addComponent(board, { id: "l", t: "led", x: 1, y: 3, r: 0 });   // in edge V:2,2
   assert.equal(canPlaceEdge(board, { o: "H", x: 6, y: 6 }), true);
   assert.equal(addWireEdge(board, { o: "V", x: 2, y: 2 }), true);
@@ -158,18 +158,22 @@ test("a power net drives an LED and sanitizes after edits", () => {
   assert.equal(net.on, true);
   assert.equal(net.edges.length, 1);
   assert.equal(evaluateBoard(board).states.get("l").lit, true);
-  board.components.push({ id: "x", t: "power", x: 1, y: 2, r: 0 });
+  board.components.push({ id: "x", t: "constant", value: 1, x: 1, y: 2, r: 0 });
   sanitizeWires(board);
   assert.equal(board.wires.has(edgeKey({ o: "V", x: 2, y: 2 })), false);
 });
 
-test("older power circuits keep their output connections after the 2x2 resize", () => {
-  const text = readFileSync(new URL("./public/examples/power-led.json", import.meta.url), "utf8");
+test("legacy power circuits import as high constants with connected pins", () => {
+  const text = JSON.stringify({ version: 6, components: [
+    { t: "power", x: 2, y: 1 }, { t: "led", x: 2, y: 3 },
+  ], wires: [{ o: "V", x: 3, y: 2, size: 1 }] });
   const { board, skipped } = parseDocument(text);
   assert.deepEqual(skipped, { components: 0, wires: 0 });
-  const power = board.components.find((component) => component.t === "power");
-  assert.deepEqual(dimsOf(power), { w: 2, h: 2 });
-  assert.deepEqual(pinsFor(power)[0].edge, { o: "V", x: 3, y: 2 });
+  const constant = board.components.find((component) => component.t === "constant");
+  assert.deepEqual(dimsOf(constant), { w: 2, h: 2 });
+  assert.equal(constant.value, 1);
+  assert.equal(constant.size, 1);
+  assert.deepEqual(pinsFor(constant)[0].edge, { o: "V", x: 3, y: 2 });
   assert.equal(evaluateBoard(board).states.get("c2").lit, true);
 
   const rotated = parseDocument(JSON.stringify({ version: 7, components: [
@@ -177,14 +181,16 @@ test("older power circuits keep their output connections after the 2x2 resize", 
   ], wires: [{ o: "H", x: 11, y: 11, size: 1 }] }));
   assert.deepEqual(rotated.skipped, { components: 0, wires: 0 });
   assert.deepEqual(pinsFor(rotated.board.components[0])[0].edge, { o: "H", x: 11, y: 11 });
+  assert.equal(spec("power"), null);
+  assert.equal(addComponent(createBoard(), { id: "p", t: "power", x: 0, y: 0 }), false);
 });
 
 test("wires can follow component borders but cannot cross their interiors", () => {
   const board = createBoard();
-  assert.equal(addComponent(board, { id: "p", t: "power", x: 3, y: 1, r: 0 }), true);
+  assert.equal(addComponent(board, { id: "p", t: "constant", value: 1, x: 3, y: 1, r: 0 }), true);
   assert.equal(addComponent(board, { id: "l", t: "led", x: 4, y: 4, r: 0 }), true);
 
-  // The power pin reaches the LED's top edge, including a point that is not a pin.
+  // The constant pin reaches the LED's top edge, including a point that is not a pin.
   for (const edge of [
     { o: "V", x: 4, y: 3 },
     { o: "H", x: 4, y: 4 },
@@ -222,11 +228,11 @@ test("a wire can start anywhere on a component border", () => {
 
 test("gates compute their output from the input nets", () => {
   const board = createBoard(12, 12);
-  addComponent(board, { id: "p1", t: "power", x: 0, y: -1, r: 0 }); // out edge V:1,1
-  addComponent(board, { id: "p2", t: "power", x: 2, y: -1, r: 0 }); // out edge V:3,1
+  addComponent(board, { id: "p1", t: "constant", value: 1, x: 0, y: -1, r: 0 }); // out edge V:1,1
+  addComponent(board, { id: "p2", t: "constant", value: 1, x: 2, y: -1, r: 0 }); // out edge V:3,1
   addComponent(board, { id: "g", t: "and", x: 0, y: 3, r: 0 });   // in V:1,2 V:3,2, out V:2,5
-  addComponent(board, { id: "p3", t: "power", x: 6, y: -1, r: 0 }); // out edge V:7,1
-  addComponent(board, { id: "p4", t: "power", x: 8, y: -1, r: 0 }); // out edge V:9,1
+  addComponent(board, { id: "p3", t: "constant", value: 1, x: 6, y: -1, r: 0 }); // out edge V:7,1
+  addComponent(board, { id: "p4", t: "constant", value: 1, x: 8, y: -1, r: 0 }); // out edge V:9,1
   addComponent(board, { id: "h", t: "nand", x: 6, y: 3, r: 0 });  // in V:7,2 V:9,2, out V:8,5
   for (const wire of [
     { o: "V", x: 1, y: 1 }, { o: "V", x: 1, y: 2 },
@@ -360,9 +366,9 @@ test("new blocks persist their sizes and rotate pin widths", () => {
 
 test("documents persist all four orientations", () => {
   const board = createBoard(10, 10);
-  addComponent(board, { id: "c1", t: "power", x: 1, y: 1, r: 3 });
+  addComponent(board, { id: "c1", t: "constant", value: 1, x: 1, y: 1, r: 3 });
   const saved = JSON.parse(serialize(board));
-  assert.deepEqual(saved.components, [{ t: "power", x: 1, y: 1, r: 3 }]);
+  assert.deepEqual(saved.components, [{ t: "constant", x: 1, y: 1, r: 3, size: 1, value: 1 }]);
   const { board: reloaded, skipped } = parseDocument(JSON.stringify(saved));
   assert.deepEqual(skipped, { components: 0, wires: 0 });
   assert.equal(reloaded.components[0].r, 3);
@@ -371,7 +377,7 @@ test("documents persist all four orientations", () => {
 
 test("imports skip overlap and malformed wires without changing the schema", () => {
   const text = JSON.stringify({ version: 5, grid: { cols: 10, rows: 10 }, components: [
-    { t: "and", x: 1, y: 1 }, { t: "led", x: 2, y: 2 }, { t: "power", x: 6, y: 6 },
+    { t: "and", x: 1, y: 1 }, { t: "led", x: 2, y: 2 }, { t: "constant", value: 1, x: 6, y: 6 },
     { t: "nand", x: 0, y: 6 },
   ], wires: [
     { o: "H", x: 0, y: 9, on: true }, { o: "H", x: 4.5, y: 2 }, { o: "X", x: 1, y: 1 },
@@ -587,7 +593,7 @@ test("descendant splitter order reverses branch bits and persists", () => {
 });
 
 
-test("a splitter combines one-bit power branches and drives LEDs through a gate", () => {
+test("a splitter combines one-bit constant branches and drives LEDs through a gate", () => {
   const text = readFileSync(new URL("./public/examples/splitter-combine.json", import.meta.url), "utf8");
   const { board, skipped } = parseDocument(text);
   assert.deepEqual(skipped, { components: 0, wires: 0 });
