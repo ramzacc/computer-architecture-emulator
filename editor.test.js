@@ -43,6 +43,33 @@ test('successful edits render and save once, while rejected edits do neither', (
   assert.equal(JSON.parse(ctx.data.get(STORAGE_KEY)).version, 9);
 });
 
+test('moving a selection translates components and complete wire nets in one edit', () => {
+  const ctx = setup();
+  const first = ctx.editor.place('led', 0, 0);
+  const second = ctx.editor.place('led', 3, 0);
+  assert.equal(ctx.editor.addWireRoute({ x: 0, y: 5 }, { x: 2, y: 5 }, 1).error, null);
+  const saves = ctx.saves;
+  assert.equal(ctx.editor.move(first.id, 3, 0), false);
+  assert.equal(ctx.editor.moveSelection([first.id, second.id], ['H:0,5'], 3, 1), true);
+  assert.deepEqual([first, second].map((c) => [ctx.editor.component(c.id).x, ctx.editor.component(c.id).y]), [[3, 1], [6, 1]]);
+  assert.deepEqual([...ctx.editor.board.wires.keys()], ['H:3,6', 'H:4,6']);
+  assert.equal(ctx.saves, saves + 1);
+});
+
+test('a rejected selection move preserves the entire board and does not save', () => {
+  const ctx = setup();
+  const moving = ctx.editor.place('led', 0, 0);
+  const blocker = ctx.editor.place('led', 4, 0);
+  assert.equal(ctx.editor.addWire({ o: 'H', x: 0, y: 5 }), true);
+  assert.equal(ctx.editor.addWire({ o: 'H', x: 4, y: 5 }), true);
+  const before = serialize(ctx.editor.board);
+  const saves = ctx.saves;
+  assert.equal(ctx.editor.moveSelection([moving.id], ['H:0,5'], 4, 0), false);
+  assert.equal(serialize(ctx.editor.board), before);
+  assert.equal(ctx.saves, saves);
+  assert.equal(ctx.editor.component(blocker.id).x, 4);
+});
+
 test('property edits validate width, value, order and connected wires', () => {
   const { editor } = setup();
   const constant = editor.place('constant', 0, 0);
