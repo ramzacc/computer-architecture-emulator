@@ -74,6 +74,46 @@ test('output width is configurable and must match its connected net', () => {
   assert.equal(editor.resizeComponent(output.id, 8), true);
 });
 
+test('toggle switch drives a persistent one-bit value and rejects conflicting toggles', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  const toggle = editor.place('switch', 0, 0);
+  const led = editor.place('led', 0, 3);
+  assert.ok(toggle && led);
+  assert.equal(editor.addWire({ o: 'V', x: 1, y: 2 }), true);
+  assert.equal(editor.evaluation.states.get(led.id).lit, false);
+  assert.equal(editor.toggleSwitch(toggle.id), true);
+  assert.equal(editor.evaluation.states.get(led.id).lit, true);
+  assert.equal(parseDocument(serialize(editor.board)).board.components[0].value, 1);
+  assert.equal(editor.toggleSwitch(toggle.id), true);
+  assert.equal(editor.evaluation.states.get(led.id).lit, false);
+  assert.equal(editor.toggleSwitch(led.id), false);
+  assert.equal(ctx.saves, 5);
+});
+
+test('seven-segment art lights only the supplied inputs', () => {
+  const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
+  const svg = art({ t: 'sevenseg', r: 0 }, spec('sevenseg'), 0, [1, 0, 0, 0, 1, 0, 0]);
+  assert.equal((svg.match(/fill="#ff6469"/g) ?? []).length, 2);
+  assert.equal((svg.match(/fill="#532d38"/g) ?? []).length, 5);
+  assert.match(svg, />A<\/text>/);
+  assert.match(svg, />G<\/text>/);
+});
+
+test('debug display decodes the four-bit value and carries a distinct badge', () => {
+  const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
+  const zero = art({ t: 'debugdisplay' }, spec('debugdisplay'), 0);
+  const f = art({ t: 'debugdisplay' }, spec('debugdisplay'), 15);
+  assert.match(zero, />DBG<\/text>/);
+  assert.equal((zero.match(/fill="#ff6469"/g) ?? []).length, 6);
+  assert.equal((f.match(/fill="#ff6469"/g) ?? []).length, 4);
+  const { editor } = setup();
+  const display = editor.place('debugdisplay', 0, 0);
+  assert.ok(display);
+  assert.equal(editor.resizeComponent(display.id, 8), false);
+  assert.equal(editor.setValueFormat(display.id, 'decimal'), false);
+});
+
 test('constant and output formats convert existing values and survive saving', () => {
   const { editor } = setup();
   const constant = editor.place('constant', 0, 0);

@@ -42,7 +42,8 @@ export function isValidComponent(board, component) {
       ((component.t === "mux" || component.t === "demux") && !validChannelCount(channelCount(component))) ||
       (component.t === "splitter" && !validSplitterOrder(component.order ?? "ascendant")) ||
       (component.t === "clock" && !validClockFrequency(component.frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
-      (component.t === "constant" && !validConstant(component))) return false;
+      (component.t === "constant" && !validConstant(component)) ||
+      (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
   for (let y = component.y; y < component.y + size.h; y++) {
     for (let x = component.x; x < component.x + size.w; x++) {
       if (componentAt(board, x, y, component.id)) return false;
@@ -256,12 +257,14 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       id: component.id,
       op: entry.op,
       momentary: !!entry.momentary,
+      toggle: !!entry.toggle,
       clock: !!entry.clock,
       register: !!entry.register,
       storedValue: (registerValues.get(component.id) ?? 0) & bitMask(bitWidth(component)),
       constant: !!entry.constant,
       constantValue: component.value ?? 0,
       output: !!entry.output,
+      debug: !!entry.debug,
       splitter: !!entry.splitter,
       block: entry.block,
       channels: channelCount(component),
@@ -274,6 +277,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
   const outputOf = (part, values) => {
     if (part.constant) return part.constantValue;
     if (part.momentary) return Number(pressedButtons.has(part.id));
+    if (part.toggle) return part.constantValue;
     if (part.clock) return Number(highClocks.has(part.id));
     if (part.register) return part.storedValue >>> 0;
     if (part.block) {
@@ -327,7 +331,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
   const states = new Map();
   for (const part of parts) {
     const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
-    const value = part.output ? inputs[0] : outputOf(part, values);
+    const value = part.output || part.debug ? inputs[0] : outputOf(part, values);
     const outputs = part.block ? blockOutputs(part.block, inputs, part.size, part.channels)
       : part.splitter ? part.outs.map((_, bit) => (value >>> bit) & 1)
       : part.outs.map(() => value);
@@ -377,7 +381,7 @@ export function shortCircuitError(board, pressedButtons) {
   const driven = new Map();
   for (const component of board.components) {
     const entry = spec(component.t);
-    if (!entry?.momentary && !entry?.clock && !entry?.constant && !entry?.op && !entry?.block && !entry?.register) continue;
+    if (!entry?.momentary && !entry?.toggle && !entry?.clock && !entry?.constant && !entry?.op && !entry?.block && !entry?.register) continue;
     const outputs = states.get(component.id).outputs;
     for (const [index, pin] of pinsFor(component).filter((item) => item.role === "out").entries()) {
       const net = netAt(pin);
@@ -439,7 +443,7 @@ export function serialize(board) {
     components: board.components.map(({ t, x, y, r, size, value, format, order, channels, frequency }) => {
       const q = normalizeRotation(r);
       return { t, x, y, ...(q ? { r: q } : {}), ...(isSizable({ t }) ? { size: size ?? 1 } : {}),
-        ...(t === "constant" ? { value: value ?? 0 } : {}),
+        ...(t === "constant" || t === "switch" ? { value: value ?? 0 } : {}),
         ...(["constant", "output"].includes(t) && validValueFormat(format) && format !== "decimal" ? { format } : {}),
         ...(t === "clock" ? { frequency: frequency ?? DEFAULT_CLOCK_FREQUENCY } : {}),
         ...(t === "splitter" ? { order: order ?? "ascendant" } : {}),
@@ -472,7 +476,7 @@ export function parseDocument(text) {
       ...(isSizable({ t }) ? { size: raw.t === "power" ? 1 : raw.size ?? 1 } : {}),
       ...(raw.t === "mux" || raw.t === "demux" ? { channels: raw.channels ?? 2 } : {}),
       ...(raw.t === "splitter" ? { order: raw.order ?? "ascendant" } : {}),
-      ...(t === "constant" ? { value: raw.t === "power" ? 1 : raw.value ?? 0 } : {}),
+      ...(t === "constant" || t === "switch" ? { value: raw.t === "power" ? 1 : raw.value ?? 0 } : {}),
       ...(["constant", "output"].includes(raw.t) && validValueFormat(raw.format) && raw.format !== "decimal" ? { format: raw.format } : {}),
       ...(raw.t === "clock" ? { frequency: raw.frequency ?? DEFAULT_CLOCK_FREQUENCY } : {}),
       x: clampInt(raw.x, -COORD_LIMIT, COORD_LIMIT, 0),

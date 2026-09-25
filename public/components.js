@@ -17,6 +17,10 @@ export const COMPONENT_TYPES = {
       { x: 1, y: 2, dir: "S", role: "out" },
     ],
   },
+  switch: {
+    label: "Toggle switch", w: 2, h: 2, color: "#76c99b", shape: "switch", toggle: true,
+    pins: [{ x: 1, y: 2, dir: "S", role: "out" }],
+  },
   clock: {
     label: "Clock", w: 2, h: 2, color: "#6dc6e8", shape: "clock", clock: true,
     pins: [
@@ -48,6 +52,22 @@ export const COMPONENT_TYPES = {
     pins: [
       { x: 1, y: 0, dir: "N", role: "in" },
     ],
+  },
+  sevenseg: {
+    label: "Seven-segment", w: 6, h: 5, color: "#e85d61", shape: "sevenseg",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "A" },
+      { x: 2, y: 0, dir: "N", role: "in", name: "B" },
+      { x: 4, y: 0, dir: "N", role: "in", name: "C" },
+      { x: 5, y: 0, dir: "N", role: "in", name: "D" },
+      { x: 1, y: 5, dir: "S", role: "in", name: "E" },
+      { x: 3, y: 5, dir: "S", role: "in", name: "F" },
+      { x: 5, y: 5, dir: "S", role: "in", name: "G" },
+    ],
+  },
+  debugdisplay: {
+    label: "Debug display", w: 4, h: 4, color: "#a978e8", shape: "debugdisplay", debug: true,
+    pins: [{ x: 2, y: 0, dir: "N", role: "in", name: "HEX", size: 4 }],
   },
   and: {
     label: "AND", w: 4, h: 2, color: "#4c8bf5", shape: "and", op: "and",
@@ -196,6 +216,7 @@ export function isSizable(component) {
 }
 
 export function bitWidth(component) {
+  if (component.t === "debugdisplay") return 4;
   return isSizable(component) ? (component.size ?? 1) : 1;
 }
 

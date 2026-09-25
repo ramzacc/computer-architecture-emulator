@@ -45,12 +45,12 @@ Four example circuit documents are in [`public/examples/`](public/examples/). Im
 3. [Two-bit bus](public/examples/splitter-combine.json) — two high constants form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
 4. [Button and LED](public/examples/button-led.json) — hold the button in Pan mode to light the LED; release it to turn the LED off.
 
-The catalog holds real logic-level parts: a **Button** (hold it in Pan mode to drive its single output high; release to drive low;
+The catalog holds real logic-level parts: a **Toggle switch** (click it in Pan mode to change its saved one-bit state; Shift-drag to move it), a **Button** (hold it in Pan mode to drive its single output high; release to drive low;
 Shift-drag it to move it),
 a **Clock** (toggles its one-bit output at a selected frequency),
 a **Register** (stores a 1–32-bit value on a rising clock edge),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,
-**NAND**, **NOR**, **XNOR**, and 2×2 **NOT** gates, plus a **Splitter**, **Constant** source, and **Output** display. Each pin declares an `in` or `out` role, and the board is
+**NAND**, **NOR**, **XNOR**, and 2×2 **NOT** gates, plus a **Splitter**, **Constant** source, an **Output** display, and a **Seven-segment** display. Its seven one-bit inputs A–G directly light the corresponding segments; unwired inputs stay dark. The **Debug display** takes one fixed four-bit input and decodes it as a hex digit; its DBG badge distinguishes it from the numeric Output. Each pin declares an `in` or `out` role, and the board is
 solved to a fixed point so gate outputs and LED state follow from the wiring.
 
 The data-path catalog also includes:

@@ -32,6 +32,14 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       <line x1="40" y1="70" x2="40" y2="81" stroke="${stroke}" stroke-width="2"/>`;
   }
 
+  function switchArt(color, high) {
+    const stroke = "rgba(255,255,255,.6)";
+    return `<rect x="8" y="8" width="64" height="64" rx="10" fill="#20362e" stroke="${stroke}" stroke-width="2"/>
+      <rect x="23" y="16" width="34" height="48" rx="9" fill="#11241c"/>
+      <rect x="26" y="${high ? 19 : 39}" width="28" height="22" rx="6" fill="${high ? "#adf3c6" : color}" stroke="${stroke}" stroke-width="2"/>
+      <line x1="40" y1="72" x2="40" y2="81" stroke="${stroke}" stroke-width="2"/>`;
+  }
+
   function clockArt(color, high) {
     const stroke = "rgba(255,255,255,.55)";
     return `<rect x="8" y="8" width="64" height="64" rx="10" fill="${high ? "#a9eaff" : color}" stroke="${stroke}" stroke-width="2"/>
@@ -42,6 +50,35 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   function ledArt() {
     const stroke = "rgba(255,255,255,.4)";
     return `<rect class="led-body" x="4" y="4" width="72" height="72" fill="#5a5a7a" stroke="${stroke}" stroke-width="2"/>`;
+  }
+
+  function sevenSegArt(inputs = [], showLabels = true) {
+    const paths = [
+      "M86 20 H154 L145 31 H95 Z", // A: top
+      "M161 27 L171 36 V91 L160 99 L152 90 V39 Z", // B: upper right
+      "M160 102 L171 110 V164 L161 173 L152 161 V112 Z", // C: lower right
+      "M95 169 H145 L154 180 H86 Z", // D: bottom
+      "M79 102 L88 112 V161 L79 173 L69 164 V110 Z", // E: lower left
+      "M79 27 L88 39 V90 L80 99 L69 91 V36 Z", // F: upper left
+      "M91 95 H149 L159 100 L149 105 H91 L81 100 Z", // G: middle
+    ];
+    const segments = paths.map((path, index) => `<path d="${path}" fill="${inputs[index] ? "#ff6469" : "#532d38"}"${inputs[index] ? ' filter="drop-shadow(0 0 5px #ff6469)"' : ""}/>`).join("");
+    const labels = [[1, 14, "A"], [2, 14, "B"], [4, 14, "C"], [5, 14, "D"],
+      [1, 194, "E"], [3, 194, "F"], [5, 194, "G"]]
+      .map(([x, y, name]) => `<text x="${x * U}" y="${y}" text-anchor="middle" fill="#e9b6bc" font-size="10" font-weight="700">${name}</text>`).join("");
+    return `<rect x="8" y="8" width="224" height="184" rx="12" fill="#221d29" stroke="#b7818a" stroke-width="2"/>${segments}${showLabels ? labels : ""}`;
+  }
+
+  function debugDisplayArt(value) {
+    const patterns = ["1111110", "0110000", "1101101", "1111001", "0110011", "1011011", "1011111", "1110000",
+      "1111111", "1111011", "1110111", "0011111", "1001110", "0111101", "1001111", "1000111"];
+    const inputs = [...patterns[value & 15]].map((bit) => Number(bit));
+    return `<rect x="5" y="5" width="150" height="150" rx="10" fill="#39294a" stroke="#bba0e5" stroke-width="2"/>
+      <g transform="translate(14 13) scale(.55)">${sevenSegArt(inputs, false)}</g>
+      <rect x="56" y="125" width="48" height="22" rx="5" fill="#a978e8"/>
+      <text x="80" y="141" text-anchor="middle" fill="#1d1427" font-size="13" font-weight="800">DBG</text>
+      <text x="80" y="15" text-anchor="middle" fill="#d9c6fa" font-size="10" font-weight="700">HEX</text>
+      <line x1="80" y1="5" x2="80" y2="0" stroke="#d9c6fa" stroke-width="2"/>`;
   }
 
   function constantArt(c, color) {
@@ -144,7 +181,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     return outline + flow + labels;
   }
 
-  function componentArt(c, s, value = 0) {
+  function componentArt(c, s, value = 0, inputs = []) {
     if (s.splitter) {
       const n = bitWidth(c);
       const branches = Array.from({ length: n }, (_, index) => {
@@ -157,10 +194,13 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     }
     let inner;
     if (s.shape === "button") inner = buttonArt(s.color, value !== 0);
+    else if (s.shape === "switch") inner = switchArt(s.color, value !== 0);
     else if (s.shape === "clock") inner = clockArt(s.color, value !== 0);
     else if (s.shape === "constant") inner = constantArt(c, s.color);
     else if (s.shape === "output") inner = outputArt(c, s.color, value);
     else if (s.shape === "led") inner = ledArt();
+    else if (s.shape === "sevenseg") inner = sevenSegArt(inputs);
+    else if (s.shape === "debugdisplay") inner = debugDisplayArt(value);
     else if (s.block || s.register) inner = blockArt(s, c);
     else inner = gateArt(s.shape, s.color);
     return svgWrap(inner, s.shape === "mux" || s.shape === "demux" ? dimsOf({ ...c, r: 0 }) : s,
@@ -176,7 +216,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       const d = dimsOf(c);
       if (!s || !d) continue;
       const el = document.createElement("div");
-      el.className = "comp shaped" + (c.t === "button" ? " button" : "");
+      el.className = "comp shaped" + (["button", "switch"].includes(c.t) ? ` ${c.t}` : "");
       el.dataset.id = c.id;
       el.style.left = c.x * CELL + "px";
       el.style.top = c.y * CELL + "px";
@@ -186,8 +226,8 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       const st = logic.states.get(c.id);
       if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);
       if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
-      el.innerHTML = componentArt(c, s, st?.value ?? 0);
-      el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "clock" ? `  ${c.frequency ?? 1} Hz` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${c.t === "constant" ? "  value: " + formatValue(c.value ?? 0, bitWidth(c), c.format) : st && (c.t === "output" || st.value) ? "  value: " + (c.t === "output" ? formatValue(st.value, bitWidth(c), c.format) : st.value) : ""}`;
+      el.innerHTML = componentArt(c, s, st?.value ?? 0, st?.inputs ?? []);
+      el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "clock" ? `  ${c.frequency ?? 1} Hz` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${c.t === "constant" ? "  value: " + formatValue(c.value ?? 0, bitWidth(c), c.format) : st && (["output", "debugdisplay"].includes(c.t) || st.value) ? "  value: " + (["output", "debugdisplay"].includes(c.t) ? formatValue(st.value, bitWidth(c), c.t === "debugdisplay" ? "hex" : c.format) : st.value) : ""}`;
       gridEl.appendChild(el);
     }
   }

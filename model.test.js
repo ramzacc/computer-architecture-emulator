@@ -31,6 +31,51 @@ test("a button drives its one output HIGH only during an evaluation with its inp
   assert.equal(evaluateBoard(example.board).states.get(example.board.components[1].id).lit, false);
 });
 
+test("switch value is validated, drives a net and survives document round trip", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "bad", t: "switch", x: 4, y: 0, value: 2 }), false);
+  assert.equal(addComponent(board, { id: "sw", t: "switch", x: 0, y: 0, value: 1 }), true);
+  assert.equal(addComponent(board, { id: "led", t: "led", x: 0, y: 3 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 2 }), true);
+  assert.equal(evaluateBoard(board).states.get("led").lit, true);
+  assert.equal(JSON.parse(serialize(board)).components[0].value, 1);
+  const restored = parseDocument(serialize(board));
+  assert.deepEqual(restored.skipped, { components: 0, wires: 0 });
+  assert.equal(evaluateBoard(restored.board).states.get(restored.board.components[1].id).lit, true);
+});
+
+test("seven-segment display reads seven independent one-bit inputs", () => {
+  const board = createBoard();
+  const display = { id: "seven", t: "sevenseg", x: 0, y: 0, r: 0 };
+  assert.equal(addComponent(board, display), true);
+  assert.deepEqual(pinsFor(display).map(({ name, role, size }) => [name, role, size]),
+    "ABCDEFG".split("").map((name) => [name, "in", 1]));
+  assert.equal(addComponent(board, { id: "top", t: "constant", x: 0, y: -3, value: 1 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: -1 }), true);
+  assert.equal(addComponent(board, { id: "bottom", t: "constant", x: 0, y: 6, r: 2, value: 1 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 5 }), true);
+  assert.deepEqual(evaluateBoard(board).states.get("seven").inputs, [1, 0, 0, 0, 1, 0, 0]);
+  assert.deepEqual(pinsFor({ ...display, r: 1 }).map(({ name }) => name), "ABCDEFG".split(""));
+  assert.equal(parseDocument(serialize(board)).skipped.components, 0);
+});
+
+test("debug display reads exactly four bits and preserves its value through saving", () => {
+  const board = createBoard();
+  const source = { id: "source", t: "constant", x: 1, y: 0, size: 4, value: 10 };
+  const display = { id: "debug", t: "debugdisplay", x: 0, y: 4 };
+  assert.equal(addComponent(board, source), true);
+  assert.equal(addComponent(board, display), true);
+  assert.deepEqual(pinsFor(display).map(({ name, role, size }) => [name, role, size]), [["HEX", "in", 4]]);
+  assert.equal(addWireEdge(board, { o: "V", x: 2, y: 2, size: 1 }), false);
+  assert.equal(addWireEdge(board, { o: "V", x: 2, y: 2, size: 4 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 2, y: 3, size: 4 }), true);
+  assert.equal(evaluateBoard(board).states.get("debug").value, 10);
+  assert.deepEqual(pinsFor({ ...display, r: 1 })[0].edge, { o: "H", x: 4, y: 6 });
+  const restored = parseDocument(serialize(board));
+  assert.deepEqual(restored.skipped, { components: 0, wires: 0 });
+  assert.equal(evaluateBoard(restored.board).states.get(restored.board.components[1].id).value, 10);
+});
+
 test("a clock drives its output from the supplied evaluation state and persists frequency", () => {
   const board = createBoard();
   assert.equal(addComponent(board, { id: "clock", t: "clock", x: 0, y: 0, frequency: 2.5 }), true);
