@@ -1,6 +1,6 @@
 // Fixed component registry. Gate instances may also persist a bit width.
 //
-// These are real logic-level parts: a power rail, an LED, and gates that read
+// These are real logic-level parts: inputs, an LED, and gates that read
 // their inputs and drive an output. Signal flow runs top-to-bottom (N inputs,
 // S outputs) so a two-input gate can sit symmetrically on the lattice.
 //
@@ -11,12 +11,6 @@
 // no single outward normal). Concretely: N/S pins need 0 < x < w; E/W pins
 // need 0 < y < h. So 1-tall parts carry N/S pins and 1-wide parts carry W/E.
 export const COMPONENT_TYPES = {
-  power: {
-    label: "Power", w: 2, h: 2, color: "#30a46c", shape: "power", source: true,
-    pins: [
-      { x: 1, y: 2, dir: "S", role: "out" },
-    ],
-  },
   button: {
     label: "Button", w: 2, h: 2, color: "#e5a84d", shape: "button", momentary: true,
     pins: [

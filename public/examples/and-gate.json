@@ -1,15 +1,54 @@
 {
-  "version": 6,
-  "grid": { "cols": 64, "rows": 44 },
+  "version": 9,
+  "grid": {
+    "cols": 64,
+    "rows": 44
+  },
   "components": [
-    { "t": "power", "x": 2, "y": 1 },
-    { "t": "power", "x": 4, "y": 1 },
-    { "t": "and", "x": 2, "y": 3, "size": 1 },
-    { "t": "led", "x": 3, "y": 6 }
+    {
+      "t": "constant",
+      "x": 2,
+      "y": 0,
+      "size": 1,
+      "value": 1
+    },
+    {
+      "t": "constant",
+      "x": 4,
+      "y": 0,
+      "size": 1,
+      "value": 1
+    },
+    {
+      "t": "and",
+      "x": 2,
+      "y": 3,
+      "size": 1
+    },
+    {
+      "t": "led",
+      "x": 3,
+      "y": 6
+    }
   ],
   "wires": [
-    { "o": "V", "x": 3, "y": 2, "size": 1 },
-    { "o": "V", "x": 5, "y": 2, "size": 1 },
-    { "o": "V", "x": 4, "y": 5, "size": 1 }
+    {
+      "o": "V",
+      "x": 3,
+      "y": 2,
+      "size": 1
+    },
+    {
+      "o": "V",
+      "x": 5,
+      "y": 2,
+      "size": 1
+    },
+    {
+      "o": "V",
+      "x": 4,
+      "y": 5,
+      "size": 1
+    }
   ]
 }

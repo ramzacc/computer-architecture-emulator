@@ -254,7 +254,6 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     return {
       id: component.id,
       op: entry.op,
-      source: !!entry.source,
       momentary: !!entry.momentary,
       clock: !!entry.clock,
       constant: !!entry.constant,
@@ -271,7 +270,6 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
   });
   const outputOf = (part, values) => {
     if (part.constant) return part.constantValue;
-    if (part.source) return 1;
     if (part.momentary) return Number(pressedButtons.has(part.id));
     if (part.clock) return Number(highClocks.has(part.id));
     if (part.block) {
@@ -375,7 +373,7 @@ export function shortCircuitError(board, pressedButtons) {
   const driven = new Map();
   for (const component of board.components) {
     const entry = spec(component.t);
-    if (!entry?.source && !entry?.momentary && !entry?.clock && !entry?.constant && !entry?.op && !entry?.block) continue;
+    if (!entry?.momentary && !entry?.clock && !entry?.constant && !entry?.op && !entry?.block) continue;
     const outputs = states.get(component.id).outputs;
     for (const [index, pin] of pinsFor(component).filter((item) => item.role === "out").entries()) {
       const net = netAt(pin);
@@ -459,20 +457,21 @@ export function parseDocument(text) {
   );
   const skipped = { components: 0, wires: 0 };
   for (const raw of data.components) {
-    if (!raw || !spec(raw.t)) { skipped.components++; continue; }
+    if (!raw || (raw.t !== "power" && !spec(raw.t))) { skipped.components++; continue; }
     const r = normalizeRotation(raw.r);
+    const t = raw.t === "power" ? "constant" : raw.t;
     const component = {
-      id: `c${board.components.length + 1}`, t: raw.t, r,
-      ...(isSizable({ t: raw.t }) ? { size: raw.size ?? 1 } : {}),
+      id: `c${board.components.length + 1}`, t, r,
+      ...(isSizable({ t }) ? { size: raw.t === "power" ? 1 : raw.size ?? 1 } : {}),
       ...(raw.t === "mux" || raw.t === "demux" ? { channels: raw.channels ?? 2 } : {}),
       ...(raw.t === "splitter" ? { order: raw.order ?? "ascendant" } : {}),
-      ...(raw.t === "constant" ? { value: raw.value ?? 0 } : {}),
+      ...(t === "constant" ? { value: raw.t === "power" ? 1 : raw.value ?? 0 } : {}),
       ...(raw.t === "clock" ? { frequency: raw.frequency ?? DEFAULT_CLOCK_FREQUENCY } : {}),
       x: clampInt(raw.x, -COORD_LIMIT, COORD_LIMIT, 0),
       y: clampInt(raw.y, -COORD_LIMIT, COORD_LIMIT, 0),
     };
-    // Power grew from 2x1 to 2x2 in version 8. Keep its old output pin at
-    // the same lattice point so existing wires can still connect.
+    // Legacy power parts become one-bit constants. Before version 8, their
+    // smaller footprint placed the output pin at a different lattice point.
     if (raw.t === "power" && (data.version ?? 0) < 8) {
       if (r === 0) component.y--;
       if (r === 3) component.x--;

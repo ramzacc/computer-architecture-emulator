@@ -23,15 +23,6 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     return `<svg class="art" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="xMidYMid meet">${content}</svg>`;
   }
 
-  function powerArt(color) {
-    const stroke = "rgba(255,255,255,.4)";
-    return `
-      <line x1="40" y1="63" x2="40" y2="83" stroke="${stroke}" stroke-width="2"/>
-      <circle cx="40" cy="38" r="25" fill="${color}" stroke="${stroke}" stroke-width="2"/>
-      <line x1="29" y1="38" x2="51" y2="38" stroke="#14161a" stroke-width="4"/>
-      <line x1="40" y1="27" x2="40" y2="49" stroke="#14161a" stroke-width="4"/>`;
-  }
-
   function buttonArt(color, pressed) {
     const stroke = "rgba(255,255,255,.55)";
     return `<rect x="9" y="9" width="62" height="62" rx="12" fill="#473826" stroke="${stroke}" stroke-width="2"/>
@@ -156,8 +147,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       return svgWrap(inner, { w: 2, h: n + 1 }, c.r);
     }
     let inner;
-    if (s.shape === "power") inner = powerArt(s.color);
-    else if (s.shape === "button") inner = buttonArt(s.color, value !== 0);
+    if (s.shape === "button") inner = buttonArt(s.color, value !== 0);
     else if (s.shape === "clock") inner = clockArt(s.color, value !== 0);
     else if (s.shape === "constant") inner = constantArt(c, s.color);
     else if (s.shape === "output") inner = outputArt(c, s.color, value);

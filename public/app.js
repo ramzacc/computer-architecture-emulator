@@ -858,16 +858,19 @@ document.getElementById("file-input").addEventListener("change", (e) => {
 
 function seedLayout(board) {
   const layout = [
-    // power straight into an LED
-    ["power", 2, 0], ["led", 2, 3],
-    // two powers into an AND, output into an LED
-    ["power", 7, 0], ["power", 9, 0], ["and", 7, 3], ["led", 8, 6],
-    // two powers into a NAND -> lights nothing
-    ["power", 14, 0], ["power", 16, 0], ["nand", 14, 3], ["led", 15, 6],
-    // two powers into an XOR -> also off
-    ["power", 22, 0], ["power", 24, 0], ["xor", 22, 3], ["led", 23, 6],
+    // a constant straight into an LED
+    ["constant", 2, 0], ["led", 2, 3],
+    // two constants into an AND, output into an LED
+    ["constant", 7, 0], ["constant", 9, 0], ["and", 7, 3], ["led", 8, 6],
+    // two constants into a NAND -> lights nothing
+    ["constant", 14, 0], ["constant", 16, 0], ["nand", 14, 3], ["led", 15, 6],
+    // two constants into an XOR -> also off
+    ["constant", 22, 0], ["constant", 24, 0], ["xor", 22, 3], ["led", 23, 6],
   ];
-  for (const [t, x, y] of layout) addComponent(board, { id: `c${board.components.length + 1}`, t, x, y, r: 0 });
+  for (const [t, x, y] of layout) addComponent(board, {
+    id: `c${board.components.length + 1}`, t, x, y, r: 0,
+    ...(t === "constant" ? { size: 1, value: 1 } : {}),
+  });
 }
 
 function seedWires(board) {
