@@ -45,7 +45,7 @@ Four example circuit documents are in [`public/examples/`](public/examples/). Im
 3. [Two-bit bus](public/examples/splitter-combine.json) — two high constants form a two-bit value through a splitter; another splitter separates the bits to light two LEDs. Select a bus wire to inspect its value.
 4. [Button and LED](public/examples/button-led.json) — hold the button in Pan mode to light the LED; release it to turn the LED off.
 
-The catalog holds real logic-level parts: a **Button** (hold it in Pan mode to drive its single output high; release to drive low;
+The catalog holds real logic-level parts: a **Toggle switch** (click it in Pan mode to change its saved one-bit state; Shift-drag to move it), a **Button** (hold it in Pan mode to drive its single output high; release to drive low;
 Shift-drag it to move it),
 a **Clock** (toggles its one-bit output at a selected frequency),
 an **LED** (lights red when its input net is high), and **AND**, **OR**, **XOR**,

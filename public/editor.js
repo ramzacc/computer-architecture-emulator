@@ -102,6 +102,7 @@ export class BoardEditor {
     const component = { id, t: type, x, y, r: 0,
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
       ...(type === "constant" ? { size: 1, value: 0 } : {}),
+      ...(type === "switch" ? { value: 0 } : {}),
       ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY } : {}),
       ...(type === "output" ? { size: 1 } : {}),
       ...(["mux", "demux"].includes(type) ? { channels: 2 } : {}) };
@@ -217,6 +218,18 @@ export class BoardEditor {
     const old = component.value;
     component.value = value;
     if (shortCircuitError(this.board)) { component.value = old; return false; }
+    this.commit();
+    return true;
+  }
+
+  toggleSwitch(id) {
+    const component = this.component(id);
+    if (component?.t !== "switch") return false;
+    component.value = component.value === 1 ? 0 : 1;
+    if (shortCircuitError(this.board)) {
+      component.value = component.value === 1 ? 0 : 1;
+      return false;
+    }
     this.commit();
     return true;
   }

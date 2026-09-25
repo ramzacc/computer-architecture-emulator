@@ -17,6 +17,10 @@ export const COMPONENT_TYPES = {
       { x: 1, y: 2, dir: "S", role: "out" },
     ],
   },
+  switch: {
+    label: "Toggle switch", w: 2, h: 2, color: "#76c99b", shape: "switch", toggle: true,
+    pins: [{ x: 1, y: 2, dir: "S", role: "out" }],
+  },
   clock: {
     label: "Clock", w: 2, h: 2, color: "#6dc6e8", shape: "clock", clock: true,
     pins: [

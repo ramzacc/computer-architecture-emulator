@@ -31,6 +31,19 @@ test("a button drives its one output HIGH only during an evaluation with its inp
   assert.equal(evaluateBoard(example.board).states.get(example.board.components[1].id).lit, false);
 });
 
+test("switch value is validated, drives a net and survives document round trip", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "bad", t: "switch", x: 4, y: 0, value: 2 }), false);
+  assert.equal(addComponent(board, { id: "sw", t: "switch", x: 0, y: 0, value: 1 }), true);
+  assert.equal(addComponent(board, { id: "led", t: "led", x: 0, y: 3 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 2 }), true);
+  assert.equal(evaluateBoard(board).states.get("led").lit, true);
+  assert.equal(JSON.parse(serialize(board)).components[0].value, 1);
+  const restored = parseDocument(serialize(board));
+  assert.deepEqual(restored.skipped, { components: 0, wires: 0 });
+  assert.equal(evaluateBoard(restored.board).states.get(restored.board.components[1].id).lit, true);
+});
+
 test("a clock drives its output from the supplied evaluation state and persists frequency", () => {
   const board = createBoard();
   assert.equal(addComponent(board, { id: "clock", t: "clock", x: 0, y: 0, frequency: 2.5 }), true);

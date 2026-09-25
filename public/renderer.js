@@ -32,6 +32,14 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       <line x1="40" y1="70" x2="40" y2="81" stroke="${stroke}" stroke-width="2"/>`;
   }
 
+  function switchArt(color, high) {
+    const stroke = "rgba(255,255,255,.6)";
+    return `<rect x="8" y="8" width="64" height="64" rx="10" fill="#20362e" stroke="${stroke}" stroke-width="2"/>
+      <rect x="23" y="16" width="34" height="48" rx="9" fill="#11241c"/>
+      <rect x="26" y="${high ? 19 : 39}" width="28" height="22" rx="6" fill="${high ? "#adf3c6" : color}" stroke="${stroke}" stroke-width="2"/>
+      <line x1="40" y1="72" x2="40" y2="81" stroke="${stroke}" stroke-width="2"/>`;
+  }
+
   function clockArt(color, high) {
     const stroke = "rgba(255,255,255,.55)";
     return `<rect x="8" y="8" width="64" height="64" rx="10" fill="${high ? "#a9eaff" : color}" stroke="${stroke}" stroke-width="2"/>
@@ -157,6 +165,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     }
     let inner;
     if (s.shape === "button") inner = buttonArt(s.color, value !== 0);
+    else if (s.shape === "switch") inner = switchArt(s.color, value !== 0);
     else if (s.shape === "clock") inner = clockArt(s.color, value !== 0);
     else if (s.shape === "constant") inner = constantArt(c, s.color);
     else if (s.shape === "output") inner = outputArt(c, s.color, value);
@@ -176,7 +185,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       const d = dimsOf(c);
       if (!s || !d) continue;
       const el = document.createElement("div");
-      el.className = "comp shaped" + (c.t === "button" ? " button" : "");
+      el.className = "comp shaped" + (["button", "switch"].includes(c.t) ? ` ${c.t}` : "");
       el.dataset.id = c.id;
       el.style.left = c.x * CELL + "px";
       el.style.top = c.y * CELL + "px";

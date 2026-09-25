@@ -418,6 +418,10 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
   if (compEl) {
     const comp = state.components.find((c) => c.id === compEl.dataset.id);
     if (!comp) return;
+    if (comp.t === "switch" && !placingType && !e.shiftKey) {
+      if (!editor.toggleSwitch(comp.id)) busStatus("Switch cannot toggle: conflicting outputs share a net.", true);
+      return;
+    }
     if (comp.t === "button" && !placingType && !e.shiftKey && !pressedButton) {
       pressedButton = { id: comp.id, pointerId: e.pointerId };
       canvasWrapEl.setPointerCapture(e.pointerId);
