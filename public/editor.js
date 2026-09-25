@@ -34,7 +34,7 @@ export class BoardEditor {
     const buttonIds = new Set(this.board.components.filter((component) => component.t === "button")
       .map((component) => component.id));
     for (const id of this.pressedButtons) if (!buttonIds.has(id)) this.pressedButtons.delete(id);
-    const clockIds = new Set(this.board.components.filter((component) => component.t === "clock")
+    const clockIds = new Set(this.board.components.filter((component) => component.t === "clock" && component.enable !== false)
       .map((component) => component.id));
     for (const id of this.highClocks) if (!clockIds.has(id)) this.highClocks.delete(id);
     const registers = this.board.components.filter((component) => component.t === "register");
@@ -72,7 +72,8 @@ export class BoardEditor {
   }
 
   tickClock(id) {
-    if (this.component(id)?.t !== "clock") return false;
+    const component = this.component(id);
+    if (component?.t !== "clock" || component.enable === false) return false;
     if (this.highClocks.has(id)) this.highClocks.delete(id);
     else this.highClocks.add(id);
     this.evaluate(true);
@@ -84,6 +85,15 @@ export class BoardEditor {
     if (component?.t !== "clock" || !validClockFrequency(frequency) ||
         (component.frequency ?? DEFAULT_CLOCK_FREQUENCY) === frequency) return false;
     component.frequency = frequency;
+    this.commit();
+    return true;
+  }
+
+  setClockEnabled(id, enable) {
+    const component = this.component(id);
+    if (component?.t !== "clock" || typeof enable !== "boolean" || (component.enable !== false) === enable) return false;
+    component.enable = enable;
+    if (!enable) this.highClocks.delete(id);
     this.commit();
     return true;
   }
@@ -141,7 +151,7 @@ export class BoardEditor {
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
       ...(type === "constant" ? { size: 1, value: 0 } : {}),
       ...(type === "switch" ? { value: 0 } : {}),
-      ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY } : {}),
+      ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY, enable: false } : {}),
       ...(type === "output" ? { size: 1 } : {}),
       ...(["mux", "demux"].includes(type) ? { channels: 2 } : {}) };
     if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr", "register"].includes(type)) component.size = 4;

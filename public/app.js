@@ -63,6 +63,8 @@ const valueFormatRowEl = document.getElementById("value-format-row");
 const valueFormatEl = document.getElementById("value-format");
 const clockFrequencyRowEl = document.getElementById("clock-frequency-row");
 const clockFrequencyEl = document.getElementById("clock-frequency");
+const clockEnableRowEl = document.getElementById("clock-enable-row");
+const clockEnableEl = document.getElementById("clock-enable");
 const busStatusEl = document.getElementById("bus-status");
 const { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox } =
   createRenderer(gridEl, () => state, () => editor.evaluation, () => selectedIds, () => selectedWires);
@@ -119,6 +121,9 @@ function renderProperties() {
   clockFrequencyRowEl.hidden = !clock;
   clockFrequencyEl.disabled = !clock;
   clockFrequencyEl.value = clock ? String(component.frequency ?? DEFAULT_CLOCK_FREQUENCY) : "";
+  clockEnableRowEl.hidden = !clock;
+  clockEnableEl.disabled = !clock;
+  clockEnableEl.checked = clock && component.enable !== false;
   const output = component?.t === "output" || component?.t === "debugdisplay";
   const register = component?.t === "register";
   const displayedValue = output || register ? editor.evaluation.states.get(component.id)?.value ?? 0 : net?.value;
@@ -134,7 +139,7 @@ function renderProperties() {
       `Selected bus: ${size} bit${size === 1 ? "" : "s"}.`);
   }
   if (clock && !busStatusEl.classList.contains("error"))
-    busStatus(`Clock: ${component.frequency ?? DEFAULT_CLOCK_FREQUENCY} Hz.`);
+    busStatus(`Clock: ${component.frequency ?? DEFAULT_CLOCK_FREQUENCY} Hz, ${component.enable === false ? "disabled" : "enabled"}.`);
   syncActionButtons();
 }
 
@@ -202,6 +207,12 @@ clockFrequencyEl.addEventListener("change", () => {
     busStatus(`Clock set to ${frequency} Hz.`);
   else if (editor.component(selectedId)?.frequency !== frequency)
     busStatus("Frequency must be between 0.1 and 20 Hz.", true);
+  renderProperties();
+});
+
+clockEnableEl.addEventListener("change", () => {
+  if (editor.setClockEnabled(selectedId, clockEnableEl.checked))
+    busStatus(`Clock ${clockEnableEl.checked ? "enabled" : "disabled"}.`);
   renderProperties();
 });
 
@@ -933,7 +944,7 @@ function syncClockTimers() {
     clockTimers.clear();
     timerBoard = state;
   }
-  const clocks = new Map(state.components.filter((component) => component.t === "clock")
+  const clocks = new Map(state.components.filter((component) => component.t === "clock" && component.enable !== false)
     .map((component) => [component.id, component.frequency ?? DEFAULT_CLOCK_FREQUENCY]));
   for (const [id, timer] of clockTimers) {
     if (clocks.get(id) === timer.frequency) continue;

@@ -34,6 +34,7 @@ function validComponentProperties(component) {
       ((component.t === "mux" || component.t === "demux") && !validChannelCount(channelCount(component))) ||
       (component.t === "splitter" && !validSplitterOrder(component.order ?? "ascendant")) ||
       (component.t === "clock" && !validClockFrequency(component.frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
+      (component.t === "clock" && component.enable !== undefined && typeof component.enable !== "boolean") ||
       (component.t === "constant" && !validConstant(component)) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
   return true;
@@ -257,6 +258,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       momentary: !!entry.momentary,
       toggle: !!entry.toggle,
       clock: !!entry.clock,
+      clockEnabled: component.enable !== false,
       register: !!entry.register,
       storedValue: (registerValues.get(component.id) ?? 0) & bitMask(bitWidth(component)),
       constant: !!entry.constant,
@@ -276,7 +278,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     if (part.constant) return part.constantValue;
     if (part.momentary) return Number(pressedButtons.has(part.id));
     if (part.toggle) return part.constantValue;
-    if (part.clock) return Number(highClocks.has(part.id));
+    if (part.clock) return Number(part.clockEnabled && highClocks.has(part.id));
     if (part.register) return part.storedValue >>> 0;
     if (part.block) {
       const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
@@ -445,7 +447,7 @@ function documentFields(t) {
   const fields = [
     ...(isSizable({ t }) ? ["size"] : []),
     ...(t === "constant" || t === "switch" ? ["value"] : []),
-    ...(t === "clock" ? ["frequency"] : []),
+    ...(t === "clock" ? ["frequency", "enable"] : []),
     ...(t === "splitter" ? ["order"] : []),
     ...(t === "mux" || t === "demux" ? ["channels"] : []),
     ...(t === "constant" || t === "output" ? ["format"] : []),
@@ -459,6 +461,7 @@ function documentValue(component, field) {
     case "size": return component.size ?? 1;
     case "value": return component.value ?? 0;
     case "frequency": return component.frequency ?? DEFAULT_CLOCK_FREQUENCY;
+    case "enable": return component.enable !== false;
     case "order": return component.order === "descendant" ? 1 : 0;
     case "channels": return component.channels ?? 2;
     case "format": return DOCUMENT_FORMATS.indexOf(component.format ?? "decimal");
@@ -468,13 +471,14 @@ function documentValue(component, field) {
 export function serialize(board) {
   return JSON.stringify({
     components: board.components.map((component) => {
-      const { t, x, y, r, size, value, format, order, channels, frequency } = component;
+      const { t, x, y, r, size, value, format, order, channels, frequency, enable } = component;
       if (!spec(t) || !Number.isSafeInteger(x) || !Number.isSafeInteger(y) ||
           (r !== undefined && (!Number.isInteger(r) || r < 0 || r > 3)) ||
           (isSizable({ t }) && !validBitWidth(size ?? 1)) ||
           (t === "constant" && !validConstant({ t, size, value })) ||
           (t === "switch" && ![0, 1].includes(value ?? 0)) ||
           (t === "clock" && !validClockFrequency(frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
+          (t === "clock" && enable !== undefined && typeof enable !== "boolean") ||
           (t === "splitter" && !validSplitterOrder(order ?? "ascendant")) ||
           ((t === "mux" || t === "demux") && !validChannelCount(channels ?? 2)) ||
           (format !== undefined && (!["constant", "output"].includes(t) || !validValueFormat(format))))
@@ -514,7 +518,9 @@ export function parseDocument(text) {
     const [t, x, y, r] = raw;
     if (typeof t !== "string" || !spec(t)) throw new Error(`${path}.t is unknown.`);
     const fields = documentFields(t);
-    if (raw.length !== 4 + fields.length) throw new Error(`${path} must have ${4 + fields.length} entries.`);
+    const legacyClock = t === "clock" && raw.length === 5;
+    if (raw.length !== 4 + fields.length && !legacyClock)
+      throw new Error(`${path} must have ${4 + fields.length} entries.`);
     coordinate(x, `${path}[1]`);
     coordinate(y, `${path}[2]`);
     if (!Number.isInteger(r) || r < 0 || r > 3) throw new Error(`${path}[3] must be 0–3.`);
@@ -525,6 +531,8 @@ export function parseDocument(text) {
       if (field === "size" && !validBitWidth(value)) throw new Error(`${fieldPath} must be 1–32.`);
       if (field === "value" && !Number.isInteger(value)) throw new Error(`${fieldPath} must be an integer.`);
       if (field === "frequency" && !validClockFrequency(value)) throw new Error(`${fieldPath} is an invalid frequency.`);
+      if (field === "enable" && typeof value !== "boolean" && !legacyClock)
+        throw new Error(`${fieldPath} must be a boolean.`);
       if (field === "order" && value !== 0 && value !== 1) throw new Error(`${fieldPath} is an invalid order.`);
       if (field === "channels" && !validChannelCount(value)) throw new Error(`${fieldPath} is an invalid channel count.`);
       if (field === "format" && (!Number.isInteger(value) || value < 0 || value >= DOCUMENT_FORMATS.length))
@@ -532,7 +540,7 @@ export function parseDocument(text) {
       if (field === "order") component.order = value ? "descendant" : "ascendant";
       else if (field === "format") {
         if (value) component.format = DOCUMENT_FORMATS[value];
-      } else component[field] = value;
+      } else component[field] = field === "enable" && legacyClock ? true : value;
     }
     if (!validComponentProperties(component)) throw new Error(`${path} is invalid.`);
     const { w, h } = dimsOf(component);

@@ -88,6 +88,17 @@ test("a clock drives its output from the supplied evaluation state and persists 
   assert.throws(() => parseDocument(JSON.stringify({ components: [["clock", 0, 0, 0, 21]], wires: [] })), /frequency/);
 });
 
+test("a disabled clock stays low and its enable setting survives serialization", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "clock", t: "clock", x: 0, y: 0, enable: false }), true);
+  assert.equal(evaluateBoard(board, new Set(), new Set(["clock"])).states.get("clock").value, 0);
+  assert.equal(parseDocument(serialize(board)).board.components[0].enable, false);
+  assert.equal(parseDocument(JSON.stringify({ components: [["clock", 0, 0, 0, 2]], wires: [] }))
+    .board.components[0].enable, true);
+  assert.throws(() => parseDocument(JSON.stringify({ components: [["clock", 0, 0, 0, 2, 0]], wires: [] })), /boolean/);
+  assert.equal(addComponent(board, { id: "bad", t: "clock", x: 3, y: 0, enable: 0 }), false);
+});
+
 test("a clock net cannot share another output driver", () => {
   const board = createBoard();
   assert.equal(addComponent(board, { id: "clock", t: "clock", x: 0, y: 0 }), true);
