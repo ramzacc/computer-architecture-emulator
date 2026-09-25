@@ -855,14 +855,12 @@ btnPan.addEventListener("click", () => {
 function loadFromText(text) {
   try {
     // Parse before changing any selection or visible state.
-    const { board, skipped } = parseDocument(text);
+    const { board } = parseDocument(text);
     setSelection([]);
     placingType = null;
     clearWireGesture();
     mode = MODE.PAN;
     editor.replaceBoard(board);
-    if (skipped.components) console.warn(`Skipped ${skipped.components} invalid component(s).`);
-    if (skipped.wires) console.warn(`Skipped ${skipped.wires} invalid wire segment(s).`);
     renderPalette();
     syncPlacingCursor();
     resetView();
@@ -968,8 +966,6 @@ try { restored = editor.loadSaved(); }
 catch (error) { console.warn("Saved document is invalid:", error); }
 if (restored) {
   editor.replaceBoard(restored.board, { save: false });
-  if (restored.skipped.components) console.warn(`Skipped ${restored.skipped.components} invalid component(s).`);
-  if (restored.skipped.wires) console.warn(`Skipped ${restored.skipped.wires} invalid wire segment(s).`);
 } else {
   const board = createBoard();
   seedLayout(board);

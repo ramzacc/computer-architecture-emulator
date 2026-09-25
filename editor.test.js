@@ -40,7 +40,6 @@ test('successful edits render and save once, while rejected edits do neither', (
   assert.equal(editor.deleteComponent(constant.id), true);
   assert.equal(ctx.saves, 6);
   assert.equal(ctx.renders, ctx.saves);
-  assert.equal(JSON.parse(ctx.data.get(STORAGE_KEY)).version, 9);
 });
 
 test('moving a selection translates components and complete wire nets in one edit', () => {
@@ -182,19 +181,19 @@ test('constant and output canvas art uses the selected value format', () => {
   assert.match(art({ t: 'output', size: 32, format: 'binary' }, spec('output'), 0xffffffff), />0b11111111<\/text>/);
 });
 
-test('imports save only after successful parsing and older documents remain compatible', () => {
+test('imports save only after a complete valid document is parsed', () => {
   const ctx = setup();
-  const old = JSON.stringify({ version: 7, components: [{ t: 'power', x: 0, y: 1 }], wires: [{ o: 'V', x: 1, y: 2 }] });
-  const result = ctx.editor.importText(old);
+  const document = JSON.stringify({ components: [['constant', 0, 0, 0, 1, 1, 0]], wires: [['V', 1, 2, 1]] });
+  const result = ctx.editor.importText(document);
   assert.equal(result.board.components[0].y, 0);
   assert.equal(result.board.components[0].t, 'constant');
   assert.equal(result.board.components[0].value, 1);
-  assert.equal(result.skipped.wires, 0);
+  assert.equal(result.board.wires.size, 1);
   assert.equal(ctx.saves, 1);
-  assert.equal(JSON.parse(ctx.data.get(STORAGE_KEY)).version, 9);
-  assert.deepEqual(parseDocument(ctx.data.get(STORAGE_KEY)).skipped, { components: 0, wires: 0 });
+  assert.equal(parseDocument(ctx.data.get(STORAGE_KEY)).board.wires.size, 1);
   const before = serialize(ctx.editor.board);
   assert.throws(() => ctx.editor.importText('{'));
+  assert.throws(() => ctx.editor.importText(JSON.stringify({ components: [['led', 0, 0, 0]], wires: [['X', 0, 0, 1]] })));
   assert.equal(serialize(ctx.editor.board), before);
   assert.equal(ctx.saves, 1);
   assert.equal(ctx.editor.loadSaved().board.components.length, 1);
