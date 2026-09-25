@@ -34,7 +34,10 @@
         <input id="new-wire-size" type="number" min="1" max="32" step="1" value="1" />
       </label>
       <h2>Components</h2>
+      <label class="palette-search-label" for="palette-search">Search components</label>
+      <input id="palette-search" class="palette-search" type="search" placeholder="Search components…" autocomplete="off" />
       <div id="palette" class="palette"></div>
+      <p id="palette-empty" class="hint" role="status" hidden>No matching components.</p>
       <h2 id="selected-properties-heading">Selected properties</h2>
       <label id="selected-size-row" class="property" hidden><span id="selected-size-label">Selected size (bits)</span>
         <input id="selected-size" type="number" min="1" max="32" step="1" disabled />
