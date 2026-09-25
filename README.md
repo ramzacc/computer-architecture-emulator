@@ -126,8 +126,9 @@ Use **Select mode** to click a wire net or a component, Shift-click to add or re
 drag across empty canvas to select components and wire nets. Shift-drag adds to the
 selection. Use **Copy**, **Paste**, and **Delete**, or `Ctrl`/`Cmd` + `C`,
 `Ctrl`/`Cmd` + `V`, and `Delete`/`Backspace`. Paste places copies together at
-the next available offset and selects them. These actions copy components and
-their properties; wires stay in place when copying or pasting. Deleting a selection
+the next available offset and selects them. Copy and paste include selected components,
+their properties, and complete selected wire nets. Paste checks the whole group before
+adding anything. Deleting a selection
 removes its components and wire nets. Drag a selected component or wire in **Select mode**
 to move the whole selection, including complete selected wire nets. Use **Pan mode**
 to move a single component.
@@ -159,7 +160,7 @@ Serve the directory, open the editor, and check:
 1. Place a component in an empty cell; drag it to another cell. An overlapping placement or drag should be rejected.
 2. Select a Constant, change its size and value, then draw a matching wire from its output. Hover the wire to see the evaluated value. Try a mismatched wire size and confirm rejection.
 3. Select a component and press `R` to rotate it; press `Delete` to remove it. Use `Escape` to clear the active tool and selection.
-4. In Select mode, Shift-click or drag to select multiple components. Drag across wires to select their nets too, then move or delete the mixed group. Copy and paste components as a separate check.
+4. In Select mode, Shift-click or drag to select multiple components. Drag across wires to select their nets too, then move, copy, paste, or delete the mixed group. Also try copying and pasting a wire net alone.
 5. Pan by dragging empty canvas, zoom with `Ctrl`/`Cmd` + scroll, then reset with `Ctrl`/`Cmd` + `0`.
 6. Download the board, import an example JSON file, and reload the page. The imported board should remain, and the saved JSON should say version 9.
 
