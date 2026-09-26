@@ -163,9 +163,9 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const rotated = dimsOf(c), rw = rotated.w * U, rh = rotated.h * U;
     const titles = { and: "AND", or: "OR", xor: "XOR", not: "NOT", nand: "NAND", nor: "NOR", xnor: "XNOR",
       mux: "MULTIPLEXER", demux: "DEMULTIPLEXER", adder: "ADDER", twos: "NEGATE", comparator: "COMPARATOR",
-      shl: "SHIFT LEFT", shr: "SHIFT RIGHT", register: "REGISTER" };
+      shl: "SHIFT LEFT", shr: "SHIFT RIGHT", register: "REGISTER", rom: "ROM" };
     const glyphs = { and: "&amp;", or: "1+", xor: "=1", not: "!", nand: "&amp;", nor: "1+", xnor: "=1",
-      mux: "MUX", demux: "DEMUX", adder: "+", twos: "-A", comparator: "A:B", shl: "&lt;&lt;", shr: "&gt;&gt;", register: "D / Q" };
+      mux: "MUX", demux: "DEMUX", adder: "+", twos: "-A", comparator: "A:B", shl: "&lt;&lt;", shr: "&gt;&gt;", register: "D / Q", rom: "256 × DATA" };
     const title = titles[s.shape];
     const pins = actualPins(c);
     const sideRows = [...new Set(pins.filter((pin) => pin.name && (pin.dir === "E" || pin.dir === "W"))

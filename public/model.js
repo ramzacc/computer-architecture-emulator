@@ -1,4 +1,4 @@
-import { bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validSplitterOrder } from "./components.js";
+import { bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validSplitterOrder } from "./components.js";
 import { validValueFormat } from "./value-format.js";
 
 export function createBoard() {
@@ -36,6 +36,7 @@ function validComponentProperties(component) {
       (component.t === "clock" && !validClockFrequency(component.frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
       (component.t === "clock" && component.enable !== undefined && typeof component.enable !== "boolean") ||
       (component.t === "constant" && !validConstant(component)) ||
+      (component.t === "rom" && !validRom(component)) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
   return true;
 }
@@ -263,6 +264,8 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       storedValue: (registerValues.get(component.id) ?? 0) & bitMask(bitWidth(component)),
       constant: !!entry.constant,
       constantValue: component.value ?? 0,
+      rom: !!entry.rom,
+      romData: entry.rom ? new Map(component.data ?? []) : null,
       output: !!entry.output,
       debug: !!entry.debug,
       splitter: !!entry.splitter,
@@ -276,6 +279,10 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
   });
   const outputOf = (part, values) => {
     if (part.constant) return part.constantValue;
+    if (part.rom) {
+      const address = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
+      return part.romData.get(address & 255) ?? 0;
+    }
     if (part.momentary) return Number(pressedButtons.has(part.id));
     if (part.toggle) return part.constantValue;
     if (part.clock) return Number(part.clockEnabled && highClocks.has(part.id));
@@ -381,7 +388,7 @@ export function shortCircuitError(board, pressedButtons) {
   const driven = new Map();
   for (const component of board.components) {
     const entry = spec(component.t);
-    if (!entry?.momentary && !entry?.toggle && !entry?.clock && !entry?.constant && !entry?.op && !entry?.block && !entry?.register) continue;
+    if (!entry?.momentary && !entry?.toggle && !entry?.clock && !entry?.constant && !entry?.rom && !entry?.op && !entry?.block && !entry?.register) continue;
     const outputs = states.get(component.id).outputs;
     for (const [index, pin] of pinsFor(component).filter((item) => item.role === "out").entries()) {
       const net = netAt(pin);
@@ -447,6 +454,7 @@ function documentFields(t) {
   const fields = [
     ...(isSizable({ t }) ? ["size"] : []),
     ...(t === "constant" || t === "switch" ? ["value"] : []),
+    ...(t === "rom" ? ["data"] : []),
     ...(t === "clock" ? ["frequency", "enable"] : []),
     ...(t === "splitter" ? ["order"] : []),
     ...(t === "mux" || t === "demux" ? ["channels"] : []),
@@ -460,6 +468,7 @@ function documentValue(component, field) {
   switch (field) {
     case "size": return component.size ?? 1;
     case "value": return component.value ?? 0;
+    case "data": return component.data ?? [];
     case "frequency": return component.frequency ?? DEFAULT_CLOCK_FREQUENCY;
     case "enable": return component.enable !== false;
     case "order": return component.order === "descendant" ? 1 : 0;
@@ -471,11 +480,12 @@ function documentValue(component, field) {
 export function serialize(board) {
   return JSON.stringify({
     components: board.components.map((component) => {
-      const { t, x, y, r, size, value, format, order, channels, frequency, enable } = component;
+      const { t, x, y, r, size, value, data, format, order, channels, frequency, enable } = component;
       if (!spec(t) || !Number.isSafeInteger(x) || !Number.isSafeInteger(y) ||
           (r !== undefined && (!Number.isInteger(r) || r < 0 || r > 3)) ||
           (isSizable({ t }) && !validBitWidth(size ?? 1)) ||
           (t === "constant" && !validConstant({ t, size, value })) ||
+          (t === "rom" && !validRom({ t, size, data })) ||
           (t === "switch" && ![0, 1].includes(value ?? 0)) ||
           (t === "clock" && !validClockFrequency(frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
           (t === "clock" && enable !== undefined && typeof enable !== "boolean") ||
@@ -530,6 +540,8 @@ export function parseDocument(text) {
       const fieldPath = `${path}[${4 + offset}]`;
       if (field === "size" && !validBitWidth(value)) throw new Error(`${fieldPath} must be 1–32.`);
       if (field === "value" && !Number.isInteger(value)) throw new Error(`${fieldPath} must be an integer.`);
+      if (field === "data" && !validRom({ t, size: component.size, data: value }))
+        throw new Error(`${fieldPath} must contain unique addresses 00–FF and values fitting the ROM width.`);
       if (field === "frequency" && !validClockFrequency(value)) throw new Error(`${fieldPath} is an invalid frequency.`);
       if (field === "enable" && typeof value !== "boolean" && !legacyClock)
         throw new Error(`${fieldPath} must be a boolean.`);

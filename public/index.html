@@ -54,6 +54,12 @@
       <label id="constant-value-row" class="property" hidden>Constant value
         <input id="constant-value" type="text" inputmode="text" spellcheck="false" disabled />
       </label>
+      <div id="rom-data-row" class="rom-data-property" hidden>
+        <label for="rom-data">ROM contents (hex address: value)</label>
+        <textarea id="rom-data" rows="8" spellcheck="false" placeholder="00: FF&#10;01: 3A" disabled></textarea>
+        <button id="rom-apply" type="button" disabled>Apply ROM contents</button>
+        <span>Unlisted addresses read as zero. One entry per line, from 00 to FF.</span>
+      </div>
       <label id="value-format-row" class="property" hidden>Value format
         <select id="value-format" disabled>
           <option value="decimal">Decimal</option>

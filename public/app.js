@@ -59,6 +59,9 @@ const selectedValueLabelEl = document.getElementById("selected-value-label");
 const selectedValueEl = document.getElementById("selected-value");
 const constantValueRowEl = document.getElementById("constant-value-row");
 const constantValueEl = document.getElementById("constant-value");
+const romDataRowEl = document.getElementById("rom-data-row");
+const romDataEl = document.getElementById("rom-data");
+const romApplyEl = document.getElementById("rom-apply");
 const valueFormatRowEl = document.getElementById("value-format-row");
 const valueFormatEl = document.getElementById("value-format");
 const clockFrequencyRowEl = document.getElementById("clock-frequency-row");
@@ -113,6 +116,13 @@ function renderProperties() {
   constantValueRowEl.hidden = !constant;
   constantValueEl.disabled = !constant;
   constantValueEl.value = constant ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "";
+  const rom = component?.t === "rom";
+  romDataRowEl.hidden = !rom;
+  romDataEl.disabled = !rom;
+  romApplyEl.disabled = !rom;
+  romDataEl.value = rom ? (component.data ?? [])
+    .map(([address, value]) => `${address.toString(16).toUpperCase().padStart(2, "0")}: ${value.toString(16).toUpperCase().padStart(Math.ceil(bitWidth(component) / 4), "0")}`)
+    .join("\n") : "";
   const valueFormat = constant || component?.t === "output";
   valueFormatRowEl.hidden = !valueFormat;
   valueFormatEl.disabled = !valueFormat;
@@ -140,6 +150,11 @@ function renderProperties() {
   }
   if (clock && !busStatusEl.classList.contains("error"))
     busStatus(`Clock: ${component.frequency ?? DEFAULT_CLOCK_FREQUENCY} Hz, ${component.enable === false ? "disabled" : "enabled"}.`);
+  if (rom && !busStatusEl.classList.contains("error")) {
+    const inputs = editor.evaluation.states.get(component.id)?.inputs ?? [];
+    const value = editor.evaluation.states.get(component.id)?.value ?? 0;
+    busStatus(`ROM address ${inputs[0]?.toString(16).toUpperCase().padStart(2, "0") ?? "00"}: ${value.toString(16).toUpperCase()}.`);
+  }
   syncActionButtons();
 }
 
@@ -193,6 +208,29 @@ constantValueEl.addEventListener("change", () => {
     busStatus(`Enter a valid ${component.format ?? "decimal"} whole number from 0 to ${2 ** bitWidth(component) - 1}; the value must not short circuit another output.`, true);
     renderProperties();
   }
+});
+
+romApplyEl.addEventListener("click", () => {
+  const component = editor.component(selectedId);
+  if (component?.t !== "rom") return;
+  const entries = [];
+  const addresses = new Set();
+  for (const [index, line] of romDataEl.value.split(/\r?\n/).entries()) {
+    if (!line.trim()) continue;
+    const match = /^\s*(?:0x)?([0-9a-f]{1,2})\s*:\s*(?:0x)?([0-9a-f]{1,8})\s*$/i.exec(line);
+    const address = match ? parseInt(match[1], 16) : -1;
+    const value = match ? parseInt(match[2], 16) : -1;
+    if (!match || addresses.has(address) || value >= 2 ** bitWidth(component)) {
+      busStatus(`Invalid ROM entry on line ${index + 1}. Use unique hex addresses 00–FF and values that fit ${bitWidth(component)} bits.`, true);
+      return;
+    }
+    addresses.add(address);
+    if (value) entries.push([address, value]);
+  }
+  if (editor.setRomData(selectedId, entries)) busStatus("ROM contents updated.");
+  else if (JSON.stringify(entries.sort((a, b) => a[0] - b[0])) !== JSON.stringify(component.data ?? []))
+    busStatus("ROM contents conflict with a connected output.", true);
+  renderProperties();
 });
 
 valueFormatEl.addEventListener("change", () => {

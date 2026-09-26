@@ -269,6 +269,10 @@ main {
 .property input[type="checkbox"] { width: 16px; height: 16px; padding: 0; accent-color: var(--accent); }
 .property #constant-value { width: 110px; font-family: ui-monospace, monospace; }
 .property select { padding: 6px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 6px; }
+.rom-data-property { display: grid; gap: 7px; margin: 12px 0; font-size: 12px; }
+.rom-data-property[hidden] { display: none; }
+.rom-data-property textarea { box-sizing: border-box; width: 100%; padding: 8px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 6px; font-family: ui-monospace, monospace; resize: vertical; }
+.rom-data-property span { color: var(--muted); line-height: 1.4; }
 #bus-status.error { color: #ff777b; }
 
 .bus-value-row { align-items: flex-start; }

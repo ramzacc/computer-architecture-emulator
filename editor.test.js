@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BoardEditor, STORAGE_KEY } from './public/editor.js';
-import { spec } from './public/components.js';
+import { pinsFor, spec } from './public/components.js';
 import { edgeKey, parseDocument, serialize } from './public/model.js';
 import { createRenderer, wireTitle } from './public/renderer.js';
 import { formatValue, parseValue } from './public/value-format.js';
@@ -40,6 +40,49 @@ test('successful edits render and save once, while rejected edits do neither', (
   assert.equal(editor.deleteComponent(constant.id), true);
   assert.equal(ctx.saves, 6);
   assert.equal(ctx.renders, ctx.saves);
+});
+
+test('ROM reads an eight-bit address, drives a sized word, and persists its contents', () => {
+  const { editor } = setup();
+  const address = editor.place('constant', 1, 0);
+  const rom = editor.place('rom', 0, 3);
+  const output = editor.place('output', 1, 7);
+  assert.equal(editor.resizeComponent(address.id, 8), true);
+  assert.equal(editor.resizeComponent(output.id, 8), true);
+  assert.equal(editor.addWire({ o: 'V', x: 2, y: 2, size: 8 }), true);
+  assert.equal(editor.addWire({ o: 'V', x: 2, y: 6, size: 8 }), true);
+  assert.equal(editor.setRomData(rom.id, [[255, 0xA5], [1, 0x3C]]), true);
+  assert.deepEqual(rom.data, [[1, 0x3C], [255, 0xA5]]);
+  assert.equal(editor.evaluation.states.get(output.id).value, 0);
+  assert.equal(editor.setConstantValue(address.id, 1), true);
+  assert.equal(editor.evaluation.states.get(output.id).value, 0x3C);
+  assert.equal(editor.setConstantValue(address.id, 255), true);
+  assert.equal(editor.evaluation.states.get(output.id).value, 0xA5);
+  assert.equal(editor.setConstantValue(address.id, 2), true);
+  assert.equal(editor.evaluation.states.get(output.id).value, 0);
+  const restored = parseDocument(serialize(editor.board)).board;
+  assert.deepEqual(restored.components.find((component) => component.t === 'rom').data, rom.data);
+  assert.equal(editor.setRomData(rom.id, [[1, 256]]), false);
+  assert.equal(editor.setRomData(rom.id, [[1, 1], [1, 2]]), false);
+  assert.equal(editor.resizeComponent(rom.id, 32), false); // output bus is connected
+});
+
+test('ROM width changes mask stored words and its pins keep an eight-bit address', () => {
+  const { editor } = setup();
+  const rom = editor.place('rom', 0, 0);
+  assert.equal(editor.resizeComponent(rom.id, 32), true);
+  assert.equal(editor.setRomData(rom.id, [[0, 0xFFFFFFFF]]), true);
+  assert.equal(editor.evaluation.states.get(rom.id).value, 0xFFFFFFFF);
+  assert.deepEqual(pinsFor(rom).map((pin) => pin.size), [8, 32]);
+  assert.equal(editor.resizeComponent(rom.id, 4), true);
+  assert.deepEqual(rom.data, [[0, 15]]);
+  assert.deepEqual(pinsFor(rom).map((pin) => pin.size), [8, 4]);
+});
+
+test('ROM imports reject malformed memory entries', () => {
+  const document = (data) => JSON.stringify({ components: [['rom', 0, 0, 0, 8, data]], wires: [] });
+  for (const data of [null, [[256, 1]], [[0, 256]], [[1, 1], [1, 2]], [[0, -1]]])
+    assert.throws(() => parseDocument(document(data)), /ROM width/);
 });
 
 test('moving a selection translates components and complete wire nets in one edit', () => {
