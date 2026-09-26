@@ -92,25 +92,24 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   }
 
   function numberArt(c, s, value, source) {
-    const width = bitWidth(c), w = 2 * U, h = (width + 1) * U;
+    const width = bitWidth(c), w = (width + 1) * U, h = 2 * U;
     const current = source ? c.value ?? 0 : value;
     const title = c.label || (c.t === "input" ? "INPUT" : source ? "CONST" : "OUTPUT");
     const shown = title.length > 11 ? `${title.slice(0, 10)}…` : title;
     const tiles = Array.from({ length: width }, (_, index) => {
       const bit = width - 1 - index;
       const on = (current >>> bit) & 1;
-      const y = (index + 1) * U + 3;
+      const x = (index + 1) * U + 3;
       return `<g class="bit-tile${c.t === "input" ? " interactive" : ""}"${c.t === "input" ? ` data-bit="${bit}"` : ""}>
-        <rect x="12" y="${y}" width="56" height="34" rx="5" fill="${on ? partAccent(s) : recess}" stroke="${on ? partAccent(s) : border}"/>
-        ${textAt(23, y + 17, bit, 8, on ? "var(--part-active-ink)" : muted, 650)}
-        ${textAt(49, y + 17, on, 16, on ? "var(--part-active-ink)" : ink, 750)}</g>`;
+        <rect x="${x}" y="43" width="34" height="30" rx="5" fill="${on ? partAccent(s) : recess}" stroke="${on ? partAccent(s) : border}"/>
+        ${textAt(x + 8, 58, bit, 8, on ? "var(--part-active-ink)" : muted, 650)}
+        ${textAt(x + 23, 58, on, 16, on ? "var(--part-active-ink)" : ink, 750)}</g>`;
     }).join("");
     const formatted = formatValue(current, width, c.format);
-    const summary = formatted.length > 16 ? `${formatted.slice(0, 13)}…` : formatted;
     const base = frame(w, h, partAccent(s)) + textAt(w / 2, 16, escapeText(shown), 9, partAccent(s), 750) +
-      textAt(w / 2, 31, escapeText(summary), 7, muted, 650) + tiles +
-      ports(localPins(c, s), w, h, partAccent(s));
-    return svgWrap(base, { w: 2, h: width + 1 }, 0);
+      textAt(w / 2, 31, escapeText(formatted), 7, muted, 650) + tiles +
+      ports(actualPins(c), w, h, partAccent(s));
+    return svgWrap(base, { w: width + 1, h: 2 }, 0);
   }
 
   function sourceArt(c, s, active) {
