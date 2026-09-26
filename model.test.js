@@ -172,6 +172,34 @@ test("wire routes use a clear bend and reject blocked paths", () => {
   assert.equal(board.wires.size, 0);
 });
 
+test("orthogonal crossings stay separate, while explicit junctions join them", () => {
+  const board = createBoard();
+  for (const edge of [
+    { o: "H", x: 0, y: 1, size: 1 }, { o: "H", x: 1, y: 1, size: 1 },
+    { o: "V", x: 1, y: 0, size: 1 }, { o: "V", x: 1, y: 1, size: 1 },
+  ]) assert.equal(addWireEdge(board, edge), true);
+  assert.equal(computeNets(board).size, 2);
+  assert.deepEqual(parseDocument(serialize(board)).board.junctions, new Set());
+  board.junctions.add("1,1");
+  assert.equal(computeNets(board).size, 1);
+  assert.deepEqual(parseDocument(serialize(board)).board.junctions, new Set(["1,1"]));
+  const legacy = JSON.stringify({ components: [], wires: JSON.parse(serialize(board)).wires });
+  assert.deepEqual(parseDocument(legacy).board.junctions, new Set(["1,1"]));
+});
+
+test("a whole route can cross a different width wire without joining it", () => {
+  const board = createBoard();
+  for (const x of [0, 1]) assert.equal(addWireEdge(board, { o: "H", x, y: 1, size: 1 }), true);
+  const route = wireRoute(board, { x: 1, y: 0 }, { x: 1, y: 2 }, 2);
+  assert.equal(route.error, null);
+  for (const edge of route.edges) board.wires.set(edgeKey(edge), edge);
+  assert.equal(computeNets(board).size, 2);
+  assert.deepEqual([...computeNets(board).values()].map((net) => net.size).sort(), [1, 2]);
+  assert.equal(parseDocument(serialize(board)).board.wires.size, 4);
+  board.junctions.add("1,1");
+  assert.throws(() => parseDocument(serialize(board)), /bus size mismatch/);
+});
+
 test("component geometry rotates pins and rejects overlap", () => {
   const board = createBoard();
   const gate = { id: "c1", t: "and", x: 1, y: 1, r: 0 };

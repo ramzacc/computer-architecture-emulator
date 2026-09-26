@@ -12,4 +12,4 @@ RAM uses the same address and data width choices as ROM. Its ADDR and DIN inputs
 
 [Open the tool](https://comparch.ramza.cc)
 
-Downloaded circuits use compact JSON with `components` and `wires` fields. Each component starts with `[type, x, y, rotation]`, followed by its properties in the layout defined in `public/model.js`. Each wire is `[orientation, x, y, size]`. Imports validate the entire circuit and report an error if any component or wire is invalid.
+Downloaded circuits use compact JSON with `components`, `wires`, and `junctions` fields. Each component starts with `[type, x, y, rotation]`, followed by its properties in the layout defined in `public/model.js`. Each wire is `[orientation, x, y, size]`. A junction is `[x, y]`. Four-way wire crossings remain separate by default; in Wire mode, Shift-click a crossing to join or separate its signals. Connected junctions appear as larger dots. Imports validate the entire circuit and report an error if any component, wire, or junction is invalid. Older files without a `junctions` field retain their connected crossings.

@@ -1,6 +1,6 @@
 import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
-import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, isValidComponent,
-  evaluateBoard, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, shortCircuitError, wireRoute } from "./model.js";
+import { addComponent, addWireEdge, createBoard, crossingAt, edgeKey, isValidComponent,
+  evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, wireLayoutError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
 
 export const STORAGE_KEY = "grid-canvas-document";
@@ -21,6 +21,7 @@ export class BoardEditor {
   }
 
   commit(captureEdges = false) {
+    pruneJunctions(this.board);
     this.evaluate(captureEdges);
     try {
       if (!this.storage) throw new Error("Browser storage is unavailable.");
@@ -210,6 +211,21 @@ export class BoardEditor {
     return route;
   }
 
+  toggleJunction(x, y) {
+    if (!crossingAt(this.board, x, y)) return false;
+    const key = `${x},${y}`;
+    if (this.board.junctions.has(key)) this.board.junctions.delete(key);
+    else {
+      this.board.junctions.add(key);
+      if (wireLayoutError(this.board)) {
+        this.board.junctions.delete(key);
+        return false;
+      }
+    }
+    this.commit();
+    return true;
+  }
+
   removeWire(key) {
     if (!this.board.wires.delete(key)) return false;
     this.commit();
@@ -238,26 +254,28 @@ export class BoardEditor {
       components: this.board.components.map((component) => selected.has(component.id)
         ? { ...component, x: component.x + dx, y: component.y + dy } : component),
       wires: new Map(this.board.wires),
+      junctions: new Set(this.board.junctions),
     };
+    for (const key of this.board.junctions) {
+      const [x, y] = key.split(",").map(Number);
+      if ([`H:${x - 1},${y}`, `H:${x},${y}`, `V:${x},${y - 1}`, `V:${x},${y}`]
+        .every((edgeKey) => edges.has(edgeKey))) {
+        trial.junctions.delete(key);
+        trial.junctions.add(`${x + dx},${y + dy}`);
+      }
+    }
     for (const key of edges.keys()) trial.wires.delete(key);
-    const movedEdges = [];
     for (const edge of edges.values()) {
       const moved = { ...edge, x: edge.x + dx, y: edge.y + dy };
       const key = edgeKey(moved);
       if (trial.wires.has(key)) return null;
       trial.wires.set(key, moved);
-      movedEdges.push(moved);
     }
     for (const component of trial.components) {
       if (selected.has(component.id) && !isValidComponent(trial, component)) return null;
     }
-    for (const edge of movedEdges) {
-      const key = edgeKey(edge);
-      trial.wires.delete(key);
-      const error = edgePlacementError(trial, edge);
-      trial.wires.set(key, edge);
-      if (error) return null;
-    }
+    pruneJunctions(trial);
+    if (wireLayoutError(trial)) return null;
     return trial;
   }
 
@@ -266,6 +284,7 @@ export class BoardEditor {
     if (!trial) return false;
     this.board.components = trial.components;
     this.board.wires = trial.wires;
+    this.board.junctions = trial.junctions;
     this.commit();
     return true;
   }
@@ -418,7 +437,12 @@ export class BoardEditor {
       netKeys.push(edgeKey(net.edges[0]));
       for (const edge of net.edges) wires.set(edgeKey(edge), { ...edge });
     }
-    return { components, wires: [...wires.values()], wireKeys: netKeys };
+    const junctions = [...this.board.junctions].filter((key) => {
+      const [x, y] = key.split(",").map(Number);
+      return [`H:${x - 1},${y}`, `H:${x},${y}`, `V:${x},${y - 1}`, `V:${x},${y}`]
+        .every((edgeKey) => wires.has(edgeKey));
+    });
+    return { components, wires: [...wires.values()], wireKeys: netKeys, junctions };
   }
 
   pasteSelection(copies) {
@@ -426,7 +450,8 @@ export class BoardEditor {
     // Search outward while keeping the copied layout together. Validate the
     // complete group on a trial board so a failed paste changes nothing.
     for (let offset = 2; offset <= 200; offset += 2) {
-      const trial = { ...this.board, components: [...this.board.components], wires: new Map(this.board.wires) };
+      const trial = { ...this.board, components: [...this.board.components], wires: new Map(this.board.wires),
+        junctions: new Set(this.board.junctions) };
       const components = [];
       const wires = [];
       let nextId = this.nextComponentId;
@@ -441,13 +466,20 @@ export class BoardEditor {
       if (!valid) continue;
       for (const copy of copies.wires ?? []) {
         const wire = { ...copy, x: copy.x + offset, y: copy.y + offset };
-        if (!addWireEdge(trial, wire)) { valid = false; break; }
-        wires.push(trial.wires.get(edgeKey(wire)));
+        if (trial.wires.has(edgeKey(wire))) { valid = false; break; }
+        trial.wires.set(edgeKey(wire), wire);
+        wires.push(wire);
       }
       if (!valid) continue;
+      for (const key of copies.junctions ?? []) {
+        const [x, y] = key.split(",").map(Number);
+        trial.junctions.add(`${x + offset},${y + offset}`);
+      }
+      if (wireLayoutError(trial)) continue;
       this.nextComponentId = nextId;
       this.board.components = trial.components;
       this.board.wires = trial.wires;
+      this.board.junctions = trial.junctions;
       this.commit();
       return { components, wires, wireKeys: (copies.wireKeys ?? []).map((key) => {
         const source = copies.wires.find((wire) => edgeKey(wire) === key);

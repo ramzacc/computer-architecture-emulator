@@ -718,6 +718,26 @@ test('a blocked wire route leaves the board untouched', () => {
   assert.equal(ctx.saves, 1);
 });
 
+test('wire crossing junctions toggle, save, and move with their net', () => {
+  const { editor } = setup();
+  for (const edge of [
+    { o: 'H', x: 0, y: 1 }, { o: 'H', x: 1, y: 1 },
+    { o: 'V', x: 1, y: 0 }, { o: 'V', x: 1, y: 1 },
+  ]) assert.equal(editor.addWire(edge), true);
+  assert.equal(editor.evaluation.nets.size, 2);
+  assert.equal(editor.toggleJunction(1, 1), true);
+  assert.equal(editor.evaluation.nets.size, 1);
+  assert.deepEqual(editor.board.junctions, new Set(['1,1']));
+  assert.equal(editor.moveSelection([], ['H:0,1'], 4, 3), true);
+  assert.deepEqual(editor.board.junctions, new Set(['5,4']));
+  const copy = editor.copySelection([], ['H:4,4']);
+  assert.deepEqual(copy.junctions, ['5,4']);
+  assert.ok(editor.pasteSelection(copy));
+  assert.equal(editor.board.junctions.has('7,6'), true);
+  assert.equal(editor.toggleJunction(5, 4), true);
+  assert.equal(editor.evaluation.nets.size, 3);
+});
+
 test('copy and paste preserve component properties and relative positions', () => {
   const ctx = setup();
   const { editor } = ctx;

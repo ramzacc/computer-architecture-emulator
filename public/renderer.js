@@ -1,5 +1,5 @@
 import { bitWidth, channelCount, dimsOf, pinsFor, spec } from "./components.js";
-import { edgeKey, wireSize } from "./model.js";
+import { edgeKey, edgePoints, wireSize } from "./model.js";
 import { formatValue } from "./value-format.js";
 
 const CELL = 48;
@@ -312,7 +312,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   function renderWires(logic = getEvaluation()) {
     const state = getBoard();
     const selectedWires = getSelectedWires();
-    gridEl.querySelectorAll(".wire").forEach((el) => el.remove());
+    gridEl.querySelectorAll(".wire, .wire-junction").forEach((el) => el.remove());
     const info = new Map();
     for (const net of logic.nets.values()) {
       for (const edge of net.edges) info.set(edgeKey(edge), { on: net.on, value: net.value, netId: net.id });
@@ -327,6 +327,25 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       el.className = "wire " + (i.on ? "on" : "off") + (wireSize(w) > 1 ? " bus" : "") + (selected ? " selected" : "");
       el.title = wireTitle(w, i.value);
       applyBox(el, edgeBox(w));
+      gridEl.appendChild(el);
+    }
+    const points = new Map();
+    for (const wire of state.wires.values()) for (const [x, y] of edgePoints(wire)) {
+      const key = `${x},${y}`;
+      if (!points.has(key)) points.set(key, []);
+      points.get(key).push(wire);
+    }
+    for (const [point, wires] of points) {
+      if (wires.length < 3 || !wires.some((wire) => wire.o === "H") ||
+          !wires.some((wire) => wire.o === "V") ||
+          (wires.length === 4 && !state.junctions?.has(point))) continue;
+      const [x, y] = point.split(",").map(Number);
+      const net = info.get(edgeKey(wires[0]));
+      const el = document.createElement("div");
+      el.className = "wire-junction " + (net?.on ? "on" : "off") +
+        (selectedNetIds.has(net?.netId) ? " selected" : "");
+      el.style.left = x * CELL + "px";
+      el.style.top = y * CELL + "px";
       gridEl.appendChild(el);
     }
   }

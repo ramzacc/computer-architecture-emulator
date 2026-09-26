@@ -2,7 +2,7 @@ import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, 
 import { validValueFormat } from "./value-format.js";
 
 export function createBoard() {
-  return { components: [], wires: new Map() };
+  return { components: [], wires: new Map(), junctions: new Set() };
 }
 
 export function edgeKey({ o, x, y }) {
@@ -87,6 +87,26 @@ function wiresAtPoint(board, x, y) {
   return [...board.wires.values()].filter((wire) => edgePoints(wire).some((p) => p[0] === x && p[1] === y));
 }
 
+export function crossingAt(board, x, y) {
+  const wires = wiresAtPoint(board, x, y);
+  return wires.length === 4 && wires.filter((wire) => wire.o === "H").length === 2 &&
+    wires.filter((wire) => wire.o === "V").length === 2;
+}
+
+export function pruneJunctions(board) {
+  for (const key of board.junctions ?? []) {
+    const [x, y] = key.split(",").map(Number);
+    if (!crossingAt(board, x, y)) board.junctions.delete(key);
+  }
+}
+
+function connectedAtPoint(board, edge, x, y) {
+  const touching = wiresAtPoint(board, x, y);
+  if (touching.length === 4 && !board.junctions?.has(`${x},${y}`) && !pinsAtPoint(board, x, y).length)
+    return touching.filter((wire) => wire.o === edge.o);
+  return touching;
+}
+
 function pinsAtPoint(board, x, y) {
   return board.components.flatMap((component) => pinsFor(component)
     .filter((pin) => pin.px === x && pin.py === y)
@@ -99,14 +119,13 @@ export function edgePlacementError(board, edge) {
   if (edgeBlocked(board, edge)) return "Wire is blocked by a component.";
   if (board.wires.has(edgeKey(edge))) return "Wire already exists here.";
   const points = edgePoints(edge);
-  const touching = points.flatMap(([x, y]) => wiresAtPoint(board, x, y));
+  const trial = { ...board, wires: new Map(board.wires) };
+  trial.wires.set(edgeKey(edge), edge);
+  const touching = points.flatMap(([x, y]) => connectedAtPoint(trial, edge, x, y));
   const pins = points.flatMap(([x, y]) => pinsAtPoint(board, x, y));
   if (touching.some((wire) => wireSize(wire) !== wireSize(edge)) ||
       pins.some((size) => size !== wireSize(edge))) return "Bus size mismatch.";
-  const key = edgeKey(edge);
-  board.wires.set(key, { ...edge, size: wireSize(edge) });
-  const conflict = shortCircuitError(board);
-  board.wires.delete(key);
+  const conflict = shortCircuitError(trial);
   if (conflict) return conflict;
   return null;
 }
@@ -119,6 +138,19 @@ export function addWireEdge(board, edge) {
   if (!canPlaceEdge(board, edge)) return false;
   board.wires.set(edgeKey(edge), { ...edge, size: wireSize(edge) });
   return true;
+}
+
+export function wireLayoutError(board) {
+  for (const edge of board.wires.values()) {
+    if (!edgeInBounds(board, edge) || !Number.isSafeInteger(edge.x) || !Number.isSafeInteger(edge.y) ||
+        !validBitWidth(wireSize(edge))) return "Invalid wire route.";
+    if (edgeBlocked(board, edge)) return "Wire is blocked by a component.";
+    for (const [x, y] of edgePoints(edge)) {
+      if (connectedAtPoint(board, edge, x, y).some((wire) => wireSize(wire) !== wireSize(edge)) ||
+          pinsAtPoint(board, x, y).some((size) => size !== wireSize(edge))) return "Bus size mismatch.";
+    }
+  }
+  return shortCircuitError(board);
 }
 
 // Build one continuous orthogonal run. Try the other corner when the first
@@ -158,11 +190,11 @@ export function wireRoute(board, start, end, size) {
       if (existing) {
         if (wireSize(existing) !== size) { error = "Bus size mismatch."; break; }
       } else {
-        error = edgePlacementError(trial, edge);
-        if (error) break;
+        if (edgeBlocked(trial, edge)) { error = "Wire is blocked by a component."; break; }
         trial.wires.set(edgeKey(edge), edge);
       }
     }
+    if (!error) error = wireLayoutError(trial);
     if (!error) return { edges, error: null };
     firstError ??= error;
   }
@@ -177,6 +209,7 @@ export function sanitizeWires(board) {
       board.wires.delete(key);
     }
   }
+  pruneJunctions(board);
 }
 
 const GATE_OPS = {
@@ -217,41 +250,53 @@ function blockOutputs(kind, inputs, size, channels = 2) {
 
 function buildUnionFind(board) {
   const parent = new Map();
-  const find = (point) => {
-    while (parent.get(point) !== point) {
-      parent.set(point, parent.get(parent.get(point)));
-      point = parent.get(point);
+  const find = (key) => {
+    while (parent.get(key) !== key) {
+      parent.set(key, parent.get(parent.get(key)));
+      key = parent.get(key);
     }
-    return point;
+    return key;
   };
   const union = (a, b) => {
     const rootA = find(a), rootB = find(b);
     if (rootA !== rootB) parent.set(rootA, rootB);
   };
+  const atPoint = new Map();
   for (const edge of board.wires.values()) {
-    const [a, b] = edgePoints(edge).map((point) => point.join(","));
-    if (!parent.has(a)) parent.set(a, a);
-    if (!parent.has(b)) parent.set(b, b);
-    union(a, b);
+    const key = edgeKey(edge);
+    parent.set(key, key);
+    for (const point of edgePoints(edge)) {
+      const pointKey = point.join(",");
+      if (!atPoint.has(pointKey)) atPoint.set(pointKey, []);
+      atPoint.get(pointKey).push(edge);
+    }
   }
-  return { parent, find };
+  for (const [point, edges] of atPoint) {
+    const separate = edges.length === 4 && !board.junctions?.has(point) &&
+      !pinsAtPoint(board, ...point.split(",").map(Number)).length;
+    if (separate) for (const orientation of ["H", "V"]) {
+      const pair = edges.filter((edge) => edge.o === orientation);
+      union(edgeKey(pair[0]), edgeKey(pair[1]));
+    } else for (const edge of edges.slice(1)) union(edgeKey(edges[0]), edgeKey(edge));
+  }
+  return { parent, find, atPoint };
 }
 
 // Solve the board to a fixed point: nets carry a value, each component's
 // output (or LED) follows from its inputs. Oscillating feedback is reported
 // to callers so edits can reject it.
 export function evaluateBoard(board, pressedButtons = new Set(), highClocks = new Set(), registerValues = new Map(), ramValues = new Map()) {
-  const { parent, find } = buildUnionFind(board);
+  const { find, atPoint } = buildUnionFind(board);
   const nets = new Map();
   for (const edge of board.wires.values()) {
-    const root = find(edgePoints(edge)[0].join(","));
+    const root = find(edgeKey(edge));
     if (!nets.has(root)) nets.set(root, { id: root, edges: [], size: wireSize(edge), value: 0, on: false });
     nets.get(root).edges.push(edge);
   }
 
   const netAt = (pin) => {
-    const point = `${pin.px},${pin.py}`;
-    return parent.has(point) ? find(point) : null;
+    const edge = atPoint.get(`${pin.px},${pin.py}`)?.[0];
+    return edge ? find(edgeKey(edge)) : null;
   };
   const parts = board.components.map((component) => {
     const entry = spec(component.t);
@@ -519,6 +564,12 @@ export function serialize(board) {
           !validBitWidth(size ?? 1)) throw new Error("Cannot serialize invalid wire.");
       return [o, x, y, size ?? 1];
     }),
+    junctions: [...(board.junctions ?? [])].map((key) => {
+      const [x, y] = key.split(",").map(Number);
+      if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y) || !crossingAt(board, x, y))
+        throw new Error("Cannot serialize invalid junction.");
+      return [x, y];
+    }),
   });
 }
 
@@ -536,9 +587,11 @@ function coordinate(value, path) {
 // Parsing builds a complete board before callers replace the visible one.
 export function parseDocument(text) {
   const data = JSON.parse(text);
-  object(data, "Document", ["components", "wires"]);
+  object(data, "Document", ["components", "wires", "junctions"]);
   if (!Array.isArray(data.components)) throw new Error("Document.components must be an array.");
   if (!Array.isArray(data.wires)) throw new Error("Document.wires must be an array.");
+  if (data.junctions !== undefined && !Array.isArray(data.junctions))
+    throw new Error("Document.junctions must be an array.");
   const board = createBoard();
   const occupied = new Set();
   for (const [index, raw] of data.components.entries()) {
@@ -604,7 +657,6 @@ export function parseDocument(text) {
       pinSizes.get(key).add(pin.size);
     }
   }
-  const pointWidths = new Map();
   for (const [index, raw] of data.wires.entries()) {
     const path = `wires[${index}]`;
     if (!Array.isArray(raw) || raw.length !== 4) throw new Error(`${path} must be [orientation, x, y, size].`);
@@ -617,15 +669,36 @@ export function parseDocument(text) {
     const key = edgeKey(edge);
     if (board.wires.has(key)) throw new Error(`${path} duplicates a wire.`);
     if (blockedEdges.has(key)) throw new Error(`${path} is blocked by a component.`);
-    for (const point of edgePoints(edge)) {
-      const pointKey = point.join(",");
-      const pins = pinSizes.get(pointKey);
-      if ((pointWidths.has(pointKey) && pointWidths.get(pointKey) !== size) ||
-          (pins && (pins.size !== 1 || !pins.has(size))))
-        throw new Error(`${path} has a bus size mismatch.`);
-      pointWidths.set(pointKey, size);
-    }
     board.wires.set(key, edge);
+  }
+  if (data.junctions === undefined) {
+    // Documents saved before crossings were supported joined all touching wires.
+    for (const edge of board.wires.values()) for (const [x, y] of edgePoints(edge))
+      if (crossingAt(board, x, y)) board.junctions.add(`${x},${y}`);
+  } else for (const [index, raw] of data.junctions.entries()) {
+    const path = `junctions[${index}]`;
+    if (!Array.isArray(raw) || raw.length !== 2) throw new Error(`${path} must be [x, y].`);
+    const [x, y] = raw;
+    coordinate(x, `${path}[0]`);
+    coordinate(y, `${path}[1]`);
+    const key = `${x},${y}`;
+    if (!crossingAt(board, x, y) || board.junctions.has(key)) throw new Error(`${path} is not a unique crossing.`);
+    board.junctions.add(key);
+  }
+  const wireIndexes = new Map(data.wires.map(([o, x, y], index) => [edgeKey({ o, x, y }), index]));
+  for (const [index, raw] of data.wires.entries()) {
+    const edge = board.wires.get(edgeKey({ o: raw[0], x: raw[1], y: raw[2] }));
+    for (const [x, y] of edgePoints(edge)) {
+      const connected = connectedAtPoint(board, edge, x, y);
+      const pins = pinSizes.get(`${x},${y}`);
+      const mismatched = connected.find((wire) => wireSize(wire) !== edge.size);
+      if (mismatched) {
+        const later = Math.max(index, wireIndexes.get(edgeKey(mismatched)));
+        throw new Error(`wires[${later}] has a bus size mismatch.`);
+      }
+      if (pins && (pins.size !== 1 || !pins.has(edge.size)))
+        throw new Error(`wires[${index}] has a bus size mismatch.`);
+    }
   }
   const conflict = shortCircuitError(board);
   if (conflict) throw new Error(conflict);

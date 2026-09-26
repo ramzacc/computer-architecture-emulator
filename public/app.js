@@ -723,10 +723,19 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
 
   if (mode === MODE.WIRE) {
     const point = pointFromEvent(e);
+    if (e.shiftKey) {
+      clearWireGesture();
+      const changed = editor.toggleJunction(point.x, point.y);
+      busStatus(changed
+        ? "Crossing connection changed. Shift-click to toggle it again."
+        : "No compatible four-way crossing here, or joining it would short the circuit.",
+        !changed);
+      return;
+    }
     if (!wireStart) {
       wireStart = point;
       setSelection([]);
-      busStatus("Click to place a corner or endpoint. Double-click or right-click to finish; Esc cancels.");
+      busStatus("Click to place a corner or endpoint. Shift-click a crossing to join or separate it. Double-click or right-click to finish; Esc cancels.");
     } else if (point.x !== wireStart.x || point.y !== wireStart.y) {
       const result = editor.addWireRoute(wireStart, point, newWireSize);
       if (result.error) busStatus(result.error, true);
