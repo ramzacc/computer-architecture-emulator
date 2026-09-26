@@ -40,14 +40,19 @@ const paletteEmptyEl = document.getElementById("palette-empty");
 const btnWire = document.getElementById("btn-wire");
 const btnPan = document.getElementById("btn-pan");
 const btnSelect = document.getElementById("btn-select");
-const canvasModesEl = document.querySelector(".canvas-modes");
+const canvasViewEl = document.getElementById("canvas-view");
+const romViewEl = document.getElementById("rom-view");
+const tabCanvasEl = document.getElementById("tab-canvas");
+const tabRomEl = document.getElementById("tab-rom");
 const btnCopy = document.getElementById("btn-copy");
 const btnPaste = document.getElementById("btn-paste");
 const btnDelete = document.getElementById("btn-delete");
 const canvasWrapEl = document.getElementById("canvas-wrap");
 const zoomLabelEl = document.getElementById("zoom-level");
 const newWireSizeEl = document.getElementById("new-wire-size");
+const newWireRowEl = document.getElementById("new-wire-row");
 const selectedPropertiesHeadingEl = document.getElementById("selected-properties-heading");
+const inspectorEmptyEl = document.getElementById("inspector-empty");
 const selectedSizeRowEl = document.getElementById("selected-size-row");
 const selectedSizeLabelEl = document.getElementById("selected-size-label");
 const selectedSizeEl = document.getElementById("selected-size");
@@ -72,6 +77,27 @@ const clockFrequencyRowEl = document.getElementById("clock-frequency-row");
 const clockFrequencyEl = document.getElementById("clock-frequency");
 const clockEnableRowEl = document.getElementById("clock-enable-row");
 const clockEnableEl = document.getElementById("clock-enable");
+
+function showView(view) {
+  const canvasActive = view === "canvas";
+  canvasViewEl.hidden = !canvasActive;
+  romViewEl.hidden = canvasActive;
+  tabCanvasEl.setAttribute("aria-selected", String(canvasActive));
+  tabRomEl.setAttribute("aria-selected", String(!canvasActive));
+  tabCanvasEl.tabIndex = canvasActive ? 0 : -1;
+  tabRomEl.tabIndex = canvasActive ? -1 : 0;
+}
+
+for (const [tab, view] of [[tabCanvasEl, "canvas"], [tabRomEl, "rom"]]) {
+  tab.addEventListener("click", () => showView(view));
+  tab.addEventListener("keydown", (e) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    const target = e.key === "Home" ? tabCanvasEl : e.key === "End" ? tabRomEl : tab === tabCanvasEl ? tabRomEl : tabCanvasEl;
+    target.click();
+    target.focus();
+  });
+}
 const busStatusEl = document.getElementById("bus-status");
 const { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox } =
   createRenderer(gridEl, () => state, () => editor.evaluation, () => selectedIds, () => selectedWires);
@@ -94,6 +120,7 @@ function syncActionButtons() {
 
 function busStatus(message, error = false) {
   busStatusEl.textContent = message;
+  busStatusEl.hidden = !message;
   busStatusEl.classList.toggle("error", error);
 }
 
@@ -101,7 +128,10 @@ function renderProperties() {
   const component = state.components.find((c) => c.id === selectedId);
   const net = selectedWire ? netContaining(state, selectedWire, editor.evaluation) : null;
   const selectionCount = selectedIds.size + selectedWires.size;
-  selectedPropertiesHeadingEl.textContent = selectionCount > 1 ? `${selectionCount} items selected` : component ? "Component properties" : net ? "Wire properties" : "Selected properties";
+  selectedPropertiesHeadingEl.textContent = selectionCount > 1 ? `${selectionCount} items selected` : component ? spec(component.t).label : net ? "Wire" : mode === MODE.WIRE ? "Wire tool" : "Inspector";
+  newWireRowEl.hidden = mode !== MODE.WIRE;
+  inspectorEmptyEl.hidden = selectionCount > 0 || mode === MODE.WIRE;
+  inspectorEmptyEl.textContent = placingType ? "Click the canvas to place the selected component." : "Select a component or wire to edit its properties.";
   const size = component && (isSizable(component) || component.t === "debugdisplay") ? bitWidth(component) : net?.size;
   selectedSizeRowEl.hidden = size === undefined;
   selectedSizeLabelEl.textContent = component?.t === "rom" || component?.t === "mux" || component?.t === "demux" ? "Data size (bits)" : "Selected size (bits)";
@@ -393,7 +423,7 @@ function renderPalette() {
     btn.addEventListener("click", () => {
       placingType = placingType === type ? null : type;
       // Arming a component is a normal-canvas activity, so leave wire mode.
-      if (placingType) { mode = MODE.PAN; clearWireGesture(); }
+      if (placingType) { mode = MODE.PAN; clearWireGesture(); setSelection([]); }
       renderPalette();
       syncPlacingCursor();
     });
@@ -419,6 +449,7 @@ function syncPlacingCursor() {
   if (mode !== MODE.WIRE) {
     clearWireGesture();
   }
+  renderProperties();
 }
 
 function render() {
@@ -432,10 +463,11 @@ function render() {
 
 /* ---------- Interaction ---------- */
 
-canvasModesEl.addEventListener("pointerdown", (e) => e.stopPropagation());
-canvasModesEl.addEventListener("dblclick", (e) => e.stopPropagation());
-canvasModesEl.addEventListener("contextmenu", (e) => e.stopPropagation());
-canvasModesEl.addEventListener("wheel", (e) => e.stopPropagation());
+for (const controls of document.querySelectorAll(".canvas-controls")) {
+  for (const type of ["pointerdown", "dblclick", "contextmenu", "wheel"]) {
+    controls.addEventListener(type, (e) => e.stopPropagation());
+  }
+}
 
 canvasWrapEl.addEventListener("pointerdown", (e) => {
   if (e.button === 2) return;
@@ -820,6 +852,7 @@ canvasWrapEl.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 document.addEventListener("keydown", (e) => {
+  if (canvasViewEl.hidden) return;
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
   const mod = e.ctrlKey || e.metaKey;
   const zoomIn = e.key === "+" || e.key === "=" || e.code === "NumpadAdd";
