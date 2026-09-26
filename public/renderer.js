@@ -25,10 +25,23 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
 
   // All parts share the same chassis and edge connection treatment. Geometry
   // stays on the model's lattice so existing boards and rotations still align.
-  const ink = "#e8e9ec";
-  const muted = "#a0a3ab";
-  const surface = "#202126";
-  const border = "#555861";
+  const ink = "var(--part-ink)";
+  const muted = "var(--part-muted)";
+  const surface = "var(--part-surface)";
+  const border = "var(--part-border)";
+  const recess = "var(--part-recess)";
+  const display = "var(--part-display)";
+  const displayBorder = "var(--part-display-border)";
+  const segmentOn = "var(--part-segment-on)";
+  const segmentOff = "var(--part-segment-off)";
+
+  function partAccent(s) {
+    if (s.splitter) return "var(--part-splitter)";
+    if (s.register || s.rom || s.ram || s.counter || s.block) return "var(--part-memory)";
+    if (s.op) return "var(--part-logic)";
+    if (["output", "led", "sevenseg", "debugdisplay"].includes(s.shape)) return "var(--part-output)";
+    return "var(--part-control)";
+  }
 
   function textAt(x, y, value, size = 12, color = ink, weight = 600, anchor = "middle") {
     return `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle" fill="${color}" font-family="Inter, system-ui, sans-serif" font-size="${size}" font-weight="${weight}">${value}</text>`;
@@ -88,14 +101,14 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       const on = (current >>> bit) & 1;
       const x = (index + 1) * U + 3;
       return `<g class="bit-tile${c.t === "input" ? " interactive" : ""}"${c.t === "input" ? ` data-bit="${bit}"` : ""}>
-        <rect x="${x}" y="43" width="34" height="30" rx="5" fill="${on ? s.color : "#17181d"}" stroke="${on ? s.color : border}"/>
-        ${textAt(x + 8, 58, bit, 8, on ? "#45413c" : muted, 650)}
-        ${textAt(x + 23, 58, on, 16, on ? "#17181d" : ink, 750)}</g>`;
+        <rect x="${x}" y="43" width="34" height="30" rx="5" fill="${on ? partAccent(s) : recess}" stroke="${on ? partAccent(s) : border}"/>
+        ${textAt(x + 8, 58, bit, 8, on ? "var(--part-active-ink)" : muted, 650)}
+        ${textAt(x + 23, 58, on, 16, on ? "var(--part-active-ink)" : ink, 750)}</g>`;
     }).join("");
     const formatted = formatValue(current, width, c.format);
-    const base = frame(w, h, s.color) + textAt(w / 2, 16, escapeText(shown), 9, s.color, 750) +
+    const base = frame(w, h, partAccent(s)) + textAt(w / 2, 16, escapeText(shown), 9, partAccent(s), 750) +
       textAt(w / 2, 31, escapeText(formatted), 7, muted, 650) + tiles +
-      ports(actualPins(c), w, h, s.color);
+      ports(actualPins(c), w, h, partAccent(s));
     return svgWrap(base, { w: width + 1, h: 2 }, 0);
   }
 
@@ -103,25 +116,25 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const w = 80, h = 80;
     let graphic = "";
     if (s.shape === "button") {
-      graphic = `<circle class="button-cap" cx="40" cy="48" r="15" fill="${active ? s.color : "#3b3d45"}" stroke="${s.color}" stroke-width="2"/>
-        <circle cx="40" cy="48" r="5" fill="${active ? surface : s.color}"/>`;
+      graphic = `<circle class="button-cap" cx="40" cy="48" r="15" fill="${active ? partAccent(s) : recess}" stroke="${partAccent(s)}" stroke-width="2"/>
+        <circle cx="40" cy="48" r="5" fill="${active ? surface : partAccent(s)}"/>`;
     } else if (s.shape === "switch") {
-      graphic = `<rect x="22" y="39" width="36" height="18" rx="9" fill="#141519" stroke="${border}" stroke-width="1.5"/>
-        <circle cx="${active ? 48 : 32}" cy="48" r="7" fill="${active ? s.color : muted}"/>`;
+      graphic = `<rect x="22" y="39" width="36" height="18" rx="9" fill="${recess}" stroke="${border}" stroke-width="1.5"/>
+        <circle cx="${active ? 48 : 32}" cy="48" r="7" fill="${active ? partAccent(s) : muted}"/>`;
     } else {
-      graphic = `<path d="M20 50 H31 V39 H46 V50 H60" fill="none" stroke="${s.color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
-        <circle cx="57" cy="29" r="3" fill="${active ? s.color : muted}"/>`;
+      graphic = `<path d="M20 50 H31 V39 H46 V50 H60" fill="none" stroke="${partAccent(s)}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="57" cy="29" r="3" fill="${active ? partAccent(s) : muted}"/>`;
     }
     const name = s.shape === "switch" ? "SWITCH" : s.shape.toUpperCase();
-    return svgWrap(frame(w, h, s.color) + textAt(40, 23, name, 9, s.color, 750) + graphic +
-      ports(actualPins(c), w, h, s.color), s, 0);
+    return svgWrap(frame(w, h, partAccent(s)) + textAt(40, 23, name, 9, partAccent(s), 750) + graphic +
+      ports(actualPins(c), w, h, partAccent(s)), s, 0);
   }
 
   function ledArt(c, s) {
-    return svgWrap(frame(80, 80, s.color) + textAt(40, 23, "LED", 9, s.color, 750) +
-      `<circle cx="40" cy="49" r="17" fill="#141519" stroke="${border}" stroke-width="1.5"/>
-       <circle class="led-lamp" cx="40" cy="49" r="10" fill="#5e6068"/>` +
-      ports(actualPins(c), 80, 80, s.color), s, 0);
+    return svgWrap(frame(80, 80, partAccent(s)) + textAt(40, 23, "LED", 9, partAccent(s), 750) +
+      `<circle cx="40" cy="49" r="17" fill="${recess}" stroke="${border}" stroke-width="1.5"/>
+       <circle class="led-lamp" cx="40" cy="49" r="10" fill="var(--part-lamp-off)"/>` +
+      ports(actualPins(c), 80, 80, partAccent(s)), s, 0);
   }
 
   function segmentPaths() {
@@ -134,17 +147,17 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   }
 
   function segments(inputs) {
-    return segmentPaths().map((path, i) => `<path d="${path}" fill="${inputs[i] ? "#f2bb85" : "#3b3840"}"/>`).join("");
+    return segmentPaths().map((path, i) => `<path d="${path}" fill="${inputs[i] ? segmentOn : segmentOff}"/>`).join("");
   }
 
   function sevenSegArt(c, s, inputs) {
     const d = dimsOf(c), w = d.w * U, h = d.h * U;
     const tx = (w - 240) / 2, ty = (h - 200) / 2;
-    const display = `<g transform="translate(${tx} ${ty})">
-      <rect x="56" y="19" width="128" height="164" rx="8" fill="#17181d" stroke="#44464e" stroke-width="1"/>
+    const displayArt = `<g transform="translate(${tx} ${ty})">
+      <rect x="56" y="19" width="128" height="164" rx="8" fill="${display}" stroke="${displayBorder}" stroke-width="1"/>
       ${segments(inputs)}</g>`;
     const pins = actualPins(c);
-    return svgWrap(frame(w, h, s.color) + display + ports(pins, w, h, s.color) +
+    return svgWrap(frame(w, h, partAccent(s)) + displayArt + ports(pins, w, h, partAccent(s)) +
       portLabels(pins, w, h), d, 0);
   }
 
@@ -153,10 +166,10 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       "1111111", "1111011", "1110111", "0011111", "1001110", "0111101", "1001111", "1000111"];
     const inputs = [...patterns[value & 15]].map(Number);
     const pins = actualPins(c);
-    return svgWrap(frame(160, 160, s.color) + textAt(80, 146, "DBG", 9, s.color, 750) +
-      `<rect x="40" y="31" width="80" height="107" rx="7" fill="#17181d" stroke="#44464e" stroke-width="1"/>
+    return svgWrap(frame(160, 160, partAccent(s)) + textAt(80, 146, "DBG", 9, partAccent(s), 750) +
+      `<rect x="40" y="31" width="80" height="107" rx="7" fill="${display}" stroke="${displayBorder}" stroke-width="1"/>
        <g transform="translate(19 33) scale(.5)">${segments(inputs)}</g>` +
-      ports(pins, 160, 160, s.color) + portLabels(pins, 160, 160), s, 0);
+      ports(pins, 160, 160, partAccent(s)) + portLabels(pins, 160, 160), s, 0);
   }
 
   function chipArt(c, s) {
@@ -189,21 +202,21 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const smallLabel = rw <= 120 && title.length >= 11 ? 8 : title.length > 11 ? 9 : 10;
     const glyph = textAt(rw / 2, glyphY, glyphs[s.shape], symbolSize, ink, 650);
     const negation = ["nand", "nor", "xnor"].includes(s.shape)
-      ? `<circle cx="${rw / 2 + (rw === 80 ? 19 : 31)}" cy="${glyphY - 1}" r="3" fill="${s.color}"/>` : "";
+      ? `<circle cx="${rw / 2 + (rw === 80 ? 19 : 31)}" cy="${glyphY - 1}" r="3" fill="${partAccent(s)}"/>` : "";
     const channel = ["mux", "demux"].includes(s.shape)
       ? textAt(rw / 2, titleY + 17, `${channelCount(c)} CHANNELS`, 9, muted, 650) : "";
-    const labels = textAt(rw / 2, titleY, title, smallLabel, s.color, 750) + glyph +
+    const labels = textAt(rw / 2, titleY, title, smallLabel, partAccent(s), 750) + glyph +
       negation + channel + portLabels(pins, rw, rh);
-    return svgWrap(frame(w, h, s.color) + ports(localPins(c, s), w, h, s.color), d, c.r, labels);
+    return svgWrap(frame(w, h, partAccent(s)) + ports(localPins(c, s), w, h, partAccent(s)), d, c.r, labels);
   }
 
   function splitterArt(c, s) {
     const n = bitWidth(c), h = (n + 1) * U;
     const pins = localPins(c, s);
     const branches = pins.filter((pin) => pin.role === "out").map((pin) =>
-      `<path d="M40 ${pin.y * U} H80" stroke="${s.color}" stroke-width="2" fill="none"/>` +
-      `<circle cx="40" cy="${pin.y * U}" r="3" fill="${s.color}"/>`).join("");
-    const spine = `<path d="M40 0 V${n * U}" stroke="${s.color}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+      `<path d="M40 ${pin.y * U} H80" stroke="${partAccent(s)}" stroke-width="3" fill="none"/>` +
+      `<circle cx="40" cy="${pin.y * U}" r="3" fill="${partAccent(s)}"/>`).join("");
+    const spine = `<path d="M40 0 V${n * U}" stroke="${partAccent(s)}" stroke-width="4" fill="none" stroke-linecap="round"/>`;
     const d = dimsOf(c), rw = d.w * U, rh = d.h * U;
     const bitLabels = actualPins(c).filter((pin) => pin.role === "out").map((pin) => {
       const x = pin.x * U, y = pin.y * U;
@@ -214,7 +227,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     }).join("");
     // The rail reaches lattice points at the SVG edges; stretching it to the
     // full component footprint keeps those endpoints on the model's pins.
-    return svgWrap(spine + branches + ports(pins, 80, h, s.color),
+    return svgWrap(spine + branches + ports(pins, 80, h, partAccent(s)),
       { w: 2, h: n + 1 }, c.r, bitLabels, "none");
   }
 
