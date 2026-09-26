@@ -12,6 +12,7 @@ export class BoardEditor {
     this.pressedButtons = new Set();
     this.highClocks = new Set();
     this.registerValues = new Map();
+    this.ramValues = new Map();
     this.evaluation = evaluateBoard(this.board);
     this.storage = storage;
     this.onChange = onChange;
@@ -45,7 +46,20 @@ export class BoardEditor {
       const mask = width === 32 ? 0xffffffff : 2 ** width - 1;
       this.registerValues.set(component.id, ((this.registerValues.get(component.id) ?? 0) & mask) >>> 0);
     }
-    const next = evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues);
+    const ramComponents = this.board.components.filter((component) => component.t === "ram");
+    const ramIds = new Set(ramComponents.map((component) => component.id));
+    for (const id of this.ramValues.keys()) if (!ramIds.has(id)) this.ramValues.delete(id);
+    for (const component of ramComponents) {
+      const words = this.ramValues.get(component.id) ?? new Map();
+      const maxAddress = 2 ** component.addressSize;
+      const maxValue = 2 ** component.size;
+      for (const [address, value] of words) {
+        if (address >= maxAddress) words.delete(address);
+        else words.set(address, value % maxValue);
+      }
+      this.ramValues.set(component.id, words);
+    }
+    const next = evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues, this.ramValues);
     const captured = new Map();
     for (const component of stored) {
       const inputs = next.states.get(component.id).inputs;
@@ -61,8 +75,16 @@ export class BoardEditor {
       }
     }
     for (const [id, value] of captured) this.registerValues.set(id, value);
-    this.evaluation = captured.size
-      ? evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues)
+    let wroteRam = false;
+    if (captureEdges) for (const component of ramComponents) {
+      const inputs = next.states.get(component.id).inputs;
+      if ((this.evaluation.states.get(component.id)?.inputs[2] ?? 0) === 0 && inputs[2] !== 0) {
+        this.ramValues.get(component.id).set(inputs[0], inputs[1] >>> 0);
+        wroteRam = true;
+      }
+    }
+    this.evaluation = captured.size || wroteRam
+      ? evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues, this.ramValues)
       : next;
     this.onChange(this.board, this.evaluation);
     return this.evaluation;
@@ -136,6 +158,7 @@ export class BoardEditor {
     this.pressedButtons.clear();
     this.highClocks.clear();
     this.registerValues.clear();
+    this.ramValues.clear();
     this.nextComponentId = board.components.length + 1;
     if (save) this.commit();
     else this.evaluate();
@@ -156,6 +179,7 @@ export class BoardEditor {
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
       ...(["constant", "input"].includes(type) ? { size: 1, value: 0 } : {}),
       ...(type === "rom" ? { size: 8, addressSize: 8, data: [] } : {}),
+      ...(type === "ram" ? { size: 8, addressSize: 8 } : {}),
       ...(type === "switch" ? { value: 0 } : {}),
       ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY, enable: false } : {}),
       ...(type === "output" ? { size: 1 } : {}),
@@ -262,7 +286,7 @@ export class BoardEditor {
     const component = this.component(id);
     if (!component || !isSizable(component) || !validBitWidth(size) ||
         (["constant", "input"].includes(component.t) && size > 8) ||
-        (component.t === "rom" && !validRomWidth(size))) return false;
+        (["rom", "ram"].includes(component.t) && !validRomWidth(size))) return false;
     if (bitWidth(component) === size) return false;
     const changes = { size };
     if (["constant", "input"].includes(component.t)) changes.value = Math.min(component.value ?? 0, 2 ** size - 1);
@@ -283,6 +307,13 @@ export class BoardEditor {
   resizeRomAddress(id, addressSize) {
     const component = this.component(id);
     if (component?.t !== "rom" || !validRomAddressWidth(addressSize) ||
+        (component.addressSize ?? 8) === addressSize) return false;
+    return this.editComponent(component, { addressSize }, { sanitize: true });
+  }
+
+  resizeRamAddress(id, addressSize) {
+    const component = this.component(id);
+    if (component?.t !== "ram" || !validRomAddressWidth(addressSize) ||
         (component.addressSize ?? 8) === addressSize) return false;
     return this.editComponent(component, { addressSize }, { sanitize: true });
   }

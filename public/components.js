@@ -42,6 +42,15 @@ export const COMPONENT_TYPES = {
       { x: 2, y: 3, dir: "S", role: "out", name: "DATA" },
     ],
   },
+  ram: {
+    label: "RAM", w: 4, h: 3, color: "#aaa8b1", shape: "ram", ram: true,
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "ADDR" },
+      { x: 2, y: 0, dir: "N", role: "in", name: "DIN" },
+      { x: 3, y: 0, dir: "N", role: "in", name: "WR", size: 1 },
+      { x: 2, y: 3, dir: "S", role: "out", name: "DATA" },
+    ],
+  },
   counter: {
     label: "Counter", w: 4, h: 3, color: "#aaa8b1", shape: "counter", counter: true,
     pins: [
@@ -227,7 +236,7 @@ export function selectWidth(component) {
 
 export function isSizable(component) {
   const entry = spec(component.t);
-  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output);
+  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output);
 }
 
 export function bitWidth(component) {
@@ -276,6 +285,10 @@ export function validRom(component) {
     addresses.add(address);
   }
   return true;
+}
+
+export function validRam(component) {
+  return validRomWidth(bitWidth(component)) && validRomAddressWidth(addressWidth(component));
 }
 
 export function spec(type) {
@@ -363,7 +376,7 @@ export function pinsFor(component) {
     const px = component.x + lx;
     const py = component.y + ly;
     const dir = bitRow ? pin.dir : rotateDir(pin.dir, r);
-    const size = entry.rom && pin.role === "in" ? addressWidth(component) : pin.size ?? width;
+    const size = (entry.rom || entry.ram) && pin.name === "ADDR" ? addressWidth(component) : pin.size ?? width;
     return { px, py, dir, role: pin.role, name: pin.name, size, bit: pin.bit, edge: outwardEdge(px, py, dir) };
   });
 }

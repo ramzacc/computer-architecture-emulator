@@ -158,14 +158,15 @@ function renderProperties() {
   inspectorEmptyEl.hidden = selectionCount > 0 || mode === MODE.WIRE;
   inspectorEmptyEl.textContent = placingType ? "Click the canvas to place the selected component." : "Select a component or wire to edit its properties.";
   const size = component && (isSizable(component) || component.t === "debugdisplay") ? bitWidth(component) : net?.size;
-  selectedSizeRowEl.hidden = size === undefined || component?.t === "rom";
-  selectedSizeLabelEl.textContent = component?.t === "rom" || component?.t === "mux" || component?.t === "demux" ? "Data size (bits)" : "Selected size (bits)";
+  const memory = component?.t === "rom" || component?.t === "ram";
+  selectedSizeRowEl.hidden = size === undefined || memory;
+  selectedSizeLabelEl.textContent = memory || component?.t === "mux" || component?.t === "demux" ? "Data size (bits)" : "Selected size (bits)";
   selectedSizeEl.disabled = size === undefined || component?.t === "debugdisplay";
   selectedSizeEl.value = size === undefined ? "" : String(size);
   selectedSizeEl.max = ["constant", "input"].includes(component?.t) ? "8" : "32";
-  romDataSizeRowEl.hidden = component?.t !== "rom";
-  romDataSizeEl.disabled = component?.t !== "rom";
-  romDataSizeEl.value = component?.t === "rom" ? String(bitWidth(component)) : "8";
+  romDataSizeRowEl.hidden = !memory;
+  romDataSizeEl.disabled = !memory;
+  romDataSizeEl.value = memory ? String(bitWidth(component)) : "8";
   const plexer = component?.t === "mux" || component?.t === "demux";
   channelsRowEl.hidden = !plexer;
   channelsEl.disabled = !plexer;
@@ -184,9 +185,9 @@ function renderProperties() {
   componentLabelEl.disabled = !named;
   componentLabelEl.value = named ? component.label ?? "" : "";
   const rom = component?.t === "rom";
-  romAddressSizeRowEl.hidden = !rom;
-  romAddressSizeEl.disabled = !rom;
-  romAddressSizeEl.value = rom ? String(addressWidth(component)) : "";
+  romAddressSizeRowEl.hidden = !memory;
+  romAddressSizeEl.disabled = !memory;
+  romAddressSizeEl.value = memory ? String(addressWidth(component)) : "";
   romOpenEl.hidden = !rom;
   const valueFormat = source || component?.t === "output";
   valueFormatRowEl.hidden = !valueFormat;
@@ -200,11 +201,11 @@ function renderProperties() {
   clockEnableEl.disabled = !clock;
   clockEnableEl.checked = clock && component.enable !== false;
   const output = component?.t === "output" || component?.t === "debugdisplay";
-  const stored = component?.t === "register" || component?.t === "counter";
+  const stored = component?.t === "register" || component?.t === "counter" || component?.t === "ram";
   const displayedValue = output || stored ? editor.evaluation.states.get(component.id)?.value ?? 0 : net?.value;
   const displayedSize = output || stored ? bitWidth(component) : net?.size;
   selectedValueRowEl.hidden = !net && !output && !stored;
-  selectedValueLabelEl.textContent = stored ? "Stored value (Q)" : component?.t === "debugdisplay" ? "Debug value" : output ? "Output value" : "Selected bus value";
+  selectedValueLabelEl.textContent = component?.t === "ram" ? "Data at address" : stored ? "Stored value (Q)" : component?.t === "debugdisplay" ? "Debug value" : output ? "Output value" : "Selected bus value";
   selectedValueEl.textContent = displayedValue === undefined ? "—" : output
     ? formatValue(displayedValue, displayedSize, component.t === "debugdisplay" ? "hex" : component.format)
     : displayedSize === 1 ? `${displayedValue} (${displayedValue ? "HIGH" : "LOW"})`
@@ -215,10 +216,10 @@ function renderProperties() {
   }
   if (clock && !busStatusEl.classList.contains("error"))
     busStatus(`Clock: ${component.frequency ?? DEFAULT_CLOCK_FREQUENCY} Hz, ${component.enable === false ? "disabled" : "enabled"}.`);
-  if (rom && !busStatusEl.classList.contains("error")) {
+  if (memory && !busStatusEl.classList.contains("error")) {
     const inputs = editor.evaluation.states.get(component.id)?.inputs ?? [];
     const value = editor.evaluation.states.get(component.id)?.value ?? 0;
-    busStatus(`ROM address ${(inputs[0] ?? 0).toString(16).toUpperCase().padStart(Math.ceil(addressWidth(component) / 4), "0")}: ${value.toString(16).toUpperCase()}.`);
+    busStatus(`${component.t.toUpperCase()} address ${(inputs[0] ?? 0).toString(16).toUpperCase().padStart(Math.ceil(addressWidth(component) / 4), "0")}: ${value.toString(16).toUpperCase()}.`);
   }
   syncActionButtons();
 }
@@ -251,15 +252,18 @@ selectedSizeEl.addEventListener("change", () => {
 
 romDataSizeEl.addEventListener("change", () => {
   const size = Number(romDataSizeEl.value);
-  if (editor.resizeComponent(selectedId, size)) busStatus(`ROM data size set to ${size} bits.`);
-  else busStatus("ROM data size must match connected wires.", true);
+  const kind = editor.component(selectedId)?.t.toUpperCase() ?? "Memory";
+  if (editor.resizeComponent(selectedId, size)) busStatus(`${kind} data size set to ${size} bits.`);
+  else busStatus(`${kind} data size must match connected wires.`, true);
   renderProperties();
 });
 
 romAddressSizeEl.addEventListener("change", () => {
   const size = Number(romAddressSizeEl.value);
-  if (editor.resizeRomAddress(selectedId, size)) busStatus(`ROM address size set to ${size} bits.`);
-  else busStatus("ROM address width must be 1, 2, 4, 8, or 16 bits, fit connected wires, and include every stored address.", true);
+  const kind = editor.component(selectedId)?.t;
+  const changed = kind === "ram" ? editor.resizeRamAddress(selectedId, size) : editor.resizeRomAddress(selectedId, size);
+  if (changed) busStatus(`${kind.toUpperCase()} address size set to ${size} bits.`);
+  else busStatus(`${kind?.toUpperCase() ?? "Memory"} address width must be 1, 2, 4, 8, or 16 bits and fit connected wires${kind === "rom" ? ", and include every stored address" : ""}.`, true);
   renderProperties();
 });
 
