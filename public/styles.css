@@ -51,7 +51,7 @@ button:disabled { opacity: .4; cursor: default; border-color: var(--line); }
 .file-label { position: relative; }
 .file-label input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .file-label:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.file-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.file-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
 .file-actions > * { display: flex; align-items: center; justify-content: center; text-align: center; }
 
 main {
@@ -78,9 +78,6 @@ main {
 .library-section { display: flex; flex-direction: column; flex: 0 1 52%; min-height: 170px; padding: 20px 0 16px; border-bottom: 1px solid var(--line); }
 .inspector-section { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 20px 0; }
 .file-section { flex: 0 0 auto; border-top: 1px solid var(--line); padding: 14px 0 16px; }
-.file-section summary { cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 600; }
-.file-section summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.file-section .file-actions { margin-top: 12px; }
 
 .canvas-wrap {
   position: relative;
