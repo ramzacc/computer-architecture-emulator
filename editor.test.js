@@ -42,6 +42,40 @@ test('successful edits render and save once, while rejected edits do neither', (
   assert.equal(ctx.renders, ctx.saves);
 });
 
+test('undo and redo restore committed board edits and saved state', () => {
+  const ctx = setup();
+  const { editor, data } = ctx;
+  const first = editor.place('constant', 0, 0);
+  const second = editor.place('led', 3, 0);
+  assert.equal(editor.move(first.id, 1, 0), true);
+  assert.equal(editor.canUndo, true);
+  assert.equal(editor.canRedo, false);
+  assert.equal(editor.undo(), true);
+  assert.equal(editor.component(first.id).x, 0);
+  assert.equal(editor.undo(), true);
+  assert.equal(editor.component(second.id), undefined);
+  assert.equal(editor.redo(), true);
+  assert.equal(editor.component(second.id).t, 'led');
+  assert.equal(editor.redo(), true);
+  assert.equal(editor.component(first.id).x, 1);
+  assert.equal(data.get(STORAGE_KEY), serialize(editor.board));
+  assert.equal(editor.redo(), false);
+  assert.equal(editor.undo(), true);
+  assert.equal(editor.place('led', 6, 0) !== null, true);
+  assert.equal(editor.canRedo, false);
+});
+
+test('replacing a document starts a new undo history', () => {
+  const { editor } = setup();
+  editor.place('led', 0, 0);
+  editor.replaceBoard(parseDocument(serialize(editor.board)).board);
+  assert.equal(editor.canUndo, false);
+  assert.equal(editor.undo(), false);
+  editor.place('led', 3, 0);
+  assert.equal(editor.undo(), true);
+  assert.equal(editor.board.components.length, 1);
+});
+
 test('ROM reads an eight-bit address, drives a sized word, and persists its contents', () => {
   const { editor } = setup();
   const address = editor.place('constant', 1, 0);
