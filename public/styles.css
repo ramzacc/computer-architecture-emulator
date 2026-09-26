@@ -33,8 +33,7 @@ body {
 .view-tabs button { border-radius: 7px 7px 0 0; border-bottom: 0; }
 .view-tabs button[aria-selected="true"] { background: var(--bg); border-color: var(--line); color: #fff; }
 
-h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 22px 0 10px; }
-.panel > h2:first-child { margin-top: 0; }
+h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0 0 12px; }
 
 button, .file-label {
   background: #292b32;
@@ -65,17 +64,22 @@ main {
 .rom-view { height: 100%; }
 
 .panel {
+  display: flex;
+  flex-direction: column;
   width: 280px;
   flex: 0 0 auto;
   background: var(--panel);
   border-right: 1px solid var(--line);
-  padding: 20px 16px;
+  padding: 0 16px;
   max-height: 100%;
-  overflow: auto;
+  overflow-y: auto;
 }
 
-.file-section { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 14px; }
+.library-section { display: flex; flex-direction: column; flex: 0 1 52%; min-height: 170px; padding: 20px 0 16px; border-bottom: 1px solid var(--line); }
+.inspector-section { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 20px 0; }
+.file-section { flex: 0 0 auto; border-top: 1px solid var(--line); padding: 14px 0 16px; }
 .file-section summary { cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 600; }
+.file-section summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .file-section .file-actions { margin-top: 12px; }
 
 .canvas-wrap {
@@ -132,7 +136,7 @@ main {
   font: inherit;
 }
 .palette-search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-.palette { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: flex-start; gap: 8px; max-height: 340px; overflow-y: auto; }
+.palette { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: flex-start; gap: 8px; min-height: 0; overflow-y: auto; }
 
 .palette button {
   display: flex;
@@ -295,6 +299,7 @@ main {
 .rom-data-property textarea { box-sizing: border-box; width: 100%; padding: 8px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 6px; font-family: ui-monospace, monospace; resize: vertical; }
 .rom-data-property span { color: var(--muted); line-height: 1.4; }
 #bus-status.error { color: #ff777b; }
+#bus-status[hidden] { display: none; }
 
 .bus-value-row { align-items: flex-start; }
 #selected-value { max-width: 180px; text-align: right; overflow-wrap: anywhere; font: 12px/1.4 ui-monospace, monospace; color: #d1c9b8; }
@@ -303,6 +308,8 @@ main {
   body { height: auto; min-height: 100vh; }
   main { min-height: 0; }
   .canvas-view { flex-direction: column; }
-  .panel { width: 100%; max-height: 300px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .panel { display: block; width: 100%; max-height: 360px; overflow-y: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .library-section { min-height: 0; max-height: 260px; }
+  .inspector-section { overflow: visible; }
   .canvas-wrap { min-height: 60vh; }
 }

@@ -15,11 +15,18 @@
   <main>
     <div id="canvas-view" class="canvas-view" role="tabpanel" aria-labelledby="tab-canvas">
     <section class="panel">
-      <h2>Components</h2>
-      <input id="palette-search" class="palette-search" type="search" placeholder="Search components…" aria-label="Search components" autocomplete="off" />
-      <div id="palette" class="palette"></div>
-      <p id="palette-empty" class="hint" role="status" hidden>No matching components.</p>
-      <h2 id="selected-properties-heading">Selected properties</h2>
+      <section class="library-section" aria-labelledby="library-heading">
+        <h2 id="library-heading">Components</h2>
+        <input id="palette-search" class="palette-search" type="search" placeholder="Search components…" aria-label="Search components" autocomplete="off" />
+        <div id="palette" class="palette"></div>
+        <p id="palette-empty" class="hint" role="status" hidden>No matching components.</p>
+      </section>
+      <section class="inspector-section" aria-labelledby="selected-properties-heading">
+      <h2 id="selected-properties-heading">Inspector</h2>
+      <p id="inspector-empty" class="hint">Select a component or wire to edit its properties.</p>
+      <label id="new-wire-row" class="property" hidden>Wire size (bits)
+        <input id="new-wire-size" type="number" min="1" max="32" step="1" value="1" />
+      </label>
       <label id="selected-size-row" class="property" hidden><span id="selected-size-label">Selected size (bits)</span>
         <input id="selected-size" type="number" min="1" max="32" step="1" disabled />
       </label>
@@ -61,11 +68,8 @@
         <span id="selected-value-label">Selected bus value</span>
         <output id="selected-value" aria-live="polite">—</output>
       </div>
-      <p id="bus-status" class="hint" role="status">Select a wire net or logic gate to edit its size.</p>
-      <h2>New wires</h2>
-      <label class="property">Size (bits)
-        <input id="new-wire-size" type="number" min="1" max="32" step="1" value="1" />
-      </label>
+      <p id="bus-status" class="hint" role="status" hidden></p>
+      </section>
       <details class="file-section">
         <summary>File</summary>
         <div class="file-actions">
