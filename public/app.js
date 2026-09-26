@@ -54,6 +54,8 @@ const tabRomEl = document.getElementById("tab-rom");
 const btnCopy = document.getElementById("btn-copy");
 const btnPaste = document.getElementById("btn-paste");
 const btnDelete = document.getElementById("btn-delete");
+const btnUndo = document.getElementById("btn-undo");
+const btnRedo = document.getElementById("btn-redo");
 const canvasWrapEl = document.getElementById("canvas-wrap");
 const zoomLabelEl = document.getElementById("zoom-level");
 const newWireSizeEl = document.getElementById("new-wire-size");
@@ -138,6 +140,8 @@ function setSelection(ids, wires = []) {
 }
 
 function syncActionButtons() {
+  btnUndo.disabled = !editor.canUndo;
+  btnRedo.disabled = !editor.canRedo;
   btnCopy.disabled = selectedIds.size === 0 && selectedWires.size === 0;
   btnPaste.disabled = copiedSelection.components.length === 0 && copiedSelection.wires.length === 0;
   btnDelete.disabled = selectedIds.size === 0 && selectedWires.size === 0;
@@ -1118,7 +1122,14 @@ document.addEventListener("keydown", (e) => {
   const zoomIn = e.key === "+" || e.key === "=" || e.code === "NumpadAdd";
   const zoomOut = e.key === "-" || e.key === "_" || e.code === "NumpadSubtract";
 
-  if (mod && e.key.toLowerCase() === "c") {
+  if (mod && e.key.toLowerCase() === "z") {
+    if (e.shiftKey) redoEdit();
+    else undoEdit();
+    e.preventDefault();
+  } else if (mod && e.key.toLowerCase() === "y") {
+    redoEdit();
+    e.preventDefault();
+  } else if (mod && e.key.toLowerCase() === "c") {
     if (selectedIds.size || selectedWires.size) { copySelected(); e.preventDefault(); }
   } else if (mod && e.key.toLowerCase() === "v") {
     if (copiedSelection.components.length || copiedSelection.wires.length) { pasteCopied(); e.preventDefault(); }
@@ -1152,6 +1163,22 @@ document.addEventListener("keydown", (e) => {
 });
 
 /* ---------- Actions ---------- */
+
+function undoEdit() {
+  if (!editor.canUndo) return;
+  clearWireGesture();
+  setSelection([]);
+  editor.undo();
+  busStatus("Undone.");
+}
+
+function redoEdit() {
+  if (!editor.canRedo) return;
+  clearWireGesture();
+  setSelection([]);
+  editor.redo();
+  busStatus("Redone.");
+}
 
 function rotateSelected() {
   editor.rotate(selectedId);
@@ -1187,6 +1214,8 @@ function pasteCopied() {
 btnCopy.addEventListener("click", copySelected);
 btnPaste.addEventListener("click", pasteCopied);
 btnDelete.addEventListener("click", deleteSelected);
+btnUndo.addEventListener("click", undoEdit);
+btnRedo.addEventListener("click", redoEdit);
 
 btnSelect.addEventListener("click", () => {
   clearWireGesture();

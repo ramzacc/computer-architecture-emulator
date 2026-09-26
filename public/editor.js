@@ -18,16 +18,58 @@ export class BoardEditor {
     this.onChange = onChange;
     this.onStorageError = onStorageError;
     this.nextComponentId = 1;
+    this.undoStack = [];
+    this.redoStack = [];
+    this.snapshot = structuredClone(this.board);
   }
 
   commit(captureEdges = false) {
     pruneJunctions(this.board);
+    this.undoStack.push(this.snapshot);
+    if (this.undoStack.length > 100) this.undoStack.shift();
+    this.redoStack = [];
+    this.snapshot = structuredClone(this.board);
     this.evaluate(captureEdges);
+    this.save();
+  }
+
+  save() {
     try {
       if (!this.storage) throw new Error("Browser storage is unavailable.");
       this.storage.setItem(STORAGE_KEY, serialize(this.board));
     }
     catch (error) { this.onStorageError(error); }
+  }
+
+  get canUndo() { return this.undoStack.length > 0; }
+  get canRedo() { return this.redoStack.length > 0; }
+
+  restoreHistory(board) {
+    this.board = structuredClone(board);
+    this.pressedButtons.clear();
+    this.highClocks.clear();
+    this.registerValues.clear();
+    this.ramValues.clear();
+    this.nextComponentId = this.board.components.length + 1;
+    this.evaluate();
+    this.save();
+  }
+
+  undo() {
+    if (!this.canUndo) return false;
+    this.redoStack.push(this.snapshot);
+    this.snapshot = this.undoStack.pop();
+    this.restoreHistory(this.snapshot);
+    return true;
+  }
+
+  redo() {
+    if (!this.canRedo) return false;
+    this.undoStack.push(this.snapshot);
+    if (this.undoStack.length > 100) this.undoStack.shift();
+    this.snapshot = this.redoStack.pop();
+    this.restoreHistory(this.snapshot);
+    return true;
   }
 
   // An accepted edit produces one snapshot for every reader of circuit state.
@@ -156,13 +198,16 @@ export class BoardEditor {
 
   replaceBoard(board, { save = true } = {}) {
     this.board = board;
+    this.undoStack = [];
+    this.redoStack = [];
+    this.snapshot = structuredClone(board);
     this.pressedButtons.clear();
     this.highClocks.clear();
     this.registerValues.clear();
     this.ramValues.clear();
     this.nextComponentId = board.components.length + 1;
-    if (save) this.commit();
-    else this.evaluate();
+    this.evaluate();
+    if (save) this.save();
   }
 
   importText(text) {
