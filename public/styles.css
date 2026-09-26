@@ -234,7 +234,7 @@ main {
   transition: box-shadow .08s;
 }
 .comp.shaped {
-  border-color: transparent;
+  border: 0;
   background: transparent;
   border-radius: 0;
 }

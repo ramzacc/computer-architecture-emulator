@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BoardEditor, STORAGE_KEY } from './public/editor.js';
-import { pinsFor, spec } from './public/components.js';
+import { dimsOf, pinsFor, spec } from './public/components.js';
 import { edgeKey, parseDocument, serialize } from './public/model.js';
 import { createRenderer, wireTitle } from './public/renderer.js';
 import { formatValue, parseValue } from './public/value-format.js';
@@ -302,6 +302,40 @@ test('mux and demux render labeled chips at their generated widths', () => {
     assert.match(svg, type === 'mux' ? />MUX<\/text>/ : />DEMUX<\/text>/);
     assert.match(svg, />4 CHANNELS<\/text>/);
     assert.match(svg, /viewBox="0 0 (400|320) 120"/);
+  }
+});
+
+test('rendered component footprints stay on the pin lattice as parts grow and rotate', () => {
+  const originalDocument = globalThis.document;
+  const elements = [];
+  globalThis.document = {
+    createElement: () => ({ style: {}, dataset: {}, classList: { add() {}, toggle() {} } }),
+  };
+  try {
+    for (const type of ['mux', 'demux', 'splitter', 'and']) {
+      for (const size of type === 'mux' || type === 'demux' ? [1, 2, 4, 16] : type === 'splitter' ? [1, 4, 32] : [1]) {
+        for (const r of [0, 1, 2, 3]) {
+          const component = { id: 'part', t: type, x: 5, y: 7, r, size,
+            channels: size };
+          elements.length = 0;
+          const grid = { querySelectorAll: () => [], appendChild: (el) => elements.push(el) };
+          const renderer = createRenderer(grid, () => ({ components: [component] }),
+            () => ({ states: new Map() }), () => new Set(), () => new Set());
+          renderer.renderComponents();
+          const [element] = elements;
+          const dims = dimsOf(component);
+          assert.equal(element.style.width, `${dims.w * 48}px`, `${type} size ${size} rotation ${r} width`);
+          assert.equal(element.style.height, `${dims.h * 48}px`, `${type} size ${size} rotation ${r} height`);
+          assert.match(element.innerHTML, new RegExp(`viewBox="0 0 ${dims.w * 40} ${dims.h * 40}"`));
+          for (const pin of pinsFor(component)) {
+            assert.ok(pin.px >= component.x && pin.px <= component.x + dims.w);
+            assert.ok(pin.py >= component.y && pin.py <= component.y + dims.h);
+          }
+        }
+      }
+    }
+  } finally {
+    globalThis.document = originalDocument;
   }
 });
 
