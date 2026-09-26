@@ -165,7 +165,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       mux: "MULTIPLEXER", demux: "DEMULTIPLEXER", adder: "ADDER", twos: "NEGATE", comparator: "COMPARATOR",
       shl: "SHIFT LEFT", shr: "SHIFT RIGHT", register: "REGISTER", rom: "ROM", counter: "COUNTER" };
     const glyphs = { and: "&amp;", or: "1+", xor: "=1", not: "!", nand: "&amp;", nor: "1+", xnor: "=1",
-      mux: "MUX", demux: "DEMUX", adder: "+", twos: "-A", comparator: "A:B", shl: "&lt;&lt;", shr: "&gt;&gt;", register: "D / Q", rom: "256 × DATA", counter: "+1" };
+      mux: "MUX", demux: "DEMUX", adder: "+", twos: "-A", comparator: "A:B", shl: "&lt;&lt;", shr: "&gt;&gt;", register: "D / Q", rom: "ROM", counter: "+1" };
     const title = titles[s.shape];
     const pins = actualPins(c);
     const sideRows = [...new Set(pins.filter((pin) => pin.name && (pin.dir === "E" || pin.dir === "W"))
