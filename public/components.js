@@ -1,8 +1,8 @@
 // Fixed component registry. Gate instances may also persist a bit width.
 //
 // These are real logic-level parts: inputs, an LED, and gates that read
-// their inputs and drive an output. Signal flow runs top-to-bottom (N inputs,
-// S outputs) so a two-input gate can sit symmetrically on the lattice.
+// their inputs and drive an output. Gates use top-to-bottom signal flow;
+// bit-row sources and outputs connect from the left or right.
 //
 // Pins are declared per component in unrotated local lattice coordinates:
 //   dir  = outward normal ("N" | "E" | "S" | "W").
@@ -61,15 +61,15 @@ export const COMPONENT_TYPES = {
   },
   constant: {
     label: "Constant", w: 2, h: 2, color: "#b4b1aa", shape: "constant", constant: true,
-    pins: [
-      { x: 1, y: 2, dir: "S", role: "out" },
-    ],
+    pins: [{ x: 0, y: 1, dir: "W", role: "out" }],
+  },
+  input: {
+    label: "Input", w: 2, h: 2, color: "#b4b1aa", shape: "input", input: true,
+    pins: [{ x: 0, y: 1, dir: "W", role: "out" }],
   },
   output: {
     label: "Output", w: 2, h: 2, color: "#c8b49b", shape: "output", output: true,
-    pins: [
-      { x: 1, y: 0, dir: "N", role: "in" },
-    ],
+    pins: [{ x: 0, y: 1, dir: "W", role: "in" }],
   },
   led: {
     label: "LED", w: 2, h: 2, color: "#c8b49b", shape: "led",
@@ -236,7 +236,7 @@ export function selectWidth(component) {
 
 export function isSizable(component) {
   const entry = spec(component.t);
-  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.output);
+  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output);
 }
 
 export function bitWidth(component) {
@@ -319,6 +319,9 @@ export function dimsFor(type, r = 0) {
 }
 
 export function dimsOf(component) {
+  if (["constant", "input", "output"].includes(component.t)) {
+    return { w: 2, h: bitWidth(component) + 1 };
+  }
   if (component.t === "mux" || component.t === "demux") {
     const w = component.t === "mux" ? Math.max(4, 2 * (channelCount(component) + 1)) : Math.max(4, 2 * channelCount(component));
     return normalizeRotation(component.r) % 2 ? { w: 3, h: w } : { w, h: 3 };
@@ -345,6 +348,7 @@ export function pinsFor(component) {
   const r = normalizeRotation(component.r);
   const width = bitWidth(component);
   const plexer = component.t === "mux" || component.t === "demux";
+  const bitRow = !!(entry.constant || entry.input || entry.output);
   const localW = plexer ? dimsOf({ ...component, r: 0 }).w : entry.w;
   const localH = entry.splitter ? width + 1 : entry.h;
   const channels = plexer ? channelCount(component) : 0;
@@ -363,12 +367,15 @@ export function pinsFor(component) {
       ...Array.from({ length: width }, (_, index) =>
         ({ x: 2, y: index + 1, dir: "E", role: "out", size: 1,
           bit: component.order === "descendant" ? width - 1 - index : index }))]
+    : bitRow
+    ? [{ x: r === 2 ? 2 : 0, y: 1, dir: r === 2 ? "E" : "W", role: entry.output ? "in" : "out" }]
     : entry.pins;
   return localPins.map((pin) => {
-    const [lx, ly] = rotatePoint(pin.x, pin.y, localW, localH, r);
+    const [lx, ly] = bitRow
+      ? [pin.x, pin.y] : rotatePoint(pin.x, pin.y, localW, localH, r);
     const px = component.x + lx;
     const py = component.y + ly;
-    const dir = rotateDir(pin.dir, r);
+    const dir = bitRow ? pin.dir : rotateDir(pin.dir, r);
     const size = (entry.rom || entry.ram) && pin.name === "ADDR" ? addressWidth(component) : pin.size ?? width;
     return { px, py, dir, role: pin.role, name: pin.name, size, bit: pin.bit, edge: outwardEdge(px, py, dir) };
   });

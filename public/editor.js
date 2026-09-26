@@ -177,12 +177,13 @@ export class BoardEditor {
     do { id = `c${this.nextComponentId++}`; } while (this.component(id));
     const component = { id, t: type, x, y, r: 0,
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
-      ...(type === "constant" ? { size: 1, value: 0 } : {}),
+      ...(["constant", "input"].includes(type) ? { size: 1, value: 0 } : {}),
       ...(type === "rom" ? { size: 8, addressSize: 8, data: [] } : {}),
       ...(type === "ram" ? { size: 8, addressSize: 8 } : {}),
       ...(type === "switch" ? { value: 0 } : {}),
       ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY, enable: false } : {}),
       ...(type === "output" ? { size: 1 } : {}),
+      ...(["input", "output"].includes(type) ? { label: "" } : {}),
       ...(["mux", "demux"].includes(type) ? { channels: 2 } : {}) };
     if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr", "register", "counter"].includes(type)) component.size = 4;
     if (!addComponent(this.board, component)) return null;
@@ -273,6 +274,8 @@ export class BoardEditor {
     const component = this.component(id);
     if (!component) return false;
     const old = component.r ?? 0;
+    if (["constant", "input", "output"].includes(component.t))
+      return this.editComponent(component, { r: old === 2 ? 0 : 2 }, { sanitize: true });
     for (let step = 1; step <= 3; step++) {
       if (this.editComponent(component, { r: (old + step) % 4 }, { sanitize: true })) return true;
     }
@@ -282,11 +285,11 @@ export class BoardEditor {
   resizeComponent(id, size) {
     const component = this.component(id);
     if (!component || !isSizable(component) || !validBitWidth(size) ||
-        (component.t === "constant" && size > 8) ||
+        (["constant", "input"].includes(component.t) && size > 8) ||
         (["rom", "ram"].includes(component.t) && !validRomWidth(size))) return false;
     if (bitWidth(component) === size) return false;
     const changes = { size };
-    if (component.t === "constant") changes.value = Math.min(component.value ?? 0, 2 ** size - 1);
+    if (["constant", "input"].includes(component.t)) changes.value = Math.min(component.value ?? 0, 2 ** size - 1);
     if (component.t === "rom") changes.data = (component.data ?? [])
       .map(([address, value]) => [address, value % (2 ** size)])
       .filter(([, value]) => value !== 0);
@@ -337,7 +340,7 @@ export class BoardEditor {
 
   setConstantValue(id, value) {
     const component = this.component(id);
-    if (!component || component.t !== "constant" || component.value === value ||
+    if (!component || !["constant", "input"].includes(component.t) || component.value === value ||
         !validConstant({ ...component, value })) return false;
     return this.editComponent(component, { value }, { validate: (board) => !shortCircuitError(board), captureEdges: true });
   }
@@ -349,9 +352,21 @@ export class BoardEditor {
       { validate: (board) => !shortCircuitError(board), captureEdges: true });
   }
 
+  toggleInputBit(id, bit) {
+    const component = this.component(id);
+    if (component?.t !== "input" || !Number.isInteger(bit) || bit < 0 || bit >= bitWidth(component)) return false;
+    return this.setConstantValue(id, (component.value ?? 0) ^ (1 << bit));
+  }
+
+  setLabel(id, label) {
+    const component = this.component(id);
+    if (!component || !["input", "output"].includes(component.t) || typeof label !== "string" || label.length > 80 || component.label === label) return false;
+    return this.editComponent(component, { label });
+  }
+
   setValueFormat(id, format) {
     const component = this.component(id);
-    if (!component || !["constant", "output"].includes(component.t) ||
+    if (!component || !["constant", "input", "output"].includes(component.t) ||
         !validValueFormat(format) || (component.format ?? "decimal") === format) return false;
     component.format = format;
     this.commit();

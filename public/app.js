@@ -76,6 +76,9 @@ const selectedValueLabelEl = document.getElementById("selected-value-label");
 const selectedValueEl = document.getElementById("selected-value");
 const constantValueRowEl = document.getElementById("constant-value-row");
 const constantValueEl = document.getElementById("constant-value");
+const sourceValueLabelEl = document.getElementById("source-value-label");
+const componentLabelRowEl = document.getElementById("component-label-row");
+const componentLabelEl = document.getElementById("component-label");
 const romOpenEl = document.getElementById("rom-open");
 const romRowsEl = document.getElementById("rom-rows");
 const romRangeEl = document.getElementById("rom-range");
@@ -160,7 +163,7 @@ function renderProperties() {
   selectedSizeLabelEl.textContent = memory || component?.t === "mux" || component?.t === "demux" ? "Data size (bits)" : "Selected size (bits)";
   selectedSizeEl.disabled = size === undefined || component?.t === "debugdisplay";
   selectedSizeEl.value = size === undefined ? "" : String(size);
-  selectedSizeEl.max = component?.t === "constant" ? "8" : "32";
+  selectedSizeEl.max = ["constant", "input"].includes(component?.t) ? "8" : "32";
   romDataSizeRowEl.hidden = !memory;
   romDataSizeEl.disabled = !memory;
   romDataSizeEl.value = memory ? String(bitWidth(component)) : "8";
@@ -172,16 +175,21 @@ function renderProperties() {
   splitterOrderRowEl.hidden = !splitter;
   splitterOrderEl.disabled = !splitter;
   splitterOrderEl.value = splitter ? component.order ?? "ascendant" : "ascendant";
-  const constant = component?.t === "constant";
-  constantValueRowEl.hidden = !constant;
-  constantValueEl.disabled = !constant;
-  constantValueEl.value = constant ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "";
+  const source = component?.t === "constant" || component?.t === "input";
+  constantValueRowEl.hidden = !source;
+  constantValueEl.disabled = !source;
+  sourceValueLabelEl.textContent = component?.t === "input" ? "Input value" : "Constant value";
+  constantValueEl.value = source ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "";
+  const named = component?.t === "input" || component?.t === "output";
+  componentLabelRowEl.hidden = !named;
+  componentLabelEl.disabled = !named;
+  componentLabelEl.value = named ? component.label ?? "" : "";
   const rom = component?.t === "rom";
   romAddressSizeRowEl.hidden = !memory;
   romAddressSizeEl.disabled = !memory;
   romAddressSizeEl.value = memory ? String(addressWidth(component)) : "";
   romOpenEl.hidden = !rom;
-  const valueFormat = constant || component?.t === "output";
+  const valueFormat = source || component?.t === "output";
   valueFormatRowEl.hidden = !valueFormat;
   valueFormatEl.disabled = !valueFormat;
   valueFormatEl.value = valueFormat ? component.format ?? "decimal" : "decimal";
@@ -234,8 +242,8 @@ selectedSizeEl.addEventListener("change", () => {
   const current = component ? bitWidth(component) : selectedWire ? netContaining(state, selectedWire, editor.evaluation)?.size : undefined;
   if (size === current) return;
   const changed = component ? editor.resizeComponent(selectedId, size) : editor.resizeWire(selectedWire, size);
-  if (!changed) busStatus(component?.t === "constant"
-    ? "Constant width must be 1–8 bits and match connected wires."
+  if (!changed) busStatus(["constant", "input"].includes(component?.t)
+    ? "Source width must be 1–8 bits and match connected wires."
     : component?.t === "rom" ? "ROM data width must be 1, 2, 4, 8, 16, or 32 bits and match connected wires."
     : "Bus size mismatch or invalid size (use 1–32 bits).", true);
   else busStatus(`Size set to ${size} bits.`);
@@ -275,7 +283,7 @@ splitterOrderEl.addEventListener("change", () => {
 
 constantValueEl.addEventListener("change", () => {
   const component = editor.component(selectedId);
-  if (!component || component.t !== "constant") return;
+  if (!component || !["constant", "input"].includes(component.t)) return;
   const value = parseValue(constantValueEl.value, component.format);
   if (value === component.value) { renderProperties(); return; }
   if (value !== null && editor.setConstantValue(selectedId, value)) {
@@ -284,6 +292,10 @@ constantValueEl.addEventListener("change", () => {
     busStatus(`Enter a valid ${component.format ?? "decimal"} whole number from 0 to ${2 ** bitWidth(component) - 1}; the value must not short circuit another output.`, true);
     renderProperties();
   }
+});
+
+componentLabelEl.addEventListener("change", () => {
+  if (!editor.setLabel(selectedId, componentLabelEl.value)) renderProperties();
 });
 
 function romTarget() {
@@ -770,6 +782,12 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
   if (compEl) {
     const comp = state.components.find((c) => c.id === compEl.dataset.id);
     if (!comp) return;
+    const tile = e.target.closest?.(".bit-tile[data-bit]");
+    if (comp.t === "input" && tile && !placingType && !e.shiftKey) {
+      if (!editor.toggleInputBit(comp.id, Number(tile.dataset.bit)))
+        busStatus("Input bit cannot toggle: conflicting outputs share a net.", true);
+      return;
+    }
     if (comp.t === "switch" && !placingType && !e.shiftKey) {
       if (!editor.toggleSwitch(comp.id)) busStatus("Switch cannot toggle: conflicting outputs share a net.", true);
       return;
@@ -1238,31 +1256,11 @@ document.getElementById("file-input").addEventListener("change", (e) => {
 /* ---------- Seeds ---------- */
 
 function seedLayout(board) {
-  const layout = [
-    // a constant straight into an LED
-    ["constant", 2, 0], ["led", 2, 3],
-    // two constants into an AND, output into an LED
-    ["constant", 7, 0], ["constant", 9, 0], ["and", 7, 3], ["led", 8, 6],
-    // two constants into a NAND -> lights nothing
-    ["constant", 14, 0], ["constant", 16, 0], ["nand", 14, 3], ["led", 15, 6],
-    // two constants into an XOR -> also off
-    ["constant", 22, 0], ["constant", 24, 0], ["xor", 22, 3], ["led", 23, 6],
-  ];
-  for (const [t, x, y] of layout) addComponent(board, {
-    id: `c${board.components.length + 1}`, t, x, y, r: 0,
-    ...(t === "constant" ? { size: 1, value: 1 } : {}),
-  });
+  addComponent(board, { id: "c1", t: "input", x: 2, y: 0, r: 2, size: 1, value: 0, label: "A" });
+  addComponent(board, { id: "c2", t: "output", x: 5, y: 0, r: 0, size: 1, label: "Result" });
+  addWireEdge(board, { o: "H", x: 4, y: 1 });
 }
 
-function seedWires(board) {
-  const wires = [
-    { o: "V", x: 3, y: 2 },
-    { o: "V", x: 8, y: 2 }, { o: "V", x: 10, y: 2 }, { o: "V", x: 9, y: 5 },
-    { o: "V", x: 15, y: 2 }, { o: "V", x: 17, y: 2 }, { o: "V", x: 16, y: 5 },
-    { o: "V", x: 23, y: 2 }, { o: "V", x: 25, y: 2 }, { o: "V", x: 24, y: 5 },
-  ];
-  for (const wire of wires) addWireEdge(board, wire);
-}
 
 function getStorage() {
   try { return globalThis.localStorage; }
@@ -1314,7 +1312,6 @@ if (restored) {
 } else {
   const board = createBoard();
   seedLayout(board);
-  seedWires(board);
   editor.replaceBoard(board, { save: false });
 }
 resetView();
