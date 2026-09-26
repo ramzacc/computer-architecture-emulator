@@ -245,8 +245,8 @@ test('toggle switch drives a persistent one-bit value and rejects conflicting to
 test('seven-segment art lights only the supplied inputs', () => {
   const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
   const svg = art({ t: 'sevenseg', r: 0 }, spec('sevenseg'), 0, [1, 0, 0, 0, 1, 0, 0]);
-  assert.equal((svg.match(/fill="#f2bb85"/g) ?? []).length, 2);
-  assert.equal((svg.match(/fill="#3b3840"/g) ?? []).length, 5);
+  assert.equal((svg.match(/fill="var\(--part-segment-on\)"/g) ?? []).length, 2);
+  assert.equal((svg.match(/fill="var\(--part-segment-off\)"/g) ?? []).length, 5);
   assert.match(svg, />A<\/text>/);
   assert.match(svg, />G<\/text>/);
 });
@@ -256,8 +256,8 @@ test('debug display decodes the four-bit value and carries a distinct label', ()
   const zero = art({ t: 'debugdisplay' }, spec('debugdisplay'), 0);
   const f = art({ t: 'debugdisplay' }, spec('debugdisplay'), 15);
   assert.match(zero, />DBG<\/text>/);
-  assert.equal((zero.match(/fill="#f2bb85"/g) ?? []).length, 6);
-  assert.equal((f.match(/fill="#f2bb85"/g) ?? []).length, 4);
+  assert.equal((zero.match(/fill="var\(--part-segment-on\)"/g) ?? []).length, 6);
+  assert.equal((f.match(/fill="var\(--part-segment-on\)"/g) ?? []).length, 4);
   const { editor } = setup();
   const display = editor.place('debugdisplay', 0, 0);
   assert.ok(display);
