@@ -7,15 +7,13 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header>
-    <div class="toolbar">
-      <button id="btn-copy" disabled>Copy</button>
-      <button id="btn-paste" disabled>Paste</button>
-      <button id="btn-delete" disabled>Delete</button>
-    </div>
+  <header class="view-tabs" role="tablist" aria-label="Views">
+    <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
+    <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
   </header>
 
   <main>
+    <div id="canvas-view" class="canvas-view" role="tabpanel" aria-labelledby="tab-canvas">
     <section class="panel">
       <h2>File</h2>
       <div class="file-actions">
@@ -80,13 +78,22 @@
 
     <section id="canvas-wrap" class="canvas-wrap">
       <div id="grid" class="grid" tabindex="0"></div>
-      <div class="canvas-modes" role="group" aria-label="Canvas mode">
-        <button id="btn-select" class="mode" type="button">Select mode</button>
-        <button id="btn-wire" class="mode" type="button">Wire mode</button>
-        <button id="btn-pan" class="mode" type="button">Pan mode</button>
+      <div class="canvas-toolbar">
+        <div class="canvas-modes canvas-controls" role="group" aria-label="Canvas mode">
+          <button id="btn-select" class="mode" type="button">Select mode</button>
+          <button id="btn-wire" class="mode" type="button">Wire mode</button>
+          <button id="btn-pan" class="mode" type="button">Pan mode</button>
+        </div>
+        <div class="canvas-actions canvas-controls" role="group" aria-label="Edit selection">
+          <button id="btn-copy" type="button" disabled>Copy</button>
+          <button id="btn-paste" type="button" disabled>Paste</button>
+          <button id="btn-delete" type="button" disabled>Delete</button>
+        </div>
       </div>
       <div id="zoom-level" class="zoom-level">100%</div>
     </section>
+    </div>
+    <section id="rom-view" class="rom-view" role="tabpanel" aria-labelledby="tab-rom" hidden></section>
   </main>
 
   <script type="module" src="app.js"></script>
