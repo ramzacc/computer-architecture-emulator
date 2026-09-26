@@ -122,6 +122,51 @@ test('ROM uses address bits beyond the original byte', () => {
   assert.equal(editor.evaluation.states.get(rom.id).value, 0xA5);
 });
 
+test('RAM writes on a rising WR edge, reads continuously, and resets on reload', () => {
+  const { editor } = setup();
+  const ram = editor.place('ram', 0, 4);
+  const data = editor.place('constant', 1, 0);
+  const write = editor.place('button', 3, 0);
+  assert.deepEqual(pinsFor(ram).map((pin) => [pin.name, pin.size]),
+    [['ADDR', 8], ['DIN', 8], ['WR', 1], ['DATA', 8]]);
+  assert.equal(editor.resizeComponent(data.id, 8), true);
+  for (const edge of [{ o: 'V', x: 2, y: 2, size: 8 }, { o: 'V', x: 2, y: 3, size: 8 },
+    { o: 'V', x: 4, y: 2 }, { o: 'H', x: 3, y: 3 }, { o: 'V', x: 3, y: 3 }])
+    assert.equal(editor.addWire(edge), true);
+  assert.equal(editor.setConstantValue(data.id, 0xA5), true);
+  assert.equal(editor.evaluation.states.get(ram.id).value, 0);
+  assert.equal(editor.setButtonPressed(write.id, true), true);
+  assert.equal(editor.evaluation.states.get(ram.id).value, 0xA5);
+  assert.equal(editor.setConstantValue(data.id, 0x3C), true);
+  assert.equal(editor.evaluation.states.get(ram.id).value, 0xA5);
+  editor.setButtonPressed(write.id, false);
+  editor.setButtonPressed(write.id, true);
+  assert.equal(editor.evaluation.states.get(ram.id).value, 0x3C);
+  assert.equal(JSON.parse(serialize(editor.board)).components.find((entry) => entry[0] === 'ram').length, 6);
+  const restored = parseDocument(serialize(editor.board)).board;
+  editor.replaceBoard(restored);
+  assert.equal(editor.evaluation.states.get(restored.components.find((component) => component.t === 'ram').id).value, 0);
+});
+
+test('RAM width rules match ROM and resizing trims simulation contents', () => {
+  const { editor } = setup();
+  const ram = editor.place('ram', 0, 0);
+  assert.equal(editor.resizeComponent(ram.id, 3), false);
+  assert.equal(editor.resizeRamAddress(ram.id, 3), false);
+  assert.equal(editor.resizeRamAddress(ram.id, 16), true);
+  assert.equal(editor.resizeComponent(ram.id, 32), true);
+  editor.ramValues.get(ram.id).set(0x1234, 0xFFFFFFFF);
+  editor.evaluate();
+  assert.equal(editor.evaluation.states.get(ram.id).value, 0);
+  assert.equal(editor.resizeRamAddress(ram.id, 8), true);
+  assert.equal(editor.ramValues.get(ram.id).has(0x1234), false);
+  editor.ramValues.get(ram.id).set(0, 0xFFFFFFFF);
+  assert.equal(editor.resizeComponent(ram.id, 8), true);
+  assert.equal(editor.evaluation.states.get(ram.id).value, 0xFF);
+  assert.deepEqual(pinsFor(ram).map((pin) => pin.size), [8, 8, 1, 8]);
+  assert.throws(() => parseDocument(JSON.stringify({ components: [['ram', 0, 0, 0, 3, 8]], wires: [] })), /power of two/);
+});
+
 test('moving a selection translates components and complete wire nets in one edit', () => {
   const ctx = setup();
   const first = ctx.editor.place('led', 0, 0);
