@@ -40,6 +40,7 @@ const paletteEmptyEl = document.getElementById("palette-empty");
 const btnWire = document.getElementById("btn-wire");
 const btnPan = document.getElementById("btn-pan");
 const btnSelect = document.getElementById("btn-select");
+const canvasModesEl = document.querySelector(".canvas-modes");
 const btnCopy = document.getElementById("btn-copy");
 const btnPaste = document.getElementById("btn-paste");
 const btnDelete = document.getElementById("btn-delete");
@@ -412,6 +413,9 @@ function syncPlacingCursor() {
   btnWire.classList.toggle("active", mode === MODE.WIRE);
   btnPan.classList.toggle("active", mode === MODE.PAN);
   btnSelect.classList.toggle("active", mode === MODE.SELECT);
+  btnWire.setAttribute("aria-pressed", String(mode === MODE.WIRE));
+  btnPan.setAttribute("aria-pressed", String(mode === MODE.PAN));
+  btnSelect.setAttribute("aria-pressed", String(mode === MODE.SELECT));
   if (mode !== MODE.WIRE) {
     clearWireGesture();
   }
@@ -427,6 +431,11 @@ function render() {
 }
 
 /* ---------- Interaction ---------- */
+
+canvasModesEl.addEventListener("pointerdown", (e) => e.stopPropagation());
+canvasModesEl.addEventListener("dblclick", (e) => e.stopPropagation());
+canvasModesEl.addEventListener("contextmenu", (e) => e.stopPropagation());
+canvasModesEl.addEventListener("wheel", (e) => e.stopPropagation());
 
 canvasWrapEl.addEventListener("pointerdown", (e) => {
   if (e.button === 2) return;
