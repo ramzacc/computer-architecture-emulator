@@ -26,16 +26,16 @@ test('successful edits render and save once, while rejected edits do neither', (
   assert.equal(ctx.saves, 1);
   assert.equal(editor.place('led', 0, 0), null);
   assert.equal(editor.move(constant.id, 0, 0), false);
-  assert.equal(editor.addWire({ o: 'V', x: 1, y: 2 }), true);
-  assert.equal(editor.addWire({ o: 'V', x: 1, y: 2 }), false);
-  assert.equal(editor.resizeWire('V:1,2', 2), false); // connected constant pin is one bit
+  assert.equal(editor.addWire({ o: 'H', x: -1, y: 1 }), true);
+  assert.equal(editor.addWire({ o: 'H', x: -1, y: 1 }), false);
+  assert.equal(editor.resizeWire('H:-1,1', 2), false); // connected constant pin is one bit
   assert.equal(ctx.saves, 2);
   assert.equal(ctx.renders, 2);
   assert.equal(editor.move(constant.id, 3, 0), true);
   assert.equal(ctx.saves, 3); // completed drag
   assert.equal(editor.rotate(constant.id), true);
   assert.equal(ctx.saves, 4);
-  assert.equal(editor.removeWire('V:1,2'), true);
+  assert.equal(editor.removeWire('H:-1,1'), true);
   assert.equal(ctx.saves, 5);
   assert.equal(editor.deleteComponent(constant.id), true);
   assert.equal(ctx.saves, 6);
@@ -78,9 +78,10 @@ test('replacing a document starts a new undo history', () => {
 
 test('ROM reads an eight-bit address, drives a sized word, and persists its contents', () => {
   const { editor } = setup();
-  const address = editor.place('constant', 1, 0);
+  const address = editor.place('constant', -7, 1);
   const rom = editor.place('rom', 0, 3);
-  const output = editor.place('output', 1, 7);
+  const output = editor.place('output', 2, 6);
+  assert.equal(editor.rotate(address.id), true);
   assert.equal(editor.resizeComponent(address.id, 8), true);
   assert.equal(editor.resizeComponent(output.id, 8), true);
   assert.equal(editor.addWire({ o: 'V', x: 2, y: 2, size: 8 }), true);
@@ -159,10 +160,11 @@ test('ROM uses address bits beyond the original byte', () => {
 test('RAM writes on a rising WR edge, reads continuously, and resets on reload', () => {
   const { editor } = setup();
   const ram = editor.place('ram', 0, 4);
-  const data = editor.place('constant', 1, 0);
+  const data = editor.place('constant', -7, 1);
   const write = editor.place('button', 3, 0);
   assert.deepEqual(pinsFor(ram).map((pin) => [pin.name, pin.size]),
     [['ADDR', 8], ['DIN', 8], ['WR', 1], ['DATA', 8]]);
+  assert.equal(editor.rotate(data.id), true);
   assert.equal(editor.resizeComponent(data.id, 8), true);
   for (const edge of [{ o: 'V', x: 2, y: 2, size: 8 }, { o: 'V', x: 2, y: 3, size: 8 },
     { o: 'V', x: 4, y: 2 }, { o: 'H', x: 3, y: 3 }, { o: 'V', x: 3, y: 3 }])
@@ -240,7 +242,7 @@ test('property edits validate width, value, order and connected wires', () => {
   const splitter = editor.place('splitter', 6, 0);
   assert.equal(editor.setSplitterOrder(splitter.id, 'descendant'), true);
   assert.equal(editor.setSplitterOrder(splitter.id, 'bogus'), false);
-  const wire = { o: 'V', x: 1, y: 2, size: 2 };
+  const wire = { o: 'H', x: -1, y: 1, size: 2 };
   assert.equal(editor.addWire(wire), true);
   assert.equal(editor.resizeComponent(constant.id, 1), false);
   assert.equal(editor.component(constant.id).size, 2);
@@ -252,10 +254,10 @@ test('output width is configurable and must match its connected net', () => {
   const output = editor.place('output', 0, 0);
   assert.equal(output.size, 1);
   assert.equal(editor.resizeComponent(output.id, 32), true);
-  assert.equal(editor.addWire({ o: 'V', x: 1, y: -1, size: 32 }), true);
+  assert.equal(editor.addWire({ o: 'H', x: -1, y: 1, size: 32 }), true);
   assert.equal(editor.resizeComponent(output.id, 8), false);
   assert.equal(editor.component(output.id).size, 32);
-  assert.equal(editor.deleteNet('V:1,-1'), true);
+  assert.equal(editor.deleteNet('H:-1,1'), true);
   assert.equal(editor.resizeComponent(output.id, 8), true);
 });
 
@@ -337,7 +339,7 @@ test('constant and output canvas art uses the selected value format', () => {
   const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt;
   assert.match(art({ t: 'constant', size: 8, value: 173, format: 'binary' }, spec('constant')), />0b10101101<\/text>/);
   assert.match(art({ t: 'output', size: 8, format: 'hex' }, spec('output'), 173), />0xAD<\/text>/);
-  assert.match(art({ t: 'output', size: 32, format: 'binary' }, spec('output'), 0xffffffff), />0b11111111<\/text>/);
+  assert.match(art({ t: 'output', size: 32, format: 'binary' }, spec('output'), 0xffffffff), />0b11111111111111111111111111111111<\/text>/);
 });
 
 test('imports save only after a complete valid document is parsed', () => {
@@ -447,7 +449,7 @@ test('accepted events publish a fresh evaluation; explicit evaluation does not s
     onChange: (board, evaluation) => published.push({ board, evaluation }),
   });
   const initial = editor.evaluation;
-  const constant = editor.place('constant', 0, 0);
+  const constant = editor.place('constant', 1, 1);
   editor.setConstantValue(constant.id, 1);
   const led = editor.place('led', 0, 3);
   assert.equal(published.length, 3);
@@ -533,11 +535,12 @@ test('clock ticks reevaluate without saving and frequency edits persist', () => 
 test('a register captures its data on rising edges and holds it on falling edges', () => {
   const ctx = setup();
   const { editor } = ctx;
-  const data = editor.place('constant', 0, 0);
+  const data = editor.place('constant', -4, 1);
   const clock = editor.place('clock', 2, 0);
   const register = editor.place('register', 0, 5);
   assert.equal(register.size, 4);
   assert.deepEqual(editor.evaluation.states.get(register.id).inputs, [0, 0]);
+  assert.equal(editor.rotate(data.id), true);
   assert.equal(editor.resizeComponent(data.id, 4), true);
   assert.equal(editor.setConstantValue(data.id, 9), true);
   for (const y of [2, 3, 4]) {
@@ -602,7 +605,7 @@ test('a counter increments on rising edges, wraps at its bit width, and resets w
 
 test('a counter recognizes a rising edge from an edited source', () => {
   const { editor } = setup();
-  const source = editor.place('constant', 0, 0);
+  const source = editor.place('constant', 1, 1);
   const counter = editor.place('counter', 0, 5);
   for (const y of [2, 3, 4]) assert.equal(editor.addWire({ o: 'V', x: 1, y }), true);
   assert.equal(editor.setConstantValue(source.id, 1), true);
@@ -615,10 +618,11 @@ test('a counter recognizes a rising edge from an edited source', () => {
 
 test('cascaded registers on one clock capture the previous Q simultaneously', () => {
   const { editor } = setup();
-  const source = editor.place('constant', 0, 0);
+  const source = editor.place('constant', -4, 1);
   const clock = editor.place('clock', 2, 0);
   const first = editor.place('register', 0, 5);
   const second = editor.place('register', 0, 14);
+  assert.equal(editor.rotate(source.id), true);
   assert.equal(editor.resizeComponent(source.id, 4), true);
   assert.equal(editor.setConstantValue(source.id, 9), true);
   for (const y of [2, 3, 4]) {
@@ -674,8 +678,8 @@ test('register feedback through an inverter forms a one-bit counter', () => {
 test('changing a constant cannot create a short circuit', () => {
   const ctx = setup();
   const { editor } = ctx;
-  const a = editor.place('constant', 0, 0);
-  const b = editor.place('constant', 4, 0);
+  const a = editor.place('constant', 1, 1);
+  const b = editor.place('constant', 5, 1);
   for (const edge of [
     { o: 'V', x: 1, y: 2 }, { o: 'V', x: 5, y: 2 },
     ...[1, 2, 3, 4].map((x) => ({ o: 'H', x, y: 3 })),
@@ -826,7 +830,7 @@ test('copy and paste preserve selected complete wire nets with components', () =
 
 test('pasted components stay connected through their selected wire net', () => {
   const { editor } = setup();
-  const constant = editor.place('constant', 0, 0);
+  const constant = editor.place('constant', 1, 1);
   const led = editor.place('led', 0, 3);
   assert.equal(editor.setConstantValue(constant.id, 1), true);
   assert.equal(editor.addWire({ o: 'V', x: 1, y: 2 }), true);

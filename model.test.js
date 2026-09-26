@@ -48,10 +48,11 @@ test("seven-segment display reads seven independent one-bit inputs", () => {
   assert.equal(addComponent(board, display), true);
   assert.deepEqual(pinsFor(display).map(({ name, role, size }) => [name, role, size]),
     "ABCDEFG".split("").map((name) => [name, "in", 1]));
-  assert.equal(addComponent(board, { id: "top", t: "constant", x: 0, y: -3, value: 1 }), true);
+  assert.equal(addComponent(board, { id: "top", t: "constant", x: -1, y: -2, value: 1, r: 2 }), true);
   assert.equal(addWireEdge(board, { o: "V", x: 1, y: -1 }), true);
-  assert.equal(addComponent(board, { id: "bottom", t: "constant", x: 0, y: 6, r: 2, value: 1 }), true);
+  assert.equal(addComponent(board, { id: "bottom", t: "constant", x: 1, y: 6, r: 0, value: 1 }), true);
   assert.equal(addWireEdge(board, { o: "V", x: 1, y: 5 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 6 }), true);
   assert.deepEqual(evaluateBoard(board).states.get("seven").inputs, [1, 0, 0, 0, 1, 0, 0]);
   assert.deepEqual(pinsFor({ ...display, r: 1 }).map(({ name }) => name), "ABCDEFG".split(""));
   assert.equal(parseDocument(serialize(board)).board.components.length, board.components.length);
@@ -59,7 +60,7 @@ test("seven-segment display reads seven independent one-bit inputs", () => {
 
 test("debug display reads exactly four bits and preserves its value through saving", () => {
   const board = createBoard();
-  const source = { id: "source", t: "constant", x: 1, y: 0, size: 4, value: 10 };
+  const source = { id: "source", t: "constant", x: -3, y: 1, size: 4, value: 10, r: 2 };
   const display = { id: "debug", t: "debugdisplay", x: 0, y: 4 };
   assert.equal(addComponent(board, source), true);
   assert.equal(addComponent(board, display), true);
@@ -102,7 +103,7 @@ test("a disabled clock stays low and its enable setting survives serialization",
 test("a clock net cannot share another output driver", () => {
   const board = createBoard();
   assert.equal(addComponent(board, { id: "clock", t: "clock", x: 0, y: 0 }), true);
-  assert.equal(addComponent(board, { id: "low", t: "constant", x: 4, y: 0, value: 0 }), true);
+  assert.equal(addComponent(board, { id: "low", t: "constant", x: 3, y: 1, value: 0, r: 2 }), true);
   for (const wire of [
     { o: "V", x: 1, y: 2 }, { o: "V", x: 5, y: 2 },
     ...[1, 2, 3].map((x) => ({ o: "H", x, y: 3 })),
@@ -112,8 +113,8 @@ test("a clock net cannot share another output driver", () => {
 
 test("a wire cannot join HIGH and LOW drivers, including driven zero bits", () => {
   const board = createBoard();
-  assert.equal(addComponent(board, { id: "low", t: "constant", x: 0, y: 0, value: 0 }), true);
-  assert.equal(addComponent(board, { id: "high", t: "constant", x: 4, y: 0, value: 1 }), true);
+  assert.equal(addComponent(board, { id: "low", t: "constant", x: -1, y: 1, value: 0, r: 2 }), true);
+  assert.equal(addComponent(board, { id: "high", t: "constant", x: 3, y: 1, value: 1, r: 2 }), true);
   const wires = [
     { o: "V", x: 1, y: 2 }, { o: "V", x: 5, y: 2 },
     { o: "H", x: 1, y: 3 }, { o: "H", x: 2, y: 3 }, { o: "H", x: 3, y: 3 },
@@ -125,16 +126,16 @@ test("a wire cannot join HIGH and LOW drivers, including driven zero bits", () =
   assert.equal(board.wires.size, wires.length);
 
   assert.throws(() => parseDocument(JSON.stringify({ components: [
-    ["constant", 0, 0, 0, 1, 0, 0],
-    ["constant", 4, 0, 0, 1, 1, 0],
+    ["constant", -1, 1, 2, 1, 0, 0],
+    ["constant", 3, 1, 2, 1, 1, 0],
   ], wires: [...wires.map((wire) => [wire.o, wire.x, wire.y, 1]), [last.o, last.x, last.y, 1]] })), /Short circuit/);
 });
 
 test("a splitter carries short-circuit checks between a bus bit and its branch", () => {
   const board = createBoard();
-  assert.equal(addComponent(board, { id: "bus", t: "constant", x: 0, y: 0, size: 2, value: 0 }), true);
+  assert.equal(addComponent(board, { id: "bus", t: "constant", x: -2, y: 1, size: 2, value: 0, r: 2 }), true);
   assert.equal(addComponent(board, { id: "split", t: "splitter", x: 0, y: 4, size: 2 }), true);
-  assert.equal(addComponent(board, { id: "high", t: "constant", value: 1, x: 4, y: 3 }), true);
+  assert.equal(addComponent(board, { id: "high", t: "constant", value: 1, x: 5, y: 4, r: 0 }), true);
   for (const edge of [
     { o: "V", x: 1, y: 2, size: 2 }, { o: "V", x: 1, y: 3, size: 2 },
     { o: "H", x: 2, y: 5 }, { o: "H", x: 3, y: 5 },
@@ -229,7 +230,7 @@ test("component geometry rotates pins and rejects overlap", () => {
 
 test("a high constant drives an LED and sanitizes after edits", () => {
   const board = createBoard();
-  addComponent(board, { id: "p", t: "constant", value: 1, x: 1, y: 0, r: 0 }); // out edge V:2,2
+  addComponent(board, { id: "p", t: "constant", value: 1, x: 0, y: 1, r: 2 }); // side pin meets V:2,2
   addComponent(board, { id: "l", t: "led", x: 1, y: 3, r: 0 });   // in edge V:2,2
   assert.equal(canPlaceEdge(board, { o: "H", x: 6, y: 6 }), true);
   assert.equal(addWireEdge(board, { o: "V", x: 2, y: 2 }), true);
@@ -273,7 +274,7 @@ test("documents reject coercion, unknown fields, and duplicate wires", () => {
 
 test("wires can follow component borders but cannot cross their interiors", () => {
   const board = createBoard();
-  assert.equal(addComponent(board, { id: "p", t: "constant", value: 1, x: 3, y: 1, r: 0 }), true);
+  assert.equal(addComponent(board, { id: "p", t: "constant", value: 1, x: 2, y: 2, r: 2 }), true);
   assert.equal(addComponent(board, { id: "l", t: "led", x: 4, y: 4, r: 0 }), true);
 
   // The constant pin reaches the LED's top edge, including a point that is not a pin.
@@ -313,11 +314,11 @@ test("a wire can start anywhere on a component border", () => {
 
 test("gates compute their output from the input nets", () => {
   const board = createBoard();
-  addComponent(board, { id: "p1", t: "constant", value: 1, x: 0, y: -1, r: 0 }); // out edge V:1,1
-  addComponent(board, { id: "p2", t: "constant", value: 1, x: 2, y: -1, r: 0 }); // out edge V:3,1
+  addComponent(board, { id: "p1", t: "constant", value: 1, x: -1, y: 0, r: 2 }); // out edge V:1,1
+  addComponent(board, { id: "p2", t: "constant", value: 1, x: 1, y: 0, r: 2 }); // out edge V:3,1
   addComponent(board, { id: "g", t: "and", x: 0, y: 3, r: 0 });   // in V:1,2 V:3,2, out V:2,5
-  addComponent(board, { id: "p3", t: "constant", value: 1, x: 6, y: -1, r: 0 }); // out edge V:7,1
-  addComponent(board, { id: "p4", t: "constant", value: 1, x: 8, y: -1, r: 0 }); // out edge V:9,1
+  addComponent(board, { id: "p3", t: "constant", value: 1, x: 5, y: 0, r: 2 }); // out edge V:7,1
+  addComponent(board, { id: "p4", t: "constant", value: 1, x: 7, y: 0, r: 2 }); // out edge V:9,1
   addComponent(board, { id: "h", t: "nand", x: 6, y: 3, r: 0 });  // in V:7,2 V:9,2, out V:8,5
   for (const wire of [
     { o: "V", x: 1, y: 1 }, { o: "V", x: 1, y: 2 },
@@ -337,10 +338,11 @@ function wiredBlock(type, size, values, channels) {
   assert.equal(addComponent(board, block), true);
   const inputs = pinsFor(block).filter((pin) => pin.role === "in");
   const sources = inputs.map((pin, index) => {
-    const source = { id: `source${index}`, t: "constant", x: pin.px - 1, y: -4,
-      size: pin.size, value: values[index] };
+    const source = { id: `source${index}`, t: "constant", x: pin.px - pin.size - 1,
+      y: -5 - 3 * index, r: 2, size: pin.size, value: values[index] };
     assert.equal(addComponent(board, source), true);
-    for (const y of [-2, -1]) assert.equal(addWireEdge(board, { o: "V", x: pin.px, y, size: pin.size }), true);
+    for (let y = source.y + 1; y < pin.py; y++)
+      assert.equal(addWireEdge(board, { o: "V", x: pin.px, y, size: pin.size }), true);
     return source;
   });
   const outputPins = pinsFor(block).filter((pin) => pin.role === "out");
@@ -427,7 +429,7 @@ test("NOR and XNOR complement their results at the selected width", () => {
 
 test("each output of a multi-output block participates in short-circuit checks", () => {
   const { board } = wiredBlock("demux", 4, [9, 0]);
-  assert.equal(addComponent(board, { id: "sink", t: "constant", x: 6, y: 1, size: 4, value: 1 }), true);
+  assert.equal(addComponent(board, { id: "sink", t: "constant", x: 7, y: 3, size: 4, value: 1, r: 0 }), true);
   // The first DEMUX output drives 9; the second drives 0. A distinct driver
   // on the zero output must still be rejected.
   for (const edge of [
@@ -449,13 +451,14 @@ test("new blocks persist their sizes and rotate pin widths", () => {
   assert.deepEqual(JSON.parse(serialize(parseDocument(saved).board)), JSON.parse(saved));
 });
 
-test("documents persist all four orientations", () => {
+test("documents persist all four orientations for rotatable components", () => {
   const board = createBoard();
-  addComponent(board, { id: "c1", t: "constant", value: 1, x: 1, y: 1, r: 3 });
+  for (let r = 0; r < 4; r++)
+    assert.equal(addComponent(board, { id: `led${r}`, t: "led", x: 3 * r, y: 1, r }), true);
   const saved = JSON.parse(serialize(board));
-  assert.deepEqual(saved.components, [["constant", 1, 1, 3, 1, 1, 0]]);
+  assert.deepEqual(saved.components, [0, 1, 2, 3].map((r) => ["led", 3 * r, 1, r]));
   const { board: reloaded } = parseDocument(JSON.stringify(saved));
-  assert.equal(reloaded.components[0].r, 3);
+  assert.deepEqual(reloaded.components.map((component) => component.r), [0, 1, 2, 3]);
   assert.deepEqual(JSON.parse(serialize(reloaded)), saved);
 });
 
@@ -498,7 +501,7 @@ test("32 bit NAND uses a full width mask and persists sizes", () => {
 
 test("NOT is a rotatable 2x2 gate and inverts every bit of its selected width", () => {
   const board = createBoard();
-  const constant = { id: "k", t: "constant", x: 0, y: 0, r: 0, size: 4, value: 0b0101 };
+  const constant = { id: "k", t: "constant", x: -4, y: 1, r: 2, size: 4, value: 0b0101 };
   const inverter = { id: "n", t: "not", x: 0, y: 4, r: 0, size: 4 };
   assert.equal(addComponent(board, constant), true);
   assert.equal(addComponent(board, inverter), true);
@@ -526,17 +529,17 @@ test("NOT is a rotatable 2x2 gate and inverts every bit of its selected width", 
 
 test("constant drives its configured value and enforces its width and range", () => {
   const board = createBoard();
-  const constant = { id: "k", t: "constant", x: 0, y: 0, r: 0, size: 8, value: 173 };
+  const constant = { id: "k", t: "constant", x: -8, y: 1, r: 2, size: 8, value: 173 };
   assert.equal(addComponent(board, constant), true);
-  assert.deepEqual(dimsOf(constant), { w: 2, h: 2 });
+  assert.deepEqual(dimsOf(constant), { w: 9, h: 2 });
   assert.equal(pinsFor(constant)[0].size, 8);
-  assert.deepEqual(pinsFor(constant)[0].edge, { o: "V", x: 1, y: 2 });
-  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 2, size: 1 }), false);
-  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 2, size: 8 }), true);
+  assert.deepEqual(pinsFor(constant)[0].edge, { o: "H", x: 1, y: 2 });
+  assert.equal(addWireEdge(board, { o: "H", x: 1, y: 2, size: 1 }), false);
+  assert.equal(addWireEdge(board, { o: "H", x: 1, y: 2, size: 8 }), true);
   assert.equal(evaluateBoard(board).states.get("k").value, 173);
   assert.equal([...computeNets(board).values()][0].value, 173);
   const saved = JSON.parse(serialize(board));
-  assert.deepEqual(saved.components[0], ["constant", 0, 0, 0, 8, 173, 0]);
+  assert.deepEqual(saved.components[0], ["constant", -8, 1, 2, 8, 173, 0]);
   assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
   constant.value = 256;
   assert.equal(isValidComponent(board, constant), false);
@@ -555,23 +558,23 @@ test("constant drives its configured value and enforces its width and range", ()
 
 test("output reads a matching bus without driving it and survives serialization", () => {
   const board = createBoard();
-  const source = { id: "source", t: "constant", x: 0, y: 0, size: 8, value: 173 };
-  const output = { id: "out", t: "output", x: 0, y: 4, r: 0, size: 8 };
+  const source = { id: "source", t: "constant", x: -8, y: 1, size: 8, value: 173, r: 2 };
+  const output = { id: "out", t: "output", x: 1, y: 3, r: 0, size: 8 };
   assert.equal(addComponent(board, source), true);
   assert.equal(addComponent(board, output), true);
-  assert.deepEqual(dimsOf(output), { w: 2, h: 2 });
+  assert.deepEqual(dimsOf(output), { w: 9, h: 2 });
   assert.deepEqual(pinsFor(output).map(({ role, size, edge }) => ({ role, size, edge })),
-    [{ role: "in", size: 8, edge: { o: "V", x: 1, y: 3 } }]);
+    [{ role: "in", size: 8, edge: { o: "H", x: 0, y: 4 } }]);
   assert.equal(addWireEdge(board, { o: "V", x: 1, y: 3, size: 1 }), false);
   for (const y of [2, 3]) assert.equal(addWireEdge(board, { o: "V", x: 1, y, size: 8 }), true);
   assert.equal(evaluateBoard(board).states.get("out").value, 173);
   assert.equal([...computeNets(board).values()][0].value, 173);
   const saved = JSON.parse(serialize(board));
-  assert.deepEqual(saved.components[1], ["output", 0, 4, 0, 8, 0]);
+  assert.deepEqual(saved.components[1], ["output", 1, 3, 0, 8, 0, ""]);
   assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
 
-  output.r = 1;
-  assert.deepEqual(pinsFor(output)[0].edge, { o: "H", x: 2, y: 5 });
+  output.r = 2;
+  assert.deepEqual(pinsFor(output)[0].edge, { o: "H", x: 10, y: 4 });
   assert.equal(evaluateBoard(board).states.get("out").value, 0);
   output.size = 33;
   assert.equal(isValidComponent(board, output), false);
@@ -630,7 +633,7 @@ test("splitter rotation and size changes adjust its footprint", () => {
 
 test("descendant splitter order reverses branch bits and persists", () => {
   const board = createBoard();
-  const source = { id: "k", t: "constant", x: 0, y: 0, r: 0, size: 4, value: 1 };
+  const source = { id: "k", t: "constant", x: -4, y: 1, r: 2, size: 4, value: 1 };
   const splitter = { id: "s", t: "splitter", x: 0, y: 4, r: 0, size: 4, order: "descendant" };
   assert.equal(addComponent(board, source), true);
   assert.equal(addComponent(board, splitter), true);
