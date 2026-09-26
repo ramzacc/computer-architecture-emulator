@@ -67,22 +67,61 @@ test('ROM reads an eight-bit address, drives a sized word, and persists its cont
   assert.equal(editor.resizeComponent(rom.id, 32), false); // output bus is connected
 });
 
-test('ROM width changes mask stored words and its pins keep an eight-bit address', () => {
+test('ROM address and data sizes edit independently and preserve valid contents', () => {
   const { editor } = setup();
   const rom = editor.place('rom', 0, 0);
+  assert.equal(editor.resizeRomAddress(rom.id, 32), true);
   assert.equal(editor.resizeComponent(rom.id, 32), true);
+  assert.equal(editor.setRomData(rom.id, [[0, 0xFFFFFFFF], [0xFFFFFFFF, 0x12345678]]), true);
+  assert.deepEqual(pinsFor(rom).map((pin) => pin.size), [32, 32]);
+  assert.equal(editor.resizeRomAddress(rom.id, 8), false);
   assert.equal(editor.setRomData(rom.id, [[0, 0xFFFFFFFF]]), true);
+  assert.equal(editor.resizeRomAddress(rom.id, 8), true);
   assert.equal(editor.evaluation.states.get(rom.id).value, 0xFFFFFFFF);
   assert.deepEqual(pinsFor(rom).map((pin) => pin.size), [8, 32]);
   assert.equal(editor.resizeComponent(rom.id, 4), true);
   assert.deepEqual(rom.data, [[0, 15]]);
   assert.deepEqual(pinsFor(rom).map((pin) => pin.size), [8, 4]);
+  const restored = parseDocument(serialize(editor.board)).board.components[0];
+  assert.equal(restored.addressSize, 8);
+  assert.deepEqual(restored.data, [[0, 15]]);
 });
 
 test('ROM imports reject malformed memory entries', () => {
   const document = (data) => JSON.stringify({ components: [['rom', 0, 0, 0, 8, data]], wires: [] });
   for (const data of [null, [[256, 1]], [[0, 256]], [[1, 1], [1, 2]], [[0, -1]]])
     assert.throws(() => parseDocument(document(data)), /ROM width/);
+});
+
+test('ROM imports preserve the original eight-bit address format', () => {
+  const old = JSON.stringify({ components: [['rom', 0, 0, 0, 8, [[255, 42]]]], wires: [] });
+  const rom = parseDocument(old).board.components[0];
+  assert.deepEqual(pinsFor(rom).map((pin) => pin.size), [8, 8]);
+  assert.deepEqual(rom.data, [[255, 42]]);
+});
+
+test('ROM address size must match its connected bus', () => {
+  const { editor } = setup();
+  const rom = editor.place('rom', 0, 0);
+  assert.equal(editor.addWire({ o: 'V', x: 2, y: -1, size: 8 }), true);
+  assert.equal(editor.resizeRomAddress(rom.id, 16), false);
+  assert.equal(editor.removeWire('V:2,-1'), true);
+  assert.equal(editor.resizeRomAddress(rom.id, 16), true);
+  assert.equal(editor.addWire({ o: 'V', x: 2, y: -1, size: 8 }), false);
+  assert.equal(editor.addWire({ o: 'V', x: 2, y: -1, size: 16 }), true);
+});
+
+test('ROM uses address bits beyond the original byte', () => {
+  const { editor } = setup();
+  const address = editor.place('register', 0, 0);
+  const rom = editor.place('rom', 0, 4);
+  assert.equal(editor.resizeComponent(address.id, 32), true);
+  assert.equal(editor.resizeRomAddress(rom.id, 32), true);
+  assert.equal(editor.setRomData(rom.id, [[0x12345678, 0xA5]]), true);
+  assert.equal(editor.addWire({ o: 'V', x: 2, y: 3, size: 32 }), true);
+  editor.registerValues.set(address.id, 0x12345678);
+  editor.evaluate();
+  assert.equal(editor.evaluation.states.get(rom.id).value, 0xA5);
 });
 
 test('moving a selection translates components and complete wire nets in one edit', () => {

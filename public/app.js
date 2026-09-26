@@ -1,4 +1,4 @@
-import { COMPONENT_TYPES, DEFAULT_CLOCK_FREQUENCY, bitWidth, channelCount, dimsOf, isSizable, pinsFor, selectWidth, spec, validBitWidth } from "./components.js";
+import { COMPONENT_TYPES, DEFAULT_CLOCK_FREQUENCY, addressWidth, bitWidth, channelCount, dimsOf, isSizable, pinsFor, selectWidth, spec, validBitWidth } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
 import { BoardEditor } from "./editor.js";
 import { createRenderer } from "./renderer.js";
@@ -50,6 +50,8 @@ const selectedPropertiesHeadingEl = document.getElementById("selected-properties
 const selectedSizeRowEl = document.getElementById("selected-size-row");
 const selectedSizeLabelEl = document.getElementById("selected-size-label");
 const selectedSizeEl = document.getElementById("selected-size");
+const romAddressSizeRowEl = document.getElementById("rom-address-size-row");
+const romAddressSizeEl = document.getElementById("rom-address-size");
 const channelsRowEl = document.getElementById("channels-row");
 const channelsEl = document.getElementById("channels");
 const splitterOrderRowEl = document.getElementById("splitter-order-row");
@@ -61,6 +63,7 @@ const constantValueRowEl = document.getElementById("constant-value-row");
 const constantValueEl = document.getElementById("constant-value");
 const romDataRowEl = document.getElementById("rom-data-row");
 const romDataEl = document.getElementById("rom-data");
+const romDataHintEl = document.getElementById("rom-data-hint");
 const romApplyEl = document.getElementById("rom-apply");
 const valueFormatRowEl = document.getElementById("value-format-row");
 const valueFormatEl = document.getElementById("value-format");
@@ -100,7 +103,7 @@ function renderProperties() {
   selectedPropertiesHeadingEl.textContent = selectionCount > 1 ? `${selectionCount} items selected` : component ? "Component properties" : net ? "Wire properties" : "Selected properties";
   const size = component && (isSizable(component) || component.t === "debugdisplay") ? bitWidth(component) : net?.size;
   selectedSizeRowEl.hidden = size === undefined;
-  selectedSizeLabelEl.textContent = component?.t === "mux" || component?.t === "demux" ? "Data width (bits)" : "Selected size (bits)";
+  selectedSizeLabelEl.textContent = component?.t === "rom" || component?.t === "mux" || component?.t === "demux" ? "Data size (bits)" : "Selected size (bits)";
   selectedSizeEl.disabled = size === undefined || component?.t === "debugdisplay";
   selectedSizeEl.value = size === undefined ? "" : String(size);
   selectedSizeEl.max = component?.t === "constant" ? "8" : "32";
@@ -117,12 +120,16 @@ function renderProperties() {
   constantValueEl.disabled = !constant;
   constantValueEl.value = constant ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "";
   const rom = component?.t === "rom";
+  romAddressSizeRowEl.hidden = !rom;
+  romAddressSizeEl.disabled = !rom;
+  romAddressSizeEl.value = rom ? String(addressWidth(component)) : "";
   romDataRowEl.hidden = !rom;
   romDataEl.disabled = !rom;
   romApplyEl.disabled = !rom;
-  romDataEl.value = rom ? (component.data ?? [])
-    .map(([address, value]) => `${address.toString(16).toUpperCase().padStart(2, "0")}: ${value.toString(16).toUpperCase().padStart(Math.ceil(bitWidth(component) / 4), "0")}`)
+  if (!rom || document.activeElement !== romDataEl) romDataEl.value = rom ? (component.data ?? [])
+    .map(([address, value]) => `${address.toString(16).toUpperCase().padStart(Math.ceil(addressWidth(component) / 4), "0")}: ${value.toString(16).toUpperCase().padStart(Math.ceil(bitWidth(component) / 4), "0")}`)
     .join("\n") : "";
+  romDataHintEl.textContent = rom ? `Unlisted addresses read as zero. One entry per line; addresses range from 0 to ${(2 ** addressWidth(component) - 1).toString(16).toUpperCase()}.` : "";
   const valueFormat = constant || component?.t === "output";
   valueFormatRowEl.hidden = !valueFormat;
   valueFormatEl.disabled = !valueFormat;
@@ -153,7 +160,7 @@ function renderProperties() {
   if (rom && !busStatusEl.classList.contains("error")) {
     const inputs = editor.evaluation.states.get(component.id)?.inputs ?? [];
     const value = editor.evaluation.states.get(component.id)?.value ?? 0;
-    busStatus(`ROM address ${inputs[0]?.toString(16).toUpperCase().padStart(2, "0") ?? "00"}: ${value.toString(16).toUpperCase()}.`);
+    busStatus(`ROM address ${(inputs[0] ?? 0).toString(16).toUpperCase().padStart(Math.ceil(addressWidth(component) / 4), "0")}: ${value.toString(16).toUpperCase()}.`);
   }
   syncActionButtons();
 }
@@ -180,6 +187,13 @@ selectedSizeEl.addEventListener("change", () => {
     ? "Constant width must be 1–8 bits and match connected wires."
     : "Bus size mismatch or invalid size (use 1–32 bits).", true);
   else busStatus(`Size set to ${size} bits.`);
+  renderProperties();
+});
+
+romAddressSizeEl.addEventListener("change", () => {
+  const size = Number(romAddressSizeEl.value);
+  if (editor.resizeRomAddress(selectedId, size)) busStatus(`ROM address size set to ${size} bits.`);
+  else busStatus("Address size must be 1–32 bits, fit connected wires, and include every stored address.", true);
   renderProperties();
 });
 
@@ -217,11 +231,11 @@ romApplyEl.addEventListener("click", () => {
   const addresses = new Set();
   for (const [index, line] of romDataEl.value.split(/\r?\n/).entries()) {
     if (!line.trim()) continue;
-    const match = /^\s*(?:0x)?([0-9a-f]{1,2})\s*:\s*(?:0x)?([0-9a-f]{1,8})\s*$/i.exec(line);
+    const match = /^\s*(?:0x)?([0-9a-f]{1,8})\s*:\s*(?:0x)?([0-9a-f]{1,8})\s*$/i.exec(line);
     const address = match ? parseInt(match[1], 16) : -1;
     const value = match ? parseInt(match[2], 16) : -1;
-    if (!match || addresses.has(address) || value >= 2 ** bitWidth(component)) {
-      busStatus(`Invalid ROM entry on line ${index + 1}. Use unique hex addresses 00–FF and values that fit ${bitWidth(component)} bits.`, true);
+    if (!match || addresses.has(address) || address >= 2 ** addressWidth(component) || value >= 2 ** bitWidth(component)) {
+      busStatus(`Invalid ROM entry on line ${index + 1}. Use unique hex addresses and values that fit the selected sizes.`, true);
       return;
     }
     addresses.add(address);

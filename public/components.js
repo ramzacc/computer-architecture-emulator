@@ -38,7 +38,7 @@ export const COMPONENT_TYPES = {
   rom: {
     label: "ROM", w: 4, h: 3, color: "#aaa8b1", shape: "rom", rom: true,
     pins: [
-      { x: 2, y: 0, dir: "N", role: "in", name: "ADDR", size: 8 },
+      { x: 2, y: 0, dir: "N", role: "in", name: "ADDR" },
       { x: 2, y: 3, dir: "S", role: "out", name: "DATA" },
     ],
   },
@@ -227,6 +227,10 @@ export function bitWidth(component) {
   return isSizable(component) ? (component.size ?? 1) : 1;
 }
 
+export function addressWidth(component) {
+  return component.addressSize ?? 8;
+}
+
 export function validBitWidth(size) {
   return Number.isInteger(size) && size >= 1 && size <= MAX_BUS_WIDTH;
 }
@@ -245,12 +249,13 @@ export function validConstant(component) {
 export function validRom(component) {
   const data = component.data === undefined ? [] : component.data;
   const width = bitWidth(component);
-  if (!Array.isArray(data)) return false;
+  const addressSize = addressWidth(component);
+  if (!validBitWidth(addressSize) || !Array.isArray(data)) return false;
   const addresses = new Set();
   for (const entry of data) {
     if (!Array.isArray(entry) || entry.length !== 2) return false;
     const [address, value] = entry;
-    if (!Number.isInteger(address) || address < 0 || address > 255 || addresses.has(address) ||
+    if (!Number.isInteger(address) || address < 0 || address >= 2 ** addressSize || addresses.has(address) ||
         !Number.isInteger(value) || value < 1 || value >= 2 ** width) return false;
     addresses.add(address);
   }
@@ -335,6 +340,7 @@ export function pinsFor(component) {
     const px = component.x + lx;
     const py = component.y + ly;
     const dir = rotateDir(pin.dir, r);
-    return { px, py, dir, role: pin.role, name: pin.name, size: pin.size ?? width, bit: pin.bit, edge: outwardEdge(px, py, dir) };
+    const size = entry.rom && pin.role === "in" ? addressWidth(component) : pin.size ?? width;
+    return { px, py, dir, role: pin.role, name: pin.name, size, bit: pin.bit, edge: outwardEdge(px, py, dir) };
   });
 }

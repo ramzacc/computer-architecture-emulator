@@ -150,7 +150,7 @@ export class BoardEditor {
     const component = { id, t: type, x, y, r: 0,
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
       ...(type === "constant" ? { size: 1, value: 0 } : {}),
-      ...(type === "rom" ? { size: 8, data: [] } : {}),
+      ...(type === "rom" ? { size: 8, addressSize: 8, data: [] } : {}),
       ...(type === "switch" ? { value: 0 } : {}),
       ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY, enable: false } : {}),
       ...(type === "output" ? { size: 1 } : {}),
@@ -269,6 +269,13 @@ export class BoardEditor {
     const sorted = data.map(([address, value]) => [address, value]).sort((a, b) => a[0] - b[0]);
     if (JSON.stringify(component.data ?? []) === JSON.stringify(sorted)) return false;
     return this.editComponent(component, { data: sorted }, { validate: (board) => !shortCircuitError(board) });
+  }
+
+  resizeRomAddress(id, addressSize) {
+    const component = this.component(id);
+    if (component?.t !== "rom" || !validBitWidth(addressSize) ||
+        (component.addressSize ?? 8) === addressSize) return false;
+    return this.editComponent(component, { addressSize }, { sanitize: true });
   }
 
   setChannelCount(id, channels) {

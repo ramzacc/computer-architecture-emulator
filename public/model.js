@@ -1,4 +1,4 @@
-import { bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validSplitterOrder } from "./components.js";
+import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validSplitterOrder } from "./components.js";
 import { validValueFormat } from "./value-format.js";
 
 export function createBoard() {
@@ -266,6 +266,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       constantValue: component.value ?? 0,
       rom: !!entry.rom,
       romData: entry.rom ? new Map(component.data ?? []) : null,
+      addressSize: entry.rom ? addressWidth(component) : 0,
       output: !!entry.output,
       debug: !!entry.debug,
       splitter: !!entry.splitter,
@@ -281,7 +282,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     if (part.constant) return part.constantValue;
     if (part.rom) {
       const address = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
-      return part.romData.get(address & 255) ?? 0;
+      return part.romData.get(address % (2 ** part.addressSize)) ?? 0;
     }
     if (part.momentary) return Number(pressedButtons.has(part.id));
     if (part.toggle) return part.constantValue;
@@ -454,7 +455,7 @@ function documentFields(t) {
   const fields = [
     ...(isSizable({ t }) ? ["size"] : []),
     ...(t === "constant" || t === "switch" ? ["value"] : []),
-    ...(t === "rom" ? ["data"] : []),
+    ...(t === "rom" ? ["addressSize", "data"] : []),
     ...(t === "clock" ? ["frequency", "enable"] : []),
     ...(t === "splitter" ? ["order"] : []),
     ...(t === "mux" || t === "demux" ? ["channels"] : []),
@@ -469,6 +470,7 @@ function documentValue(component, field) {
     case "size": return component.size ?? 1;
     case "value": return component.value ?? 0;
     case "data": return component.data ?? [];
+    case "addressSize": return addressWidth(component);
     case "frequency": return component.frequency ?? DEFAULT_CLOCK_FREQUENCY;
     case "enable": return component.enable !== false;
     case "order": return component.order === "descendant" ? 1 : 0;
@@ -480,12 +482,12 @@ function documentValue(component, field) {
 export function serialize(board) {
   return JSON.stringify({
     components: board.components.map((component) => {
-      const { t, x, y, r, size, value, data, format, order, channels, frequency, enable } = component;
+      const { t, x, y, r, size, value, data, addressSize, format, order, channels, frequency, enable } = component;
       if (!spec(t) || !Number.isSafeInteger(x) || !Number.isSafeInteger(y) ||
           (r !== undefined && (!Number.isInteger(r) || r < 0 || r > 3)) ||
           (isSizable({ t }) && !validBitWidth(size ?? 1)) ||
           (t === "constant" && !validConstant({ t, size, value })) ||
-          (t === "rom" && !validRom({ t, size, data })) ||
+          (t === "rom" && !validRom({ t, size, addressSize, data })) ||
           (t === "switch" && ![0, 1].includes(value ?? 0)) ||
           (t === "clock" && !validClockFrequency(frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
           (t === "clock" && enable !== undefined && typeof enable !== "boolean") ||
@@ -529,19 +531,21 @@ export function parseDocument(text) {
     if (typeof t !== "string" || !spec(t)) throw new Error(`${path}.t is unknown.`);
     const fields = documentFields(t);
     const legacyClock = t === "clock" && raw.length === 5;
-    if (raw.length !== 4 + fields.length && !legacyClock)
+    const legacyRom = t === "rom" && raw.length === 6;
+    if (raw.length !== 4 + fields.length && !legacyClock && !legacyRom)
       throw new Error(`${path} must have ${4 + fields.length} entries.`);
     coordinate(x, `${path}[1]`);
     coordinate(y, `${path}[2]`);
     if (!Number.isInteger(r) || r < 0 || r > 3) throw new Error(`${path}[3] must be 0–3.`);
     const component = { id: `c${index + 1}`, t, x, y, r };
-    for (const [offset, field] of fields.entries()) {
+    for (const [offset, field] of (legacyRom ? ["size", "data"] : fields).entries()) {
       const value = raw[4 + offset];
       const fieldPath = `${path}[${4 + offset}]`;
       if (field === "size" && !validBitWidth(value)) throw new Error(`${fieldPath} must be 1–32.`);
+      if (field === "addressSize" && !validBitWidth(value)) throw new Error(`${fieldPath} must be 1–32.`);
       if (field === "value" && !Number.isInteger(value)) throw new Error(`${fieldPath} must be an integer.`);
-      if (field === "data" && !validRom({ t, size: component.size, data: value }))
-        throw new Error(`${fieldPath} must contain unique addresses 00–FF and values fitting the ROM width.`);
+      if (field === "data" && !validRom({ t, size: component.size, addressSize: component.addressSize, data: value }))
+        throw new Error(`${fieldPath} must contain unique addresses fitting the address width and values fitting the ROM width.`);
       if (field === "frequency" && !validClockFrequency(value)) throw new Error(`${fieldPath} is an invalid frequency.`);
       if (field === "enable" && typeof value !== "boolean" && !legacyClock)
         throw new Error(`${fieldPath} must be a boolean.`);

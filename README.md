@@ -2,7 +2,7 @@
 
 A browser-based circuit editor and simulator for exploring digital logic, components, and buses.
 
-The ROM component takes an 8-bit address bus and drives an output bus adjustable from 1 to 32 bits. Select a ROM to edit its contents as hexadecimal `address: value` lines (for example, `00: FF`). Addresses not listed produce zero. Changing the output width masks stored words to the new width.
+The ROM component starts with an 8-bit address bus and an 8-bit data bus. Select it to edit both sizes from 1 to 32 bits and enter contents as hexadecimal `address: value` lines (for example, `00: FF`). Addresses not listed produce zero. Changing the data size masks stored words to the new width; reducing the address size requires all stored addresses to fit.
 
 [Open the tool](https://comparch.ramza.cc)
 
