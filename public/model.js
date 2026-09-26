@@ -1,4 +1,4 @@
-import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validSplitterOrder } from "./components.js";
+import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { validValueFormat } from "./value-format.js";
 
 export function createBoard() {
@@ -534,18 +534,19 @@ export function parseDocument(text) {
     if (typeof t !== "string" || !spec(t)) throw new Error(`${path}.t is unknown.`);
     const fields = documentFields(t);
     const legacyClock = t === "clock" && raw.length === 5;
-    const legacyRom = t === "rom" && raw.length === 6;
-    if (raw.length !== 4 + fields.length && !legacyClock && !legacyRom)
+    if (raw.length !== 4 + fields.length && !legacyClock)
       throw new Error(`${path} must have ${4 + fields.length} entries.`);
     coordinate(x, `${path}[1]`);
     coordinate(y, `${path}[2]`);
     if (!Number.isInteger(r) || r < 0 || r > 3) throw new Error(`${path}[3] must be 0–3.`);
     const component = { id: `c${index + 1}`, t, x, y, r };
-    for (const [offset, field] of (legacyRom ? ["size", "data"] : fields).entries()) {
+    for (const [offset, field] of fields.entries()) {
       const value = raw[4 + offset];
       const fieldPath = `${path}[${4 + offset}]`;
-      if (field === "size" && !validBitWidth(value)) throw new Error(`${fieldPath} must be 1–32.`);
-      if (field === "addressSize" && !validBitWidth(value)) throw new Error(`${fieldPath} must be 1–32.`);
+      if (field === "size" && !(t === "rom" ? validRomWidth(value) : validBitWidth(value)))
+        throw new Error(`${fieldPath} must be ${t === "rom" ? "a power of two from 1–32" : "1–32"}.`);
+      if (field === "addressSize" && !validRomAddressWidth(value))
+        throw new Error(`${fieldPath} must be a power of two from 1–16.`);
       if (field === "value" && !Number.isInteger(value)) throw new Error(`${fieldPath} must be an integer.`);
       if (field === "data" && !validRom({ t, size: component.size, addressSize: component.addressSize, data: value }))
         throw new Error(`${fieldPath} must contain unique addresses fitting the address width and values fitting the ROM width.`);

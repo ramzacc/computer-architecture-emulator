@@ -41,8 +41,15 @@
       <label id="selected-size-row" class="property" hidden><span id="selected-size-label">Selected size (bits)</span>
         <input id="selected-size" type="number" min="1" max="32" step="1" disabled />
       </label>
+      <label id="rom-data-size-row" class="property" hidden>Data size (bits)
+        <select id="rom-data-size" disabled>
+          <option>1</option><option>2</option><option>4</option><option>8</option><option>16</option><option>32</option>
+        </select>
+      </label>
       <label id="rom-address-size-row" class="property" hidden>Address size (bits)
-        <input id="rom-address-size" type="number" min="1" max="32" step="1" disabled />
+        <select id="rom-address-size" disabled>
+          <option>1</option><option>2</option><option>4</option><option>8</option><option>16</option>
+        </select>
       </label>
       <label id="channels-row" class="property" hidden>Data channels
         <input id="channels" type="number" min="1" max="16" step="1" disabled />
@@ -56,12 +63,7 @@
       <label id="constant-value-row" class="property" hidden>Constant value
         <input id="constant-value" type="text" inputmode="text" spellcheck="false" disabled />
       </label>
-      <div id="rom-data-row" class="rom-data-property" hidden>
-        <label for="rom-data">ROM contents (hex address: value)</label>
-        <textarea id="rom-data" rows="8" spellcheck="false" placeholder="00: FF&#10;01: 3A" disabled></textarea>
-        <button id="rom-apply" type="button" disabled>Apply ROM contents</button>
-        <span id="rom-data-hint">Unlisted addresses read as zero. One entry per line.</span>
-      </div>
+      <button id="rom-open" type="button" hidden>Edit ROM contents</button>
       <label id="value-format-row" class="property" hidden>Value format
         <select id="value-format" disabled>
           <option value="decimal">Decimal</option>
@@ -110,7 +112,38 @@
       <div id="zoom-level" class="zoom-level">100%</div>
     </section>
     </div>
-    <section id="rom-view" class="rom-view" role="tabpanel" aria-labelledby="tab-rom" hidden></section>
+    <section id="rom-view" class="rom-view" role="tabpanel" aria-labelledby="tab-rom" hidden>
+      <section class="panel rom-panel">
+        <h2>ROM file</h2>
+        <p id="rom-target" class="hint">Select a ROM on the canvas to edit it.</p>
+        <p id="rom-widths" class="hint"></p>
+        <div class="rom-actions">
+          <button id="rom-save" type="button" disabled>Save to component</button>
+          <label class="file-label"><span>Import ROM file</span>
+            <input id="rom-file-input" type="file" accept="text/plain,.txt" disabled />
+          </label>
+          <button id="rom-export" type="button" disabled>Export ROM file</button>
+        </div>
+        <p id="rom-status" class="hint" role="status" aria-live="polite">Open a ROM from its component properties.</p>
+        <p class="hint">Enter one hexadecimal value per address. Empty cells read as zero. Text files contain one continuous hex sequence starting at address zero. Import replaces the ROM contents.</p>
+      </section>
+      <section class="rom-editor-wrap">
+        <div class="rom-editor-heading">
+          <h2>ROM contents</h2>
+          <span id="rom-range" class="hint"></span>
+        </div>
+        <div class="rom-navigation">
+          <button id="rom-prev" type="button" disabled>Previous</button>
+          <button id="rom-next" type="button" disabled>Next</button>
+          <label for="rom-jump">Go to address</label>
+          <input id="rom-jump" type="text" inputmode="text" spellcheck="false" autocapitalize="off" autocomplete="off" disabled />
+          <button id="rom-go" type="button" disabled>Go</button>
+        </div>
+        <div class="rom-memory" role="group" aria-label="ROM data values">
+          <div id="rom-rows" class="rom-rows"></div>
+        </div>
+      </section>
+    </section>
   </main>
 
   <script type="module" src="app.js"></script>

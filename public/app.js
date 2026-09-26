@@ -3,6 +3,7 @@ import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, ev
 import { BoardEditor } from "./editor.js";
 import { createRenderer } from "./renderer.js";
 import { formatValue, parseValue } from "./value-format.js";
+import { parseRomFile, serializeRomFile, validHexWord } from "./rom-format.js";
 
 const CELL = 48;
 const GAP = 3;
@@ -32,6 +33,12 @@ let marquee = null;
 let copiedSelection = { components: [], wires: [], wireKeys: [] };
 let newWireSize = 1;
 let wireStart = null;
+let romTargetId = null;
+const romDrafts = new Map();
+let romPageStart = 0;
+let romRenderedKey = null;
+const ROM_COLUMN_SIZE = 16;
+const ROM_PAGE_SIZE = ROM_COLUMN_SIZE * 4;
 
 const gridEl = document.getElementById("grid");
 const paletteEl = document.getElementById("palette");
@@ -56,6 +63,8 @@ const inspectorEmptyEl = document.getElementById("inspector-empty");
 const selectedSizeRowEl = document.getElementById("selected-size-row");
 const selectedSizeLabelEl = document.getElementById("selected-size-label");
 const selectedSizeEl = document.getElementById("selected-size");
+const romDataSizeRowEl = document.getElementById("rom-data-size-row");
+const romDataSizeEl = document.getElementById("rom-data-size");
 const romAddressSizeRowEl = document.getElementById("rom-address-size-row");
 const romAddressSizeEl = document.getElementById("rom-address-size");
 const channelsRowEl = document.getElementById("channels-row");
@@ -67,10 +76,19 @@ const selectedValueLabelEl = document.getElementById("selected-value-label");
 const selectedValueEl = document.getElementById("selected-value");
 const constantValueRowEl = document.getElementById("constant-value-row");
 const constantValueEl = document.getElementById("constant-value");
-const romDataRowEl = document.getElementById("rom-data-row");
-const romDataEl = document.getElementById("rom-data");
-const romDataHintEl = document.getElementById("rom-data-hint");
-const romApplyEl = document.getElementById("rom-apply");
+const romOpenEl = document.getElementById("rom-open");
+const romRowsEl = document.getElementById("rom-rows");
+const romRangeEl = document.getElementById("rom-range");
+const romPrevEl = document.getElementById("rom-prev");
+const romNextEl = document.getElementById("rom-next");
+const romJumpEl = document.getElementById("rom-jump");
+const romGoEl = document.getElementById("rom-go");
+const romSaveEl = document.getElementById("rom-save");
+const romImportEl = document.getElementById("rom-file-input");
+const romExportEl = document.getElementById("rom-export");
+const romTargetEl = document.getElementById("rom-target");
+const romWidthsEl = document.getElementById("rom-widths");
+const romStatusEl = document.getElementById("rom-status");
 const valueFormatRowEl = document.getElementById("value-format-row");
 const valueFormatEl = document.getElementById("value-format");
 const clockFrequencyRowEl = document.getElementById("clock-frequency-row");
@@ -86,10 +104,14 @@ function showView(view) {
   tabRomEl.setAttribute("aria-selected", String(!canvasActive));
   tabCanvasEl.tabIndex = canvasActive ? 0 : -1;
   tabRomEl.tabIndex = canvasActive ? -1 : 0;
+  if (canvasActive) applyView();
 }
 
 for (const [tab, view] of [[tabCanvasEl, "canvas"], [tabRomEl, "rom"]]) {
-  tab.addEventListener("click", () => showView(view));
+  tab.addEventListener("click", () => {
+    if (view === "rom") renderRomTab();
+    showView(view);
+  });
   tab.addEventListener("keydown", (e) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
@@ -133,11 +155,14 @@ function renderProperties() {
   inspectorEmptyEl.hidden = selectionCount > 0 || mode === MODE.WIRE;
   inspectorEmptyEl.textContent = placingType ? "Click the canvas to place the selected component." : "Select a component or wire to edit its properties.";
   const size = component && (isSizable(component) || component.t === "debugdisplay") ? bitWidth(component) : net?.size;
-  selectedSizeRowEl.hidden = size === undefined;
+  selectedSizeRowEl.hidden = size === undefined || component?.t === "rom";
   selectedSizeLabelEl.textContent = component?.t === "rom" || component?.t === "mux" || component?.t === "demux" ? "Data size (bits)" : "Selected size (bits)";
   selectedSizeEl.disabled = size === undefined || component?.t === "debugdisplay";
   selectedSizeEl.value = size === undefined ? "" : String(size);
   selectedSizeEl.max = component?.t === "constant" ? "8" : "32";
+  romDataSizeRowEl.hidden = component?.t !== "rom";
+  romDataSizeEl.disabled = component?.t !== "rom";
+  romDataSizeEl.value = component?.t === "rom" ? String(bitWidth(component)) : "8";
   const plexer = component?.t === "mux" || component?.t === "demux";
   channelsRowEl.hidden = !plexer;
   channelsEl.disabled = !plexer;
@@ -154,13 +179,7 @@ function renderProperties() {
   romAddressSizeRowEl.hidden = !rom;
   romAddressSizeEl.disabled = !rom;
   romAddressSizeEl.value = rom ? String(addressWidth(component)) : "";
-  romDataRowEl.hidden = !rom;
-  romDataEl.disabled = !rom;
-  romApplyEl.disabled = !rom;
-  if (!rom || document.activeElement !== romDataEl) romDataEl.value = rom ? (component.data ?? [])
-    .map(([address, value]) => `${address.toString(16).toUpperCase().padStart(Math.ceil(addressWidth(component) / 4), "0")}: ${value.toString(16).toUpperCase().padStart(Math.ceil(bitWidth(component) / 4), "0")}`)
-    .join("\n") : "";
-  romDataHintEl.textContent = rom ? `Unlisted addresses read as zero. One entry per line; addresses range from 0 to ${(2 ** addressWidth(component) - 1).toString(16).toUpperCase()}.` : "";
+  romOpenEl.hidden = !rom;
   const valueFormat = constant || component?.t === "output";
   valueFormatRowEl.hidden = !valueFormat;
   valueFormatEl.disabled = !valueFormat;
@@ -216,15 +235,23 @@ selectedSizeEl.addEventListener("change", () => {
   const changed = component ? editor.resizeComponent(selectedId, size) : editor.resizeWire(selectedWire, size);
   if (!changed) busStatus(component?.t === "constant"
     ? "Constant width must be 1–8 bits and match connected wires."
+    : component?.t === "rom" ? "ROM data width must be 1, 2, 4, 8, 16, or 32 bits and match connected wires."
     : "Bus size mismatch or invalid size (use 1–32 bits).", true);
   else busStatus(`Size set to ${size} bits.`);
+  renderProperties();
+});
+
+romDataSizeEl.addEventListener("change", () => {
+  const size = Number(romDataSizeEl.value);
+  if (editor.resizeComponent(selectedId, size)) busStatus(`ROM data size set to ${size} bits.`);
+  else busStatus("ROM data size must match connected wires.", true);
   renderProperties();
 });
 
 romAddressSizeEl.addEventListener("change", () => {
   const size = Number(romAddressSizeEl.value);
   if (editor.resizeRomAddress(selectedId, size)) busStatus(`ROM address size set to ${size} bits.`);
-  else busStatus("Address size must be 1–32 bits, fit connected wires, and include every stored address.", true);
+  else busStatus("ROM address width must be 1, 2, 4, 8, or 16 bits, fit connected wires, and include every stored address.", true);
   renderProperties();
 });
 
@@ -255,27 +282,228 @@ constantValueEl.addEventListener("change", () => {
   }
 });
 
-romApplyEl.addEventListener("click", () => {
+function romTarget() {
+  const component = editor.component(romTargetId);
+  return component?.t === "rom" ? component : null;
+}
+
+function romStatus(message, error = false) {
+  romStatusEl.textContent = message;
+  romStatusEl.classList.toggle("error", error);
+}
+
+function romEntries(component) {
+  const draft = romDrafts.get(component.id);
+  if (!draft) return new Map(component.data ?? []);
+  const addressSize = addressWidth(component);
+  const dataSize = bitWidth(component);
+  if (draft.addressSize !== addressSize || draft.dataSize !== dataSize) {
+    draft.entries = new Map([...draft.entries]
+      .filter(([address]) => address < 2 ** addressSize)
+      .map(([address, value]) => [address, value % (2 ** dataSize)])
+      .filter(([, value]) => value !== 0));
+    draft.addressSize = addressSize;
+    draft.dataSize = dataSize;
+  }
+  return draft.entries;
+}
+
+function editRomEntry(component, address, value) {
+  if (!romDrafts.has(component.id)) romDrafts.set(component.id, {
+    entries: new Map(component.data ?? []), addressSize: addressWidth(component), dataSize: bitWidth(component),
+  });
+  const entries = romEntries(component);
+  if (value) entries.set(address, value);
+  else entries.delete(address);
+  romStatus("Unsaved ROM edits.");
+}
+
+function addressLabel(address, width) {
+  return address.toString(16).toUpperCase().padStart(Math.max(2, Math.ceil(width / 4)), "0");
+}
+
+function constrainHexInput(input, width) {
+  const currentWidth = () => typeof width === "function" ? width() : width;
+  input.addEventListener("beforeinput", (event) => {
+    if (event.data === null || event.isComposing) return;
+    const next = input.value.slice(0, input.selectionStart) + event.data + input.value.slice(input.selectionEnd);
+    if (!validHexWord(next, currentWidth())) {
+      event.preventDefault();
+      romStatus(`Use hexadecimal digits that fit ${currentWidth()} bits.`, true);
+    }
+  });
+  input.addEventListener("input", () => {
+    if (validHexWord(input.value, currentWidth())) {
+      input.dataset.valid = input.value;
+      delete input.dataset.rejected;
+    }
+    else {
+      input.value = input.dataset.valid ?? "";
+      input.dataset.rejected = "true";
+      romStatus(`Use hexadecimal digits that fit ${currentWidth()} bits.`, true);
+    }
+  });
+}
+
+function renderRomRows(force = false) {
+  const component = romTarget();
+  if (!component) {
+    romRowsEl.replaceChildren();
+    romRangeEl.textContent = "";
+    romRenderedKey = null;
+    return;
+  }
+  const count = 2 ** addressWidth(component);
+  romPageStart = Math.min(romPageStart, Math.floor((count - 1) / ROM_PAGE_SIZE) * ROM_PAGE_SIZE);
+  const key = `${component.id}:${addressWidth(component)}:${bitWidth(component)}:${romPageStart}`;
+  if (!force && key === romRenderedKey) return;
+  romRenderedKey = key;
+  const end = Math.min(romPageStart + ROM_PAGE_SIZE, count);
+  romRangeEl.textContent = `${addressLabel(romPageStart, addressWidth(component))}–${addressLabel(end - 1, addressWidth(component))} of ${addressLabel(count - 1, addressWidth(component))}`;
+  romPrevEl.disabled = romPageStart === 0;
+  romNextEl.disabled = end === count;
+  const entries = romEntries(component);
+  const digits = Math.ceil(bitWidth(component) / 4);
+  const fragment = document.createDocumentFragment();
+  for (let columnStart = romPageStart; columnStart < end; columnStart += ROM_COLUMN_SIZE) {
+    const column = document.createElement("div");
+    column.className = "rom-column";
+    const header = document.createElement("div");
+    header.className = "rom-column-head";
+    const addressHead = document.createElement("span");
+    addressHead.textContent = "Address";
+    const valueHead = document.createElement("span");
+    valueHead.textContent = "Hex value";
+    header.append(addressHead, valueHead);
+    column.appendChild(header);
+    for (let address = columnStart; address < Math.min(columnStart + ROM_COLUMN_SIZE, end); address++) {
+      const row = document.createElement("div");
+      row.className = "rom-row";
+      const label = document.createElement("span");
+      label.className = "rom-address";
+      label.textContent = addressLabel(address, addressWidth(component));
+      const input = document.createElement("input");
+      input.type = "text";
+      input.inputMode = "text";
+      input.spellcheck = false;
+      input.autocomplete = "off";
+      input.maxLength = digits;
+      input.dataset.address = String(address);
+      input.placeholder = "0".padStart(digits, "0");
+      input.setAttribute("aria-label", `Value at address ${label.textContent}`);
+      input.value = entries.has(address) ? entries.get(address).toString(16).toUpperCase().padStart(digits, "0") : "";
+      input.dataset.valid = input.value;
+      constrainHexInput(input, bitWidth(component));
+      input.addEventListener("input", () => {
+        if (input.dataset.rejected === "true") { delete input.dataset.rejected; return; }
+        if (romTarget() !== component || !validHexWord(input.value, bitWidth(component))) return;
+        input.value = input.value.toUpperCase();
+        input.dataset.valid = input.value;
+        editRomEntry(component, address, input.value ? parseInt(input.value, 16) : 0);
+      });
+      input.addEventListener("keydown", (event) => {
+        const direction = event.key === "ArrowDown" || event.key === "Enter" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+        if (!direction) return;
+        const next = romRowsEl.querySelector(`input[data-address="${address + direction}"]`);
+        if (next) { event.preventDefault(); next.focus(); next.select(); }
+      });
+      row.append(label, input);
+      column.append(row);
+    }
+    fragment.append(column);
+  }
+  romRowsEl.replaceChildren(fragment);
+}
+
+function renderRomTab() {
+  const component = romTarget();
+  const ready = !!component;
+  romTargetEl.textContent = ready ? `Editing ROM ${component.id}` : "Select a ROM on the canvas to edit it.";
+  romWidthsEl.textContent = ready ? `${addressWidth(component)}-bit address · ${bitWidth(component)}-bit data` : "";
+  romSaveEl.disabled = !ready;
+  romImportEl.disabled = !ready;
+  romExportEl.disabled = !ready;
+  romJumpEl.disabled = !ready;
+  romGoEl.disabled = !ready;
+  if (ready && !validHexWord(romJumpEl.value, addressWidth(component))) {
+    romJumpEl.value = "";
+    romJumpEl.dataset.valid = "";
+  }
+  renderRomRows();
+}
+
+romOpenEl.addEventListener("click", () => {
   const component = editor.component(selectedId);
   if (component?.t !== "rom") return;
-  const entries = [];
-  const addresses = new Set();
-  for (const [index, line] of romDataEl.value.split(/\r?\n/).entries()) {
-    if (!line.trim()) continue;
-    const match = /^\s*(?:0x)?([0-9a-f]{1,8})\s*:\s*(?:0x)?([0-9a-f]{1,8})\s*$/i.exec(line);
-    const address = match ? parseInt(match[1], 16) : -1;
-    const value = match ? parseInt(match[2], 16) : -1;
-    if (!match || addresses.has(address) || address >= 2 ** addressWidth(component) || value >= 2 ** bitWidth(component)) {
-      busStatus(`Invalid ROM entry on line ${index + 1}. Use unique hex addresses and values that fit the selected sizes.`, true);
-      return;
-    }
-    addresses.add(address);
-    if (value) entries.push([address, value]);
+  romTargetId = component.id;
+  romPageStart = 0;
+  romRenderedKey = null;
+  romJumpEl.value = "";
+  romJumpEl.dataset.valid = "";
+  renderRomTab();
+  romStatus(romDrafts.has(component.id) ? "Unsaved ROM edits restored." : "ROM loaded. Edit hex entries, then save to the component.");
+  showView("rom");
+  romRowsEl.querySelector("input")?.focus();
+});
+
+romPrevEl.addEventListener("click", () => { romPageStart -= ROM_PAGE_SIZE; renderRomRows(true); });
+romNextEl.addEventListener("click", () => { romPageStart += ROM_PAGE_SIZE; renderRomRows(true); });
+constrainHexInput(romJumpEl, () => romTarget() ? addressWidth(romTarget()) : 1);
+romJumpEl.addEventListener("keydown", (event) => { if (event.key === "Enter") romGoEl.click(); });
+romGoEl.addEventListener("click", () => {
+  const component = romTarget();
+  if (!component || !romJumpEl.value) return;
+  const address = parseInt(romJumpEl.value, 16);
+  if (address >= 2 ** addressWidth(component)) {
+    romStatus(`Address must fit ${addressWidth(component)} bits.`, true);
+    return;
   }
-  if (editor.setRomData(selectedId, entries)) busStatus("ROM contents updated.");
-  else if (JSON.stringify(entries.sort((a, b) => a[0] - b[0])) !== JSON.stringify(component.data ?? []))
-    busStatus("ROM contents conflict with a connected output.", true);
-  renderProperties();
+  romPageStart = Math.floor(address / ROM_PAGE_SIZE) * ROM_PAGE_SIZE;
+  renderRomRows(true);
+  romRowsEl.querySelector(`input[data-address="${address}"]`)?.focus();
+});
+
+romSaveEl.addEventListener("click", () => {
+  const component = romTarget();
+  if (!component) return;
+  try {
+    const entries = [...romEntries(component)].sort((a, b) => a[0] - b[0]);
+    if (JSON.stringify(entries) !== JSON.stringify(component.data ?? []) && !editor.setRomData(component.id, entries))
+      throw new Error("ROM contents conflict with a connected output.");
+    romDrafts.delete(component.id);
+    romStatus("ROM saved to component.");
+  } catch (error) { romStatus(error.message, true); }
+});
+
+romImportEl.addEventListener("change", async () => {
+  const file = romImportEl.files[0];
+  romImportEl.value = "";
+  const component = romTarget();
+  if (!file || !component) return;
+  try {
+    const contents = await file.text();
+    if (romTarget() !== component) return;
+    const entries = parseRomFile(contents, addressWidth(component), bitWidth(component));
+    romDrafts.set(component.id, { entries: new Map(entries), addressSize: addressWidth(component), dataSize: bitWidth(component) });
+    renderRomRows(true);
+    romStatus("ROM file loaded. Save to apply it to the component.");
+  } catch (error) { romStatus(error.message, true); }
+});
+
+romExportEl.addEventListener("click", () => {
+  const component = romTarget();
+  if (!component) return;
+  try {
+    const entries = [...romEntries(component)].sort((a, b) => a[0] - b[0]);
+    const blob = new Blob([serializeRomFile(entries, addressWidth(component), bitWidth(component))], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${component.id}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+    romStatus("ROM file exported.");
+  } catch (error) { romStatus(error.message, true); }
 });
 
 valueFormatEl.addEventListener("change", () => {
@@ -459,6 +687,7 @@ function render() {
   renderComponents(logic);
   renderPins();
   renderProperties();
+  renderRomTab();
 }
 
 /* ---------- Interaction ---------- */
@@ -961,6 +1190,13 @@ function loadFromText(text) {
   try {
     // Parse before changing any selection or visible state.
     const { board } = parseDocument(text);
+    romTargetId = null;
+    romDrafts.clear();
+    romPageStart = 0;
+    romRenderedKey = null;
+    romJumpEl.value = "";
+    romJumpEl.dataset.valid = "";
+    romStatus("Open a ROM from its component properties.");
     setSelection([]);
     placingType = null;
     clearWireGesture();
