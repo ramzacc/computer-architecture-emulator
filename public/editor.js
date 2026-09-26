@@ -1,4 +1,4 @@
-import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, validBitWidth, validChannelCount, validClockFrequency, validConstant, validSplitterOrder } from "./components.js";
+import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, isValidComponent,
   evaluateBoard, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, shortCircuitError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
@@ -155,6 +155,7 @@ export class BoardEditor {
     const component = { id, t: type, x, y, r: 0,
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
       ...(type === "constant" ? { size: 1, value: 0 } : {}),
+      ...(type === "rom" ? { size: 8, addressSize: 8, data: [] } : {}),
       ...(type === "switch" ? { value: 0 } : {}),
       ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY, enable: false } : {}),
       ...(type === "output" ? { size: 1 } : {}),
@@ -261,7 +262,25 @@ export class BoardEditor {
     if (bitWidth(component) === size) return false;
     const changes = { size };
     if (component.t === "constant") changes.value = Math.min(component.value ?? 0, 2 ** size - 1);
+    if (component.t === "rom") changes.data = (component.data ?? [])
+      .map(([address, value]) => [address, value % (2 ** size)])
+      .filter(([, value]) => value !== 0);
     return this.editComponent(component, changes, { sanitize: true });
+  }
+
+  setRomData(id, data) {
+    const component = this.component(id);
+    if (component?.t !== "rom" || !validRom({ ...component, data })) return false;
+    const sorted = data.map(([address, value]) => [address, value]).sort((a, b) => a[0] - b[0]);
+    if (JSON.stringify(component.data ?? []) === JSON.stringify(sorted)) return false;
+    return this.editComponent(component, { data: sorted }, { validate: (board) => !shortCircuitError(board) });
+  }
+
+  resizeRomAddress(id, addressSize) {
+    const component = this.component(id);
+    if (component?.t !== "rom" || !validBitWidth(addressSize) ||
+        (component.addressSize ?? 8) === addressSize) return false;
+    return this.editComponent(component, { addressSize }, { sanitize: true });
   }
 
   setChannelCount(id, channels) {

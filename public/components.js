@@ -35,6 +35,13 @@ export const COMPONENT_TYPES = {
       { x: 2, y: 3, dir: "S", role: "out", name: "Q" },
     ],
   },
+  rom: {
+    label: "ROM", w: 4, h: 3, color: "#aaa8b1", shape: "rom", rom: true,
+    pins: [
+      { x: 2, y: 0, dir: "N", role: "in", name: "ADDR" },
+      { x: 2, y: 3, dir: "S", role: "out", name: "DATA" },
+    ],
+  },
   counter: {
     label: "Counter", w: 4, h: 3, color: "#aaa8b1", shape: "counter", counter: true,
     pins: [
@@ -220,12 +227,16 @@ export function selectWidth(component) {
 
 export function isSizable(component) {
   const entry = spec(component.t);
-  return !!(entry?.op || entry?.block || entry?.register || entry?.counter || entry?.splitter || entry?.constant || entry?.output);
+  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.counter || entry?.splitter || entry?.constant || entry?.output);
 }
 
 export function bitWidth(component) {
   if (component.t === "debugdisplay") return 4;
   return isSizable(component) ? (component.size ?? 1) : 1;
+}
+
+export function addressWidth(component) {
+  return component.addressSize ?? 8;
 }
 
 export function validBitWidth(size) {
@@ -241,6 +252,22 @@ export function validConstant(component) {
   const value = component.value ?? 0;
   return Number.isInteger(size) && size >= 1 && size <= 8 &&
     Number.isInteger(value) && value >= 0 && value < 2 ** size;
+}
+
+export function validRom(component) {
+  const data = component.data === undefined ? [] : component.data;
+  const width = bitWidth(component);
+  const addressSize = addressWidth(component);
+  if (!validBitWidth(addressSize) || !Array.isArray(data)) return false;
+  const addresses = new Set();
+  for (const entry of data) {
+    if (!Array.isArray(entry) || entry.length !== 2) return false;
+    const [address, value] = entry;
+    if (!Number.isInteger(address) || address < 0 || address >= 2 ** addressSize || addresses.has(address) ||
+        !Number.isInteger(value) || value < 1 || value >= 2 ** width) return false;
+    addresses.add(address);
+  }
+  return true;
 }
 
 export function spec(type) {
@@ -321,6 +348,7 @@ export function pinsFor(component) {
     const px = component.x + lx;
     const py = component.y + ly;
     const dir = rotateDir(pin.dir, r);
-    return { px, py, dir, role: pin.role, name: pin.name, size: pin.size ?? width, bit: pin.bit, edge: outwardEdge(px, py, dir) };
+    const size = entry.rom && pin.role === "in" ? addressWidth(component) : pin.size ?? width;
+    return { px, py, dir, role: pin.role, name: pin.name, size, bit: pin.bit, edge: outwardEdge(px, py, dir) };
   });
 }
