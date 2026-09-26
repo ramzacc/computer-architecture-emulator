@@ -3,7 +3,6 @@ import { edgeKey, wireSize } from "./model.js";
 import { formatValue } from "./value-format.js";
 
 const CELL = 48;
-const GAP = 3;
 const WIRE_W = 4;
 const U = 40;
 
@@ -239,8 +238,11 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       el.dataset.id = c.id;
       el.style.left = c.x * CELL + "px";
       el.style.top = c.y * CELL + "px";
-      el.style.width = d.w * CELL - (s.splitter ? 0 : GAP) + "px";
-      el.style.height = d.h * CELL - (s.splitter ? 0 : GAP) + "px";
+      // The SVG and pins must span the same lattice footprint. Shrinking the
+      // element makes preserveAspectRatio center its art away from the pins,
+      // with an increasingly visible offset on long muxes and splitters.
+      el.style.width = d.w * CELL + "px";
+      el.style.height = d.h * CELL + "px";
       if (selectedIds.has(c.id)) el.classList.add("selected");
       const st = logic.states.get(c.id);
       if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);
