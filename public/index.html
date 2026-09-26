@@ -4,40 +4,40 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Grid Canvas Prototype</title>
+  <script src="device.js"></script>
+  <script src="theme.js"></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header>
-    <nav class="tabs" aria-label="Workspace tabs">
-      <button id="tab-canvas" class="active" type="button" aria-current="page">Canvas</button>
-      <button id="tab-rom" type="button">ROM</button>
-    </nav>
-    <div class="toolbar">
-      <button id="btn-copy" disabled>Copy</button>
-      <button id="btn-paste" disabled>Paste</button>
-      <button id="btn-delete" disabled>Delete</button>
+  <section class="unsupported-device" aria-labelledby="unsupported-title">
+    <div>
+      <h1 id="unsupported-title">Open this editor on a computer</h1>
+      <p>Building circuits here requires a desktop or laptop. Phones and tablets aren't supported.</p>
     </div>
+  </section>
+  <header class="view-header">
+    <div class="view-tabs" role="tablist" aria-label="Views">
+      <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
+      <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
+    </div>
+    <button id="btn-theme" class="theme-toggle" type="button">Theme</button>
   </header>
 
-  <main id="canvas-workspace">
+  <main>
+    <div id="canvas-view" class="canvas-view" role="tabpanel" aria-labelledby="tab-canvas">
     <section class="panel">
-      <h2>File</h2>
-      <div class="file-actions">
-        <button id="btn-download">Save to file</button>
-        <label class="file-label">
-          <span>Import from file</span>
-          <input id="file-input" type="file" accept="application/json,.json" />
-        </label>
-      </div>
-      <h2>Wire properties</h2>
-      <label class="property">New wire size (bits)
+      <section class="library-section" aria-labelledby="library-heading">
+        <h2 id="library-heading">Components</h2>
+        <input id="palette-search" class="palette-search" type="search" placeholder="Search components…" aria-label="Search components" autocomplete="off" />
+        <div id="palette" class="palette"></div>
+        <p id="palette-empty" class="hint" role="status" hidden>No matching components.</p>
+      </section>
+      <section class="inspector-section" aria-labelledby="selected-properties-heading">
+      <h2 id="selected-properties-heading">Inspector</h2>
+      <p id="inspector-empty" class="hint">Select a component or wire to edit its properties.</p>
+      <label id="new-wire-row" class="property" hidden>Wire size (bits)
         <input id="new-wire-size" type="number" min="1" max="32" step="1" value="1" />
       </label>
-      <h2>Components</h2>
-      <input id="palette-search" class="palette-search" type="search" placeholder="Search components…" aria-label="Search components" autocomplete="off" />
-      <div id="palette" class="palette"></div>
-      <p id="palette-empty" class="hint" role="status" hidden>No matching components.</p>
-      <h2 id="selected-properties-heading">Selected properties</h2>
       <label id="selected-size-row" class="property" hidden><span id="selected-size-label">Selected size (bits)</span>
         <input id="selected-size" type="number" min="1" max="32" step="1" disabled />
       </label>
@@ -81,50 +81,68 @@
         <span id="selected-value-label">Selected bus value</span>
         <output id="selected-value" aria-live="polite">—</output>
       </div>
-      <p id="bus-status" class="hint" role="status">Select a wire net or logic gate to edit its size.</p>
+      <p id="bus-status" class="hint" role="status" hidden></p>
+      </section>
+      <section class="file-section" aria-labelledby="file-heading">
+        <h2 id="file-heading">File</h2>
+        <div class="file-actions">
+          <button id="btn-download">Save to file</button>
+          <label class="file-label">
+            <span>Import from file</span>
+            <input id="file-input" type="file" accept="application/json,.json" />
+          </label>
+        </div>
+      </section>
     </section>
 
     <section id="canvas-wrap" class="canvas-wrap">
       <div id="grid" class="grid" tabindex="0"></div>
-      <div class="canvas-modes" role="group" aria-label="Canvas mode">
-        <button id="btn-select" class="mode" type="button">Select mode</button>
-        <button id="btn-wire" class="mode" type="button">Wire mode</button>
-        <button id="btn-pan" class="mode" type="button">Pan mode</button>
+      <div class="canvas-toolbar">
+        <div class="canvas-modes canvas-controls" role="group" aria-label="Canvas mode">
+          <button id="btn-select" class="mode" type="button" aria-label="Select mode">Select</button>
+          <button id="btn-wire" class="mode" type="button" aria-label="Wire mode">Wire</button>
+          <button id="btn-pan" class="mode" type="button" aria-label="Pan mode">Pan</button>
+        </div>
+        <div class="canvas-actions canvas-controls" role="group" aria-label="Edit selection">
+          <button id="btn-copy" type="button" disabled>Copy</button>
+          <button id="btn-paste" type="button" disabled>Paste</button>
+          <button id="btn-delete" type="button" disabled>Delete</button>
+        </div>
       </div>
       <div id="zoom-level" class="zoom-level">100%</div>
     </section>
-  </main>
-
-  <main id="rom-workspace" hidden>
-    <section class="panel rom-panel">
-      <h2>ROM file</h2>
-      <p id="rom-target" class="hint">Select a ROM on the canvas to edit it.</p>
-      <p id="rom-widths" class="hint"></p>
-      <div class="rom-actions">
-        <button id="rom-save" type="button" disabled>Save to component</button>
-        <label class="file-label"><span>Import ROM file</span>
-          <input id="rom-file-input" type="file" accept="text/plain,.txt" disabled />
-        </label>
-        <button id="rom-export" type="button" disabled>Export ROM file</button>
-      </div>
-      <p id="rom-status" class="hint" role="status" aria-live="polite">Open a ROM from its component properties.</p>
-      <p class="hint">Enter one hexadecimal value per address. Empty cells read as zero. Text files contain one continuous hex sequence starting at address zero. Import replaces the ROM contents.</p>
-    </section>
-    <section class="rom-editor-wrap">
-      <div class="rom-editor-heading">
-        <h2>ROM contents</h2>
-        <span id="rom-range" class="hint"></span>
-      </div>
-      <div class="rom-navigation">
-        <button id="rom-prev" type="button" disabled>Previous</button>
-        <button id="rom-next" type="button" disabled>Next</button>
-        <label for="rom-jump">Go to address</label>
-        <input id="rom-jump" type="text" inputmode="text" spellcheck="false" autocapitalize="off" autocomplete="off" disabled />
-        <button id="rom-go" type="button" disabled>Go</button>
-      </div>
-      <div class="rom-memory" role="group" aria-label="ROM data values">
-        <div id="rom-rows" class="rom-rows"></div>
-      </div>
+    </div>
+    <section id="rom-view" class="rom-view" role="tabpanel" aria-labelledby="tab-rom" hidden>
+      <section class="panel rom-panel">
+        <h2>ROM file</h2>
+        <p id="rom-target" class="hint">Select a ROM on the canvas to edit it.</p>
+        <p id="rom-widths" class="hint"></p>
+        <div class="rom-actions">
+          <button id="rom-save" type="button" disabled>Save to component</button>
+          <label class="file-label"><span>Import ROM file</span>
+            <input id="rom-file-input" type="file" accept="text/plain,.txt" disabled />
+          </label>
+          <button id="rom-export" type="button" disabled>Export ROM file</button>
+        </div>
+        <p id="rom-status" class="hint" role="status" aria-live="polite">Open a ROM from its component properties.</p>
+        <p class="hint">Enter one hexadecimal value per address. Empty cells read as zero. Text files contain one continuous hex sequence starting at address zero. Import replaces the ROM contents.</p>
+      </section>
+      <section class="rom-editor-wrap">
+        <div class="rom-editor-heading">
+          <h2>ROM contents</h2>
+          <span id="rom-range" class="hint"></span>
+        </div>
+        <div class="rom-navigation">
+          <button id="rom-prev" type="button" disabled>Previous</button>
+          <button id="rom-next" type="button" disabled>Next</button>
+          <label for="rom-jump">Go to address</label>
+          <input id="rom-jump" type="text" inputmode="text" spellcheck="false" autocapitalize="off" autocomplete="off" disabled />
+          <button id="rom-go" type="button" disabled>Go</button>
+        </div>
+        <div class="rom-memory" role="group" aria-label="ROM data values">
+          <div id="rom-rows" class="rom-rows"></div>
+        </div>
+      </section>
     </section>
   </main>
 
