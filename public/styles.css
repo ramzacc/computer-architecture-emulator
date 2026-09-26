@@ -68,6 +68,21 @@
 
 * { box-sizing: border-box; }
 
+.unsupported-device { display: none; }
+html.unsupported-device .view-header,
+html.unsupported-device main { display: none; }
+html.unsupported-device .unsupported-device {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+}
+.unsupported-device > div { max-width: 400px; }
+.unsupported-device h1 { margin: 0 0 10px; font-size: 22px; font-weight: 600; }
+.unsupported-device p { margin: 0; color: var(--muted); line-height: 1.6; }
+
 body {
   display: flex;
   flex-direction: column;
@@ -360,12 +375,20 @@ main {
 .bus-value-row { align-items: flex-start; }
 #selected-value { max-width: 180px; text-align: right; overflow-wrap: anywhere; font: 12px/1.4 ui-monospace, monospace; color: var(--selected-value); }
 
+@media (max-width: 1200px) {
+  .panel { width: 250px; padding: 0 14px; }
+  .canvas-toolbar { top: 12px; left: 12px; right: 12px; }
+}
+
 @media (max-width: 900px) {
-  body { height: auto; min-height: 100vh; }
-  main { min-height: 0; }
-  .canvas-view { flex-direction: column; }
-  .panel { display: block; width: 100%; max-height: 360px; overflow-y: auto; border-right: 0; border-bottom: 1px solid var(--line); }
-  .library-section { min-height: 0; max-height: 260px; }
-  .inspector-section { overflow: visible; }
-  .canvas-wrap { min-height: 60vh; }
+  .panel { width: 220px; padding: 0 12px; }
+  .palette { grid-template-columns: 1fr; }
+  .palette button { flex-direction: row; justify-content: flex-start; min-height: 60px; padding: 6px; }
+  .palette-icon { width: 55px; height: 36px; }
+  .canvas-controls button { padding: 5px 7px; font-size: 12px; }
+}
+
+@media (max-width: 700px) {
+  .panel { width: 190px; padding: 0 10px; }
+  .canvas-toolbar { gap: 6px; }
 }

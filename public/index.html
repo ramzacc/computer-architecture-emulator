@@ -4,10 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Grid Canvas Prototype</title>
+  <script src="device.js"></script>
   <script src="theme.js"></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <section class="unsupported-device" aria-labelledby="unsupported-title">
+    <div>
+      <h1 id="unsupported-title">Open this editor on a computer</h1>
+      <p>Building circuits here requires a desktop or laptop. Phones and tablets aren't supported.</p>
+    </div>
+  </section>
   <header class="view-header">
     <div class="view-tabs" role="tablist" aria-label="Views">
       <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
