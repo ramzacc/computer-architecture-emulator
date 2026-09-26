@@ -34,6 +34,7 @@ body {
 .view-tabs button[aria-selected="true"] { background: var(--bg); border-color: var(--line); color: #fff; }
 
 h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 22px 0 10px; }
+.panel > h2:first-child { margin-top: 0; }
 
 button, .file-label {
   background: #292b32;
@@ -57,23 +58,25 @@ button:disabled { opacity: .4; cursor: default; border-color: var(--line); }
 main {
   flex: 1;
   min-height: 0;
-  padding: 16px;
 }
 
-.canvas-view { display: flex; align-items: stretch; gap: 16px; height: 100%; }
+.canvas-view { display: flex; align-items: stretch; height: 100%; }
 .canvas-view[hidden], .rom-view[hidden] { display: none; }
 .rom-view { height: 100%; }
 
 .panel {
-  width: 316px;
+  width: 280px;
   flex: 0 0 auto;
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 16px;
+  border-right: 1px solid var(--line);
+  padding: 20px 16px;
   max-height: 100%;
   overflow: auto;
 }
+
+.file-section { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 14px; }
+.file-section summary { cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 600; }
+.file-section .file-actions { margin-top: 12px; }
 
 .canvas-wrap {
   position: relative;
@@ -85,16 +88,14 @@ main {
     linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
     linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 48px 48px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
   touch-action: none;
 }
 
 .canvas-toolbar {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
+  top: 16px;
+  left: 16px;
+  right: 16px;
   z-index: 10;
   display: flex;
   justify-content: space-between;
@@ -103,8 +104,8 @@ main {
   pointer-events: none;
 }
 
-.canvas-controls { display: flex; gap: 8px; flex-wrap: wrap; pointer-events: auto; }
-.canvas-controls button { background: rgba(41, 43, 50, .95); }
+.canvas-controls { display: flex; gap: 6px; flex-wrap: wrap; pointer-events: auto; }
+.canvas-controls button { background: rgba(41, 43, 50, .95); padding: 6px 10px; }
 
 .zoom-level {
   position: absolute;
@@ -131,7 +132,7 @@ main {
   font: inherit;
 }
 .palette-search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-.palette { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: flex-start; gap: 8px; max-height: 300px; overflow-y: auto; }
+.palette { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: flex-start; gap: 8px; max-height: 340px; overflow-y: auto; }
 
 .palette button {
   display: flex;
@@ -302,6 +303,6 @@ main {
   body { height: auto; min-height: 100vh; }
   main { min-height: 0; }
   .canvas-view { flex-direction: column; }
-  .panel { width: 100%; max-height: 300px; }
+  .panel { width: 100%; max-height: 300px; border-right: 0; border-bottom: 1px solid var(--line); }
   .canvas-wrap { min-height: 60vh; }
 }
