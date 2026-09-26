@@ -21,13 +21,12 @@ body {
 header {
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: flex-end;
   padding: 12px 20px;
   border-bottom: 1px solid var(--line);
   background: #1a1b20;
 }
 
-h1 { font-size: 16px; font-weight: 650; letter-spacing: -.02em; margin: 0; white-space: nowrap; }
 h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 22px 0 10px; }
 
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -85,6 +84,19 @@ main {
   touch-action: none;
 }
 
+.canvas-modes {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 24px);
+}
+
+.canvas-modes button { background: rgba(41, 43, 50, .95); }
+
 .zoom-level {
   position: absolute;
   right: 10px;
@@ -99,7 +111,6 @@ main {
   pointer-events: none;
 }
 
-.palette-search-label { display: block; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
 .palette-search {
   width: 100%;
   padding: 7px 10px;
@@ -213,7 +224,7 @@ main {
 .pin.in { background: #b0b2bc; }
 .pin.out { background: #c8b49b; }
 
-.toolbar button.active {
+.canvas-modes button.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
   color: #e0e2e8;
