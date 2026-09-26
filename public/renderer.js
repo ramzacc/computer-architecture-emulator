@@ -34,6 +34,10 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     return `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle" fill="${color}" font-family="Inter, system-ui, sans-serif" font-size="${size}" font-weight="${weight}">${value}</text>`;
   }
 
+  function escapeText(value) {
+    return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  }
+
   function frame(w, h, color) {
     return `<rect x="6" y="6" width="${w - 12}" height="${h - 12}" rx="10" fill="${surface}" stroke="${border}" stroke-width="1.5"/>
       <path d="M16 7 H${w - 16}" stroke="${color}" stroke-width="2" stroke-linecap="round" opacity=".9"/>`;
@@ -74,26 +78,26 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     }).join("");
   }
 
-  function valueLines(value, width = 8) {
-    if (value.length <= width) return [value];
-    if (value.startsWith("0b")) return (value.slice(2).match(/.{1,8}/g) ?? []).map((part, i) => i ? part : `0b${part}`);
-    return [value];
-  }
-
   function numberArt(c, s, value, source) {
-    const w = 80, h = 80;
-    const formatted = formatValue(source ? (c.value ?? 0) : value, bitWidth(c), c.format);
-    const lines = valueLines(formatted);
-    const font = lines.length > 1 ? 10 : formatted.length > 8 ? 10 : formatted.length > 6 ? 13 : formatted.length > 4 ? 17 : 22;
-    const lineHeight = 12;
-    const firstY = 48 - (lines.length - 1) * lineHeight / 2;
-    const label = source ? "CONST" : "OUTPUT";
-    const values = lines.map((line, i) => textAt(40, firstY + i * lineHeight, line, font, ink, 650)).join("");
-    // Number displays remain upright when rotated; ports are drawn in their
-    // actual direction rather than rotating the text with the body.
-    const actual = actualPins(c);
-    return svgWrap(frame(w, h, s.color) + textAt(40, 23, label, 9, s.color, 750) + values +
-      ports(actual, w, h, s.color), s, 0);
+    const width = bitWidth(c), w = 2 * U, h = (width + 1) * U;
+    const current = source ? c.value ?? 0 : value;
+    const title = c.label || (c.t === "input" ? "INPUT" : source ? "CONST" : "OUTPUT");
+    const shown = title.length > 11 ? `${title.slice(0, 10)}…` : title;
+    const tiles = Array.from({ length: width }, (_, index) => {
+      const bit = width - 1 - index;
+      const on = (current >>> bit) & 1;
+      const y = (index + 1) * U + 3;
+      return `<g class="bit-tile${c.t === "input" ? " interactive" : ""}"${c.t === "input" ? ` data-bit="${bit}"` : ""}>
+        <rect x="12" y="${y}" width="56" height="34" rx="5" fill="${on ? s.color : "#17181d"}" stroke="${on ? s.color : border}"/>
+        ${textAt(23, y + 17, bit, 8, on ? "#45413c" : muted, 650)}
+        ${textAt(49, y + 17, on, 16, on ? "#17181d" : ink, 750)}</g>`;
+    }).join("");
+    const formatted = formatValue(current, width, c.format);
+    const summary = formatted.length > 16 ? `${formatted.slice(0, 13)}…` : formatted;
+    const base = frame(w, h, s.color) + textAt(w / 2, 16, escapeText(shown), 9, s.color, 750) +
+      textAt(w / 2, 31, escapeText(summary), 7, muted, 650) + tiles +
+      ports(localPins(c, s), w, h, s.color);
+    return svgWrap(base, { w: 2, h: width + 1 }, 0);
   }
 
   function sourceArt(c, s, active) {
@@ -217,7 +221,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
 
   function componentArt(c, s, value = 0, inputs = []) {
     if (s.splitter) return splitterArt(c, s);
-    if (s.constant || s.output) return numberArt(c, s, value, !!s.constant);
+    if (s.constant || s.input || s.output) return numberArt(c, s, value, !!(s.constant || s.input));
     if (["button", "switch", "clock"].includes(s.shape)) return sourceArt(c, s, value !== 0);
     if (s.shape === "led") return ledArt(c, s);
     if (s.shape === "sevenseg") return sevenSegArt(c, s, inputs);
@@ -248,7 +252,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);
       if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
       el.innerHTML = componentArt(c, s, st?.value ?? 0, st?.inputs ?? []);
-      el.title = `${s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "clock" ? `  ${c.frequency ?? 1} Hz  ${c.enable === false ? "disabled" : "enabled"}` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${c.t === "constant" ? "  value: " + formatValue(c.value ?? 0, bitWidth(c), c.format) : st && (["output", "debugdisplay"].includes(c.t) || st.value) ? "  value: " + (["output", "debugdisplay"].includes(c.t) ? formatValue(st.value, bitWidth(c), c.t === "debugdisplay" ? "hex" : c.format) : st.value) : ""}`;
+      el.title = `${c.label || s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "clock" ? `  ${c.frequency ?? 1} Hz  ${c.enable === false ? "disabled" : "enabled"}` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${c.t === "constant" || c.t === "input" ? "  value: " + formatValue(c.value ?? 0, bitWidth(c), c.format) : st && (["output", "debugdisplay"].includes(c.t) || st.value) ? "  value: " + (["output", "debugdisplay"].includes(c.t) ? formatValue(st.value, bitWidth(c), c.t === "debugdisplay" ? "hex" : c.format) : st.value) : ""}`;
       gridEl.appendChild(el);
     }
   }

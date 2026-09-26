@@ -60,8 +60,11 @@
           <option value="descendant">Descendant</option>
         </select>
       </label>
-      <label id="constant-value-row" class="property" hidden>Constant value
+      <label id="constant-value-row" class="property" hidden><span id="source-value-label">Constant value</span>
         <input id="constant-value" type="text" inputmode="text" spellcheck="false" disabled />
+      </label>
+      <label id="component-label-row" class="property" hidden>Label
+        <input id="component-label" type="text" maxlength="80" disabled />
       </label>
       <button id="rom-open" type="button" hidden>Edit ROM contents</button>
       <label id="value-format-row" class="property" hidden>Value format

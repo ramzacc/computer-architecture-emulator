@@ -31,11 +31,13 @@ function validComponentProperties(component) {
   const size = dimsOf(component);
   if (!size || !Number.isSafeInteger(component.x) || !Number.isSafeInteger(component.y) ||
       !validBitWidth(bitWidth(component)) ||
+      (["constant", "input", "output"].includes(component.t) && ![0, 2].includes(component.r ?? 0)) ||
       ((component.t === "mux" || component.t === "demux") && !validChannelCount(channelCount(component))) ||
       (component.t === "splitter" && !validSplitterOrder(component.order ?? "ascendant")) ||
       (component.t === "clock" && !validClockFrequency(component.frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
       (component.t === "clock" && component.enable !== undefined && typeof component.enable !== "boolean") ||
-      (component.t === "constant" && !validConstant(component)) ||
+      (["constant", "input"].includes(component.t) && !validConstant(component)) ||
+      (["input", "output"].includes(component.t) && (typeof (component.label ?? "") !== "string" || (component.label ?? "").length > 80)) ||
       (component.t === "rom" && !validRom(component)) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
   return true;
@@ -263,7 +265,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       register: !!entry.register,
       counter: !!entry.counter,
       storedValue: (registerValues.get(component.id) ?? 0) & bitMask(bitWidth(component)),
-      constant: !!entry.constant,
+      constant: !!(entry.constant || entry.input),
       constantValue: component.value ?? 0,
       rom: !!entry.rom,
       romData: entry.rom ? new Map(component.data ?? []) : null,
@@ -390,7 +392,7 @@ export function shortCircuitError(board, pressedButtons) {
   const driven = new Map();
   for (const component of board.components) {
     const entry = spec(component.t);
-    if (!entry?.momentary && !entry?.toggle && !entry?.clock && !entry?.constant && !entry?.rom && !entry?.op && !entry?.block && !entry?.register && !entry?.counter) continue;
+    if (!entry?.momentary && !entry?.toggle && !entry?.clock && !entry?.constant && !entry?.input && !entry?.rom && !entry?.op && !entry?.block && !entry?.register && !entry?.counter) continue;
     const outputs = states.get(component.id).outputs;
     for (const [index, pin] of pinsFor(component).filter((item) => item.role === "out").entries()) {
       const net = netAt(pin);
@@ -457,12 +459,13 @@ function documentFields(t) {
   if (DOCUMENT_FIELD_CACHE.has(t)) return DOCUMENT_FIELD_CACHE.get(t);
   const fields = [
     ...(isSizable({ t }) ? ["size"] : []),
-    ...(t === "constant" || t === "switch" ? ["value"] : []),
+    ...(t === "constant" || t === "input" || t === "switch" ? ["value"] : []),
     ...(t === "rom" ? ["addressSize", "data"] : []),
     ...(t === "clock" ? ["frequency", "enable"] : []),
     ...(t === "splitter" ? ["order"] : []),
     ...(t === "mux" || t === "demux" ? ["channels"] : []),
-    ...(t === "constant" || t === "output" ? ["format"] : []),
+    ...(["constant", "input", "output"].includes(t) ? ["format"] : []),
+    ...(["input", "output"].includes(t) ? ["label"] : []),
   ];
   DOCUMENT_FIELD_CACHE.set(t, fields);
   return fields;
@@ -479,24 +482,27 @@ function documentValue(component, field) {
     case "order": return component.order === "descendant" ? 1 : 0;
     case "channels": return component.channels ?? 2;
     case "format": return DOCUMENT_FORMATS.indexOf(component.format ?? "decimal");
+    case "label": return component.label ?? "";
   }
 }
 
 export function serialize(board) {
   return JSON.stringify({
     components: board.components.map((component) => {
-      const { t, x, y, r, size, value, data, addressSize, format, order, channels, frequency, enable } = component;
+      const { t, x, y, r, size, value, data, addressSize, format, order, channels, frequency, enable, label } = component;
       if (!spec(t) || !Number.isSafeInteger(x) || !Number.isSafeInteger(y) ||
           (r !== undefined && (!Number.isInteger(r) || r < 0 || r > 3)) ||
+          (["constant", "input", "output"].includes(t) && ![0, 2].includes(r ?? 0)) ||
           (isSizable({ t }) && !validBitWidth(size ?? 1)) ||
-          (t === "constant" && !validConstant({ t, size, value })) ||
+          (["constant", "input"].includes(t) && !validConstant({ t, size, value })) ||
+          (["input", "output"].includes(t) && (typeof (label ?? "") !== "string" || (label ?? "").length > 80)) ||
           (t === "rom" && !validRom({ t, size, addressSize, data })) ||
           (t === "switch" && ![0, 1].includes(value ?? 0)) ||
           (t === "clock" && !validClockFrequency(frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
           (t === "clock" && enable !== undefined && typeof enable !== "boolean") ||
           (t === "splitter" && !validSplitterOrder(order ?? "ascendant")) ||
           ((t === "mux" || t === "demux") && !validChannelCount(channels ?? 2)) ||
-          (format !== undefined && (!["constant", "output"].includes(t) || !validValueFormat(format))))
+          (format !== undefined && (!["constant", "input", "output"].includes(t) || !validValueFormat(format))))
         throw new Error(`Cannot serialize invalid ${String(t)} component.`);
       return [t, x, y, r ?? 0, ...documentFields(t).map((field) => documentValue(component, field))];
     }),
@@ -534,12 +540,15 @@ export function parseDocument(text) {
     if (typeof t !== "string" || !spec(t)) throw new Error(`${path}.t is unknown.`);
     const fields = documentFields(t);
     const legacyClock = t === "clock" && raw.length === 5;
-    if (raw.length !== 4 + fields.length && !legacyClock)
+    const legacyOutput = t === "output" && raw.length === 4 + fields.length - 1;
+    if (raw.length !== 4 + fields.length && !legacyClock && !legacyOutput)
       throw new Error(`${path} must have ${4 + fields.length} entries.`);
     coordinate(x, `${path}[1]`);
     coordinate(y, `${path}[2]`);
     if (!Number.isInteger(r) || r < 0 || r > 3) throw new Error(`${path}[3] must be 0–3.`);
-    const component = { id: `c${index + 1}`, t, x, y, r };
+    const sideRotation = ["constant", "input", "output"].includes(t) && (r === 1 || r === 3)
+      ? (t === "output" ? (r === 1 ? 2 : 0) : (r === 1 ? 0 : 2)) : r;
+    const component = { id: `c${index + 1}`, t, x, y, r: sideRotation };
     for (const [offset, field] of fields.entries()) {
       const value = raw[4 + offset];
       const fieldPath = `${path}[${4 + offset}]`;
@@ -557,10 +566,12 @@ export function parseDocument(text) {
       if (field === "channels" && !validChannelCount(value)) throw new Error(`${fieldPath} is an invalid channel count.`);
       if (field === "format" && (!Number.isInteger(value) || value < 0 || value >= DOCUMENT_FORMATS.length))
         throw new Error(`${fieldPath} is an invalid value format.`);
+      if (field === "label" && !legacyOutput && (typeof value !== "string" || value.length > 80))
+        throw new Error(`${fieldPath} must be a string of at most 80 characters.`);
       if (field === "order") component.order = value ? "descendant" : "ascendant";
       else if (field === "format") {
         if (value) component.format = DOCUMENT_FORMATS[value];
-      } else component[field] = field === "enable" && legacyClock ? true : value;
+      } else component[field] = field === "enable" && legacyClock ? true : field === "label" && legacyOutput ? "" : value;
     }
     if (!validComponentProperties(component)) throw new Error(`${path} is invalid.`);
     const { w, h } = dimsOf(component);
