@@ -270,7 +270,7 @@ test('constant and output formats convert existing values and survive saving', (
   const constant = editor.place('constant', 0, 0);
   editor.resizeComponent(constant.id, 8);
   editor.setConstantValue(constant.id, 173);
-  const output = editor.place('output', 4, 0);
+  const output = editor.place('output', 12, 0);
   assert.equal(editor.setValueFormat(constant.id, 'binary'), true);
   assert.equal(formatValue(constant.value, constant.size, constant.format), '0b10101101');
   assert.equal(editor.setValueFormat(constant.id, 'hex'), true);
@@ -730,13 +730,13 @@ test('copy and paste preserve component properties and relative positions', () =
   const saves = ctx.saves;
   const first = editor.pasteComponents(copies);
   assert.equal(first.length, 2);
-  assert.deepEqual(first.map(({ x, y }) => [x, y]), [[2, 2], [7, 3]]);
+  assert.deepEqual(first.map(({ x, y }) => [x, y]), [[4, 4], [9, 5]]);
   assert.equal(first[0].size, 3);
   assert.equal(first[0].value, 5);
   assert.equal(new Set(first.map((c) => c.id)).size, 2);
   assert.equal(ctx.saves, saves + 1);
   const second = editor.pasteComponents(copies);
-  assert.deepEqual(second.map(({ x, y }) => [x, y]), [[4, 4], [9, 5]]);
+  assert.deepEqual(second.map(({ x, y }) => [x, y]), [[8, 8], [13, 9]]);
   assert.equal(ctx.saves, saves + 2);
   assert.equal(editor.deleteComponents(first.map((c) => c.id)), true);
   assert.equal(ctx.saves, saves + 3);
