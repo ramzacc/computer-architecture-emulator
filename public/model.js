@@ -261,6 +261,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       clock: !!entry.clock,
       clockEnabled: component.enable !== false,
       register: !!entry.register,
+      counter: !!entry.counter,
       storedValue: (registerValues.get(component.id) ?? 0) & bitMask(bitWidth(component)),
       constant: !!entry.constant,
       constantValue: component.value ?? 0,
@@ -287,7 +288,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     if (part.momentary) return Number(pressedButtons.has(part.id));
     if (part.toggle) return part.constantValue;
     if (part.clock) return Number(part.clockEnabled && highClocks.has(part.id));
-    if (part.register) return part.storedValue >>> 0;
+    if (part.register || part.counter) return part.storedValue >>> 0;
     if (part.block) {
       const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
       const outputs = blockOutputs(part.block, inputs, part.size, part.channels);
@@ -389,7 +390,7 @@ export function shortCircuitError(board, pressedButtons) {
   const driven = new Map();
   for (const component of board.components) {
     const entry = spec(component.t);
-    if (!entry?.momentary && !entry?.toggle && !entry?.clock && !entry?.constant && !entry?.rom && !entry?.op && !entry?.block && !entry?.register) continue;
+    if (!entry?.momentary && !entry?.toggle && !entry?.clock && !entry?.constant && !entry?.rom && !entry?.op && !entry?.block && !entry?.register && !entry?.counter) continue;
     const outputs = states.get(component.id).outputs;
     for (const [index, pin] of pinsFor(component).filter((item) => item.role === "out").entries()) {
       const net = netAt(pin);
@@ -404,7 +405,9 @@ export function shortCircuitError(board, pressedButtons) {
           return "Short circuit: a clock output cannot share a driven net.";
         if (previous && (previous.register || entry.register))
           return "Short circuit: a register output cannot share a driven net.";
-        driven.set(key, { level, clock: !!entry.clock, register: !!entry.register });
+        if (previous && (previous.counter || entry.counter))
+          return "Short circuit: a counter output cannot share a driven net.";
+        driven.set(key, { level, clock: !!entry.clock, register: !!entry.register, counter: !!entry.counter });
       }
     }
   }

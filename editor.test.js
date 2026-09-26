@@ -450,6 +450,58 @@ test('a register captures its data on rising edges and holds it on falling edges
   assert.equal(editor.evaluation.states.get(editor.board.components[2].id).value, 0);
 });
 
+test('a counter increments on rising edges, wraps at its bit width, and resets while RST is high', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  const clock = editor.place('button', 0, 0);
+  const reset = editor.place('switch', 4, 0);
+  const counter = editor.place('counter', 0, 5);
+  assert.equal(counter.size, 4);
+  assert.deepEqual(pinsFor(counter).map(({ name, size }) => [name, size]), [['CLK', 1], ['RST', 1], ['Q', 4]]);
+  const art = createRenderer(null, () => null, () => new Set(), () => new Set()).componentArt(counter, spec('counter'));
+  assert.match(art, /COUNTER/);
+  assert.match(art, /\+1/);
+  assert.equal(editor.resizeComponent(counter.id, 2), true);
+  for (const y of [2, 3, 4]) assert.equal(editor.addWire({ o: 'V', x: 1, y }), true);
+  assert.equal(editor.addWire({ o: 'V', x: 5, y: 2 }), true);
+  for (const x of [3, 4]) assert.equal(editor.addWire({ o: 'H', x, y: 3 }), true);
+  assert.equal(editor.addWire({ o: 'V', x: 3, y: 3 }), true);
+  assert.equal(editor.addWire({ o: 'V', x: 3, y: 4 }), true);
+  const saves = ctx.saves;
+  for (const expected of [1, 2, 3, 0, 1]) {
+    assert.equal(editor.setButtonPressed(clock.id, true), true);
+    assert.equal(editor.evaluation.states.get(counter.id).value, expected);
+    assert.equal(editor.setButtonPressed(clock.id, false), true);
+    assert.equal(editor.evaluation.states.get(counter.id).value, expected);
+  }
+  assert.equal(ctx.saves, saves);
+  assert.equal(editor.toggleSwitch(reset.id), true);
+  assert.equal(editor.evaluation.states.get(counter.id).value, 0);
+  editor.setButtonPressed(clock.id, true);
+  assert.equal(editor.evaluation.states.get(counter.id).value, 0);
+  editor.setButtonPressed(clock.id, false);
+  editor.toggleSwitch(reset.id);
+  editor.setButtonPressed(clock.id, true);
+  assert.equal(editor.evaluation.states.get(counter.id).value, 1);
+  const restored = parseDocument(serialize(editor.board)).board;
+  assert.equal(restored.components[2].size, 2);
+  editor.replaceBoard(restored, { save: false });
+  assert.equal(editor.evaluation.states.get(restored.components[2].id).value, 0);
+});
+
+test('a counter recognizes a rising edge from an edited source', () => {
+  const { editor } = setup();
+  const source = editor.place('constant', 0, 0);
+  const counter = editor.place('counter', 0, 5);
+  for (const y of [2, 3, 4]) assert.equal(editor.addWire({ o: 'V', x: 1, y }), true);
+  assert.equal(editor.setConstantValue(source.id, 1), true);
+  assert.equal(editor.evaluation.states.get(counter.id).value, 1);
+  assert.equal(editor.setConstantValue(source.id, 0), true);
+  assert.equal(editor.evaluation.states.get(counter.id).value, 1);
+  assert.equal(editor.setConstantValue(source.id, 1), true);
+  assert.equal(editor.evaluation.states.get(counter.id).value, 2);
+});
+
 test('cascaded registers on one clock capture the previous Q simultaneously', () => {
   const { editor } = setup();
   const source = editor.place('constant', 0, 0);
