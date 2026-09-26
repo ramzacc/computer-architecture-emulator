@@ -6,6 +6,8 @@ The ROM component starts with an 8-bit address bus and an 8-bit data bus. Addres
 
 The ROM tab can import and export `.txt` files containing one uninterrupted hexadecimal string, starting at address zero. Each fixed-width group of hex digits is one ROM word; the selected component supplies the word width. Export fills gaps with zero words and omits trailing zeros. Import replaces the ROM contents when you click **Save to component**.
 
+RAM uses the same address and data width choices as ROM. Its ADDR and DIN inputs select an address and write data; a rising edge on the one-bit WR input stores DIN at ADDR. DATA continuously reads the selected address. RAM starts at zero and its contents last only for the current simulation; they are not edited in the ROM tab or saved with the circuit. Reducing a width trims stored values or addresses that no longer fit.
+
 [Open the tool](https://comparch.ramza.cc)
 
 Downloaded circuits use compact JSON with `components` and `wires` fields. Each component starts with `[type, x, y, rotation]`, followed by its properties in the layout defined in `public/model.js`. Each wire is `[orientation, x, y, size]`. Imports validate the entire circuit and report an error if any component or wire is invalid.

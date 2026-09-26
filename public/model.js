@@ -1,4 +1,4 @@
-import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
+import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRam, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { validValueFormat } from "./value-format.js";
 
 export function createBoard() {
@@ -37,6 +37,7 @@ function validComponentProperties(component) {
       (component.t === "clock" && component.enable !== undefined && typeof component.enable !== "boolean") ||
       (component.t === "constant" && !validConstant(component)) ||
       (component.t === "rom" && !validRom(component)) ||
+      (component.t === "ram" && !validRam(component)) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
   return true;
 }
@@ -237,7 +238,7 @@ function buildUnionFind(board) {
 // Solve the board to a fixed point: nets carry a value, each component's
 // output (or LED) follows from its inputs. Oscillating feedback is reported
 // to callers so edits can reject it.
-export function evaluateBoard(board, pressedButtons = new Set(), highClocks = new Set(), registerValues = new Map()) {
+export function evaluateBoard(board, pressedButtons = new Set(), highClocks = new Set(), registerValues = new Map(), ramValues = new Map()) {
   const { parent, find } = buildUnionFind(board);
   const nets = new Map();
   for (const edge of board.wires.values()) {
@@ -267,7 +268,9 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       constantValue: component.value ?? 0,
       rom: !!entry.rom,
       romData: entry.rom ? new Map(component.data ?? []) : null,
-      addressSize: entry.rom ? addressWidth(component) : 0,
+      ram: !!entry.ram,
+      ramData: entry.ram ? ramValues.get(component.id) ?? new Map() : null,
+      addressSize: entry.rom || entry.ram ? addressWidth(component) : 0,
       output: !!entry.output,
       debug: !!entry.debug,
       splitter: !!entry.splitter,
@@ -284,6 +287,10 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     if (part.rom) {
       const address = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
       return part.romData.get(address % (2 ** part.addressSize)) ?? 0;
+    }
+    if (part.ram) {
+      const address = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
+      return part.ramData.get(address % (2 ** part.addressSize)) ?? 0;
     }
     if (part.momentary) return Number(pressedButtons.has(part.id));
     if (part.toggle) return part.constantValue;
@@ -390,7 +397,7 @@ export function shortCircuitError(board, pressedButtons) {
   const driven = new Map();
   for (const component of board.components) {
     const entry = spec(component.t);
-    if (!entry?.momentary && !entry?.toggle && !entry?.clock && !entry?.constant && !entry?.rom && !entry?.op && !entry?.block && !entry?.register && !entry?.counter) continue;
+    if (!entry?.momentary && !entry?.toggle && !entry?.clock && !entry?.constant && !entry?.rom && !entry?.ram && !entry?.op && !entry?.block && !entry?.register && !entry?.counter) continue;
     const outputs = states.get(component.id).outputs;
     for (const [index, pin] of pinsFor(component).filter((item) => item.role === "out").entries()) {
       const net = netAt(pin);
@@ -458,7 +465,7 @@ function documentFields(t) {
   const fields = [
     ...(isSizable({ t }) ? ["size"] : []),
     ...(t === "constant" || t === "switch" ? ["value"] : []),
-    ...(t === "rom" ? ["addressSize", "data"] : []),
+    ...(t === "rom" ? ["addressSize", "data"] : t === "ram" ? ["addressSize"] : []),
     ...(t === "clock" ? ["frequency", "enable"] : []),
     ...(t === "splitter" ? ["order"] : []),
     ...(t === "mux" || t === "demux" ? ["channels"] : []),
@@ -491,6 +498,7 @@ export function serialize(board) {
           (isSizable({ t }) && !validBitWidth(size ?? 1)) ||
           (t === "constant" && !validConstant({ t, size, value })) ||
           (t === "rom" && !validRom({ t, size, addressSize, data })) ||
+          (t === "ram" && !validRam({ t, size, addressSize })) ||
           (t === "switch" && ![0, 1].includes(value ?? 0)) ||
           (t === "clock" && !validClockFrequency(frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
           (t === "clock" && enable !== undefined && typeof enable !== "boolean") ||
@@ -543,8 +551,8 @@ export function parseDocument(text) {
     for (const [offset, field] of fields.entries()) {
       const value = raw[4 + offset];
       const fieldPath = `${path}[${4 + offset}]`;
-      if (field === "size" && !(t === "rom" ? validRomWidth(value) : validBitWidth(value)))
-        throw new Error(`${fieldPath} must be ${t === "rom" ? "a power of two from 1–32" : "1–32"}.`);
+      if (field === "size" && !(["rom", "ram"].includes(t) ? validRomWidth(value) : validBitWidth(value)))
+        throw new Error(`${fieldPath} must be ${["rom", "ram"].includes(t) ? "a power of two from 1–32" : "1–32"}.`);
       if (field === "addressSize" && !validRomAddressWidth(value))
         throw new Error(`${fieldPath} must be a power of two from 1–16.`);
       if (field === "value" && !Number.isInteger(value)) throw new Error(`${fieldPath} must be an integer.`);
