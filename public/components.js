@@ -320,7 +320,7 @@ export function dimsFor(type, r = 0) {
 
 export function dimsOf(component) {
   if (["constant", "input", "output"].includes(component.t)) {
-    return { w: 2, h: bitWidth(component) + 1 };
+    return { w: bitWidth(component) + 1, h: 2 };
   }
   if (component.t === "mux" || component.t === "demux") {
     const w = component.t === "mux" ? Math.max(4, 2 * (channelCount(component) + 1)) : Math.max(4, 2 * channelCount(component));
@@ -368,7 +368,7 @@ export function pinsFor(component) {
         ({ x: 2, y: index + 1, dir: "E", role: "out", size: 1,
           bit: component.order === "descendant" ? width - 1 - index : index }))]
     : bitRow
-    ? [{ x: r === 2 ? 2 : 0, y: 1, dir: r === 2 ? "E" : "W", role: entry.output ? "in" : "out" }]
+    ? [{ x: r === 2 ? width + 1 : 0, y: 1, dir: r === 2 ? "E" : "W", role: entry.output ? "in" : "out" }]
     : entry.pins;
   return localPins.map((pin) => {
     const [lx, ly] = bitRow
