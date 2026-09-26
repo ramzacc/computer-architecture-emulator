@@ -243,6 +243,14 @@ export function validBitWidth(size) {
   return Number.isInteger(size) && size >= 1 && size <= MAX_BUS_WIDTH;
 }
 
+export function validRomWidth(size) {
+  return validBitWidth(size) && (size & (size - 1)) === 0;
+}
+
+export function validRomAddressWidth(size) {
+  return validRomWidth(size) && size <= 16;
+}
+
 export function validSplitterOrder(order) {
   return order === "ascendant" || order === "descendant";
 }
@@ -258,7 +266,7 @@ export function validRom(component) {
   const data = component.data === undefined ? [] : component.data;
   const width = bitWidth(component);
   const addressSize = addressWidth(component);
-  if (!validBitWidth(addressSize) || !Array.isArray(data)) return false;
+  if (!validRomWidth(width) || !validRomAddressWidth(addressSize) || !Array.isArray(data)) return false;
   const addresses = new Set();
   for (const entry of data) {
     if (!Array.isArray(entry) || entry.length !== 2) return false;

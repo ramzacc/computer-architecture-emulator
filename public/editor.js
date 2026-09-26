@@ -1,4 +1,4 @@
-import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validSplitterOrder } from "./components.js";
+import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, isValidComponent,
   evaluateBoard, netContaining, parseDocument, resizeNet, sanitizeWires, serialize, shortCircuitError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
@@ -258,7 +258,8 @@ export class BoardEditor {
   resizeComponent(id, size) {
     const component = this.component(id);
     if (!component || !isSizable(component) || !validBitWidth(size) ||
-        (component.t === "constant" && size > 8)) return false;
+        (component.t === "constant" && size > 8) ||
+        (component.t === "rom" && !validRomWidth(size))) return false;
     if (bitWidth(component) === size) return false;
     const changes = { size };
     if (component.t === "constant") changes.value = Math.min(component.value ?? 0, 2 ** size - 1);
@@ -278,7 +279,7 @@ export class BoardEditor {
 
   resizeRomAddress(id, addressSize) {
     const component = this.component(id);
-    if (component?.t !== "rom" || !validBitWidth(addressSize) ||
+    if (component?.t !== "rom" || !validRomAddressWidth(addressSize) ||
         (component.addressSize ?? 8) === addressSize) return false;
     return this.editComponent(component, { addressSize }, { sanitize: true });
   }

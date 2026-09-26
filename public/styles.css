@@ -21,11 +21,14 @@ body {
 header {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 12px 20px;
   border-bottom: 1px solid var(--line);
   background: #1a1b20;
 }
+.tabs { display: flex; gap: 8px; }
+.tabs button.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.toolbar[hidden] { display: none; }
 
 h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 22px 0 10px; }
 
@@ -57,6 +60,7 @@ main {
   padding: 16px;
   height: calc(100vh - 60px);
 }
+main[hidden] { display: none; }
 
 .panel {
   width: 316px;
@@ -276,14 +280,43 @@ main {
 
 .property { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; font-size: 12px; }
 .property[hidden] { display: none; }
-.property input { width: 65px; padding: 6px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 6px; }
+.property input, .property select { width: 65px; padding: 6px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 6px; }
 .property input[type="checkbox"] { width: 16px; height: 16px; padding: 0; accent-color: var(--accent); }
 .property #constant-value { width: 110px; font-family: ui-monospace, monospace; }
 .property select { padding: 6px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 6px; }
-.rom-data-property { display: grid; gap: 7px; margin: 12px 0; font-size: 12px; }
-.rom-data-property[hidden] { display: none; }
-.rom-data-property textarea { box-sizing: border-box; width: 100%; padding: 8px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 6px; font-family: ui-monospace, monospace; resize: vertical; }
-.rom-data-property span { color: var(--muted); line-height: 1.4; }
+#rom-open { width: 100%; margin: 8px 0; }
+#rom-open[hidden] { display: none; }
+.rom-panel { display: flex; flex-direction: column; }
+.rom-actions { display: grid; gap: 8px; }
+.rom-actions > * { text-align: center; }
+.rom-actions .file-label { display: block; }
+.rom-editor-wrap { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 10px; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.rom-editor-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.rom-editor-heading h2 { margin: 0; }
+.rom-navigation { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.rom-navigation label { color: var(--muted); font-size: 12px; }
+.rom-navigation input, .rom-row input { padding: 7px 9px; color: var(--text); background: #17181d; border: 1px solid var(--line); border-radius: 5px; font: 14px/1.4 ui-monospace, monospace; text-transform: uppercase; }
+.rom-navigation input { width: 100px; }
+.rom-navigation input:focus, .rom-row input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rom-memory { flex: 1; min-width: 0; min-height: 240px; overflow: auto; container-type: inline-size; border: 1px solid var(--line); border-radius: 6px; background: #17181d; font: 14px/1.4 ui-monospace, monospace; }
+.rom-rows { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-content: start; }
+.rom-column { min-width: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.rom-column:last-child { border-right: 0; }
+.rom-column-head, .rom-row { display: grid; grid-template-columns: minmax(55px, 90px) minmax(0, 1fr); align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.rom-column-head { background: #292b32; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.rom-row:last-child { border-bottom: 0; }
+.rom-row:nth-child(even) { background: #1d1e23; }
+.rom-address { color: #d1c9b8; }
+.rom-row input { min-width: 0; width: 100%; }
+@container (max-width: 950px) {
+  .rom-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rom-column:nth-child(2n) { border-right: 0; }
+}
+@container (max-width: 520px) {
+  .rom-rows { grid-template-columns: minmax(0, 1fr); }
+  .rom-column { border-right: 0; }
+}
+#rom-status.error { color: #ff777b; }
 #bus-status.error { color: #ff777b; }
 
 .bus-value-row { align-items: flex-start; }
@@ -293,4 +326,5 @@ main {
   main { flex-direction: column; height: auto; min-height: calc(100vh - 60px); }
   .panel { width: 100%; max-height: 300px; }
   .canvas-wrap { min-height: 60vh; }
+  .rom-memory { max-height: 65vh; }
 }
