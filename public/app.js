@@ -125,11 +125,11 @@ function renderProperties() {
   clockEnableEl.disabled = !clock;
   clockEnableEl.checked = clock && component.enable !== false;
   const output = component?.t === "output" || component?.t === "debugdisplay";
-  const register = component?.t === "register";
-  const displayedValue = output || register ? editor.evaluation.states.get(component.id)?.value ?? 0 : net?.value;
-  const displayedSize = output || register ? bitWidth(component) : net?.size;
-  selectedValueRowEl.hidden = !net && !output && !register;
-  selectedValueLabelEl.textContent = register ? "Stored value (Q)" : component?.t === "debugdisplay" ? "Debug value" : output ? "Output value" : "Selected bus value";
+  const stored = component?.t === "register" || component?.t === "counter";
+  const displayedValue = output || stored ? editor.evaluation.states.get(component.id)?.value ?? 0 : net?.value;
+  const displayedSize = output || stored ? bitWidth(component) : net?.size;
+  selectedValueRowEl.hidden = !net && !output && !stored;
+  selectedValueLabelEl.textContent = stored ? "Stored value (Q)" : component?.t === "debugdisplay" ? "Debug value" : output ? "Output value" : "Selected bus value";
   selectedValueEl.textContent = displayedValue === undefined ? "—" : output
     ? formatValue(displayedValue, displayedSize, component.t === "debugdisplay" ? "hex" : component.format)
     : displayedSize === 1 ? `${displayedValue} (${displayedValue ? "HIGH" : "LOW"})`

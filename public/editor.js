@@ -19,8 +19,8 @@ export class BoardEditor {
     this.nextComponentId = 1;
   }
 
-  commit() {
-    this.evaluate();
+  commit(captureEdges = false) {
+    this.evaluate(captureEdges);
     try {
       if (!this.storage) throw new Error("Browser storage is unavailable.");
       this.storage.setItem(STORAGE_KEY, serialize(this.board));
@@ -37,28 +37,33 @@ export class BoardEditor {
     const clockIds = new Set(this.board.components.filter((component) => component.t === "clock" && component.enable !== false)
       .map((component) => component.id));
     for (const id of this.highClocks) if (!clockIds.has(id)) this.highClocks.delete(id);
-    const registers = this.board.components.filter((component) => component.t === "register");
-    const registerIds = new Set(registers.map((component) => component.id));
-    for (const id of this.registerValues.keys()) if (!registerIds.has(id)) this.registerValues.delete(id);
-    for (const register of registers) {
-      const width = bitWidth(register);
+    const stored = this.board.components.filter((component) => component.t === "register" || component.t === "counter");
+    const storedIds = new Set(stored.map((component) => component.id));
+    for (const id of this.registerValues.keys()) if (!storedIds.has(id)) this.registerValues.delete(id);
+    for (const component of stored) {
+      const width = bitWidth(component);
       const mask = width === 32 ? 0xffffffff : 2 ** width - 1;
-      this.registerValues.set(register.id, ((this.registerValues.get(register.id) ?? 0) & mask) >>> 0);
+      this.registerValues.set(component.id, ((this.registerValues.get(component.id) ?? 0) & mask) >>> 0);
     }
     const next = evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues);
-    if (captureEdges) {
-      const captured = new Map();
-      for (const register of registers) {
-        const before = this.evaluation.states.get(register.id)?.inputs[1];
-        const after = next.states.get(register.id)?.inputs[1] ?? 0;
-        if (before === 0 && after !== 0)
-          captured.set(register.id, next.states.get(register.id).inputs[0] >>> 0);
+    const captured = new Map();
+    for (const component of stored) {
+      const inputs = next.states.get(component.id).inputs;
+      if (component.t === "counter") {
+        if (inputs[1]) captured.set(component.id, 0);
+        else if (captureEdges && (this.evaluation.states.get(component.id)?.inputs[0] ?? 0) === 0 && inputs[0] !== 0) {
+          const width = bitWidth(component);
+          const mask = width === 32 ? 0xffffffff : 2 ** width - 1;
+          captured.set(component.id, (((this.registerValues.get(component.id) ?? 0) + 1) & mask) >>> 0);
+        }
+      } else if (captureEdges && (this.evaluation.states.get(component.id)?.inputs[1] ?? 0) === 0 && inputs[1] !== 0) {
+        captured.set(component.id, inputs[0] >>> 0);
       }
-      if (captured.size) {
-        for (const [id, value] of captured) this.registerValues.set(id, value);
-        this.evaluation = evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues);
-      } else this.evaluation = next;
-    } else this.evaluation = next;
+    }
+    for (const [id, value] of captured) this.registerValues.set(id, value);
+    this.evaluation = captured.size
+      ? evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues)
+      : next;
     this.onChange(this.board, this.evaluation);
     return this.evaluation;
   }
@@ -103,7 +108,7 @@ export class BoardEditor {
     this.commit();
   }
 
-  editComponent(component, changes, { validate = isValidComponent, sanitize = false } = {}) {
+  editComponent(component, changes, { validate = isValidComponent, sanitize = false, captureEdges = false } = {}) {
     const previous = { ...component };
     Object.assign(component, changes);
     if (!validate(this.board, component)) {
@@ -114,7 +119,7 @@ export class BoardEditor {
       return false;
     }
     if (sanitize) this.commitComponentEdit();
-    else this.commit();
+    else this.commit(captureEdges);
     return true;
   }
 
@@ -154,7 +159,7 @@ export class BoardEditor {
       ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY, enable: false } : {}),
       ...(type === "output" ? { size: 1 } : {}),
       ...(["mux", "demux"].includes(type) ? { channels: 2 } : {}) };
-    if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr", "register"].includes(type)) component.size = 4;
+    if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr", "register", "counter"].includes(type)) component.size = 4;
     if (!addComponent(this.board, component)) return null;
     this.commitComponentEdit();
     return component;
@@ -283,14 +288,14 @@ export class BoardEditor {
     const component = this.component(id);
     if (!component || component.t !== "constant" || component.value === value ||
         !validConstant({ ...component, value })) return false;
-    return this.editComponent(component, { value }, { validate: (board) => !shortCircuitError(board) });
+    return this.editComponent(component, { value }, { validate: (board) => !shortCircuitError(board), captureEdges: true });
   }
 
   toggleSwitch(id) {
     const component = this.component(id);
     if (component?.t !== "switch") return false;
     return this.editComponent(component, { value: component.value === 1 ? 0 : 1 },
-      { validate: (board) => !shortCircuitError(board) });
+      { validate: (board) => !shortCircuitError(board), captureEdges: true });
   }
 
   setValueFormat(id, format) {
