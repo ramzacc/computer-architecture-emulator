@@ -71,6 +71,10 @@ export const COMPONENT_TYPES = {
     label: "Output", w: 2, h: 2, color: "#c8b49b", shape: "output", output: true,
     pins: [{ x: 0, y: 1, dir: "W", role: "in" }],
   },
+  portal: {
+    label: "Portal", w: 3, h: 2, color: "#afb2b9", shape: "portal", portal: true,
+    pins: [{ x: 0, y: 1, dir: "W", role: "in" }],
+  },
   led: {
     label: "LED", w: 2, h: 2, color: "#c8b49b", shape: "led",
     pins: [
@@ -236,7 +240,7 @@ export function selectWidth(component) {
 
 export function isSizable(component) {
   const entry = spec(component.t);
-  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output);
+  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output || entry?.portal);
 }
 
 export function bitWidth(component) {
