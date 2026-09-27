@@ -53,6 +53,7 @@ test("a tag displays its label and observes a bus without driving it", () => {
   assert.equal(pinsFor(tag)[0].size, 4);
   assert.equal(addWireEdge(board, { o: "H", x: 5, y: 1, size: 4 }), true);
   assert.equal(evaluateBoard(board).states.get("tag").inputs[0], 10);
+  assert.equal(evaluateBoard(board).states.get("tag").value, 10);
   assert.equal(parseDocument(serialize(board)).board.components[1].label, "DATA");
 });
 
