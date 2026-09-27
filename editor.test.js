@@ -693,6 +693,43 @@ test('button press and release reevaluate without saving, and reset on board rep
   assert.equal(editor.evaluation.states.get(editor.board.components[1].id).lit, false);
 });
 
+test('a button press cannot create a HIGH/LOW conflict with another button', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  const first = editor.place('button', 0, 0);
+  const second = editor.place('button', 2, 0);
+  assert.equal(editor.addWire({ o: 'H', x: 1, y: 2 }), true);
+  assert.equal(editor.addWire({ o: 'H', x: 2, y: 2 }), true);
+  const renders = ctx.renders;
+  assert.equal(editor.setButtonPressed(first.id, true), false);
+  assert.equal(editor.pressedButtons.size, 0);
+  assert.equal(editor.evaluation.states.get(second.id).value, 0);
+  assert.equal(ctx.renders, renders);
+});
+
+test('clocks inside separate module instances tick independently', () => {
+  const { editor } = setup();
+  const child = new BoardEditor();
+  const clock = child.place('clock', 0, 0);
+  child.place('output', 0, 3);
+  for (const edge of [
+    { o: 'V', x: 1, y: 2 }, { o: 'H', x: 0, y: 2 },
+    { o: 'V', x: 0, y: 2 }, { o: 'V', x: 0, y: 3 },
+  ]) assert.equal(child.addWire(edge), true);
+  assert.equal(child.setClockEnabled(clock.id, true), true);
+  const first = editor.place('module', 0, 0);
+  const second = editor.place('module', 6, 0);
+  assert.equal(editor.setModuleBoard(first.id, child.board), true);
+  assert.equal(editor.setModuleBoard(second.id, child.board), true);
+  assert.equal(editor.tickClock(`${first.id}/${clock.id}`), true);
+  assert.equal(editor.evaluation.states.get(first.id).value, 1);
+  assert.equal(editor.evaluation.states.get(second.id).value, 0);
+  assert.equal(editor.tickClock(`${first.id}/${clock.id}`), true);
+  assert.equal(editor.evaluation.states.get(first.id).value, 0);
+  assert.equal(editor.tickClock(`${second.id}/${clock.id}`), true);
+  assert.equal(editor.evaluation.states.get(second.id).value, 1);
+});
+
 test('clock ticks reevaluate without saving and frequency edits persist', () => {
   const ctx = setup();
   const { editor } = ctx;

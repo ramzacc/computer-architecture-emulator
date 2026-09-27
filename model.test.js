@@ -633,6 +633,18 @@ test("imports reject overlap and malformed wires without returning a partial boa
   assert.throws(() => parseDocument(JSON.stringify(valid)), /wires\[1\]\[0\]/);
 });
 
+test("wires reject endpoints outside the safe integer coordinate range", () => {
+  const max = Number.MAX_SAFE_INTEGER;
+  for (const o of ["H", "V"]) {
+    const edge = { o, x: max, y: max, size: 1 };
+    assert.equal(addWireEdge(createBoard(), edge), false);
+    const document = JSON.stringify({ components: [], wires: [[o, max, max, 1]], junctions: [] });
+    assert.throws(() => parseDocument(document), /endpoint must be a safe integer/);
+  }
+  const safe = JSON.stringify({ components: [], wires: [["H", max - 1, 0, 1]], junctions: [] });
+  assert.equal(parseDocument(safe).board.wires.size, 1);
+});
+
 test("bus sizes must match connected wires and gate pins", () => {
   const board = createBoard();
   addComponent(board, { id: "g", t: "and", x: 0, y: 2, r: 0, size: 8 });

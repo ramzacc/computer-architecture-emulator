@@ -18,6 +18,11 @@ function validEdgeOrientation(edge) {
   return edge.o === "H" || edge.o === "V";
 }
 
+function validEdgeCoordinates(edge) {
+  return Number.isSafeInteger(edge.x) && Number.isSafeInteger(edge.y) &&
+    Number.isSafeInteger(edge.o === "H" ? edge.x + 1 : edge.y + 1);
+}
+
 export function componentAt(board, x, y, ignoreId) {
   return board.components.find((component) => {
     if (component.id === ignoreId) return false;
@@ -153,7 +158,7 @@ function pinsAtPoint(board, x, y) {
 }
 
 export function edgePlacementError(board, edge) {
-  if (!validEdgeOrientation(edge) || !Number.isSafeInteger(edge.x) || !Number.isSafeInteger(edge.y) ||
+  if (!validEdgeOrientation(edge) || !validEdgeCoordinates(edge) ||
       !validBitWidth(wireSize(edge))) return "Wire size must be 1–32 bits.";
   if (edgeBlocked(board, edge)) return "Wire is blocked by a component.";
   if (board.wires.has(edgeKey(edge))) return "Wire already exists here.";
@@ -192,7 +197,7 @@ export function wireLayoutError(board, blocked = blockedEdgeKeys(board)) {
   for (const component of board.components)
     for (const pin of pinsFor(component)) add(pins, pin.px, pin.py, pin.size);
   for (const edge of board.wires.values()) {
-    if (!validEdgeOrientation(edge) || !Number.isSafeInteger(edge.x) || !Number.isSafeInteger(edge.y) ||
+    if (!validEdgeOrientation(edge) || !validEdgeCoordinates(edge) ||
         !validBitWidth(wireSize(edge))) return "Invalid wire route.";
     if (blocked.has(edgeKey(edge))) return "Wire is blocked by a component.";
     for (const [x, y] of edgePoints(edge)) {
@@ -279,6 +284,27 @@ const GATE_OPS = {
 
 function bitMask(size) { return size === 32 ? 0xffffffff : (2 ** size - 1); }
 const moduleBoardCache = new WeakMap();
+
+function innerBoard(document, depth) {
+  let board = moduleBoardCache.get(document);
+  if (!board) {
+    board = parseDocument(JSON.stringify(document), depth).board;
+    moduleBoardCache.set(document, board);
+  }
+  return board;
+}
+
+export function clocksInBoard(board, prefix = "", depth = 0) {
+  const clocks = new Map();
+  for (const component of board.components) {
+    const path = `${prefix}${component.id}`;
+    if (component.t === "clock") clocks.set(path, component);
+    if (component.t === "module" && depth < 8)
+      for (const [id, clock] of clocksInBoard(innerBoard(component.module, depth + 1), `${path}/`, depth + 1))
+        clocks.set(id, clock);
+  }
+  return clocks;
+}
 
 function blockOutputs(kind, inputs, size, channels = 2) {
   const mask = bitMask(size) >>> 0;
@@ -418,11 +444,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
 
   const moduleEvaluation = (part, values) => {
     if (!part.module || depth >= 8) return { outputs: [], states: new Map() };
-    let inner = moduleBoardCache.get(part.module);
-    if (!inner) {
-      inner = parseDocument(JSON.stringify(part.module), depth + 1).board;
-      moduleBoardCache.set(part.module, inner);
-    }
+    const inner = innerBoard(part.module, depth + 1);
     const ports = modulePorts({ module: part.module });
     const inputs = new Map();
     let index = 0;
@@ -430,7 +452,10 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       const root = part.ins[index++];
       inputs.set(port.id, root === null ? 0 : (values.get(root) ?? 0));
     }
-    const result = evaluateBoard(inner, new Set(), new Set(), new Map(), new Map(), inputs, depth + 1);
+    const prefix = `${part.id}/`;
+    const innerClocks = new Set([...highClocks].filter((id) => id.startsWith(prefix))
+      .map((id) => id.slice(prefix.length)));
+    const result = evaluateBoard(inner, new Set(), innerClocks, new Map(), new Map(), inputs, depth + 1);
     return { outputs: ports.filter((port) => port.role === "out")
       .map((port) => result.states.get(port.id)?.value ?? 0), states: result.states };
   };
@@ -497,8 +522,8 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
 // Each splitter branch is electrically the corresponding bit of its bus.
 // Compare actual output drivers after evaluation, including drivers connected
 // through splitters; a driven zero must count just as much as a driven one.
-export function shortCircuitError(board, pressedButtons) {
-  const { nets, states, settled } = evaluateBoard(board, pressedButtons);
+export function shortCircuitError(board, pressedButtons, highClocks, registerValues, ramValues) {
+  const { nets, states, settled } = evaluateBoard(board, pressedButtons, highClocks, registerValues, ramValues);
   if (!settled) return "Short circuit: feedback loop does not settle.";
   const parent = new Map();
   const find = (key) => {
@@ -628,9 +653,9 @@ export function serialize(board) {
 function compactWireRuns(board) {
   const unvisited = new Map(board.wires);
   const runs = [];
-  for (const { o, x, y, size } of board.wires.values()) {
-    if ((o !== "H" && o !== "V") || !Number.isSafeInteger(x) || !Number.isSafeInteger(y) ||
-        !validBitWidth(size ?? 1)) throw new Error("Cannot serialize invalid wire.");
+  for (const edge of board.wires.values()) {
+    if (!validEdgeOrientation(edge) || !validEdgeCoordinates(edge) ||
+        !validBitWidth(wireSize(edge))) throw new Error("Cannot serialize invalid wire.");
   }
   for (const edge of board.wires.values()) {
     if (!unvisited.has(edgeKey(edge))) continue;
@@ -754,9 +779,10 @@ export function parseDocument(text, depth = 0) {
     coordinate(x, `${path}[1]`);
     coordinate(y, `${path}[2]`);
     if (!validBitWidth(size)) throw new Error(`${path}[3] must be 1–32.`);
-    if (raw.length === 5 && (!Number.isSafeInteger(length) || length < 2 || length > 256 ||
-        !Number.isSafeInteger((o === "H" ? x : y) + length)))
+    if (raw.length === 5 && (!Number.isSafeInteger(length) || length < 2 || length > 256))
       throw new Error(`${path}[4] must be a valid length from 2–256.`);
+    if (!Number.isSafeInteger((o === "H" ? x : y) + length))
+      throw new Error(`${path} endpoint must be a safe integer.`);
     for (let offset = 0; offset < length; offset++) {
       const edge = { o, x: x + (o === "H" ? offset : 0), y: y + (o === "V" ? offset : 0), size };
       const key = edgeKey(edge);
