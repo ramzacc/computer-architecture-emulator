@@ -404,6 +404,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       addressSize: entry.rom || entry.ram ? addressWidth(component) : 0,
       output: !!entry.output,
       debug: !!entry.debug,
+      tag: !!entry.tag,
       splitter: !!entry.splitter,
       block: entry.block,
       channels: channelCount(component),
@@ -500,7 +501,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
     const moduleResult = part.module ? moduleEvaluation(part, values) : null;
     const outputs = moduleResult?.outputs ?? null;
-    const value = part.output || part.debug ? inputs[0] : part.module ? (outputs[0] ?? 0) : outputOf(part, values);
+    const value = part.output || part.debug || part.tag ? inputs[0] : part.module ? (outputs[0] ?? 0) : outputOf(part, values);
     const actualOutputs = outputs ?? (part.block ? blockOutputs(part.block, inputs, part.size, part.channels)
       : part.splitter ? part.outs.map((_, bit) => (value >>> bit) & 1)
       : part.outs.map(() => value));

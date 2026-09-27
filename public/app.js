@@ -5,6 +5,7 @@ import { createRenderer } from "./renderer.js";
 import { formatValue, parseValue } from "./value-format.js";
 import { parseRomFile, serializeRomFile, validHexWord } from "./rom-format.js";
 import { createTabs } from "./tabs.js";
+import { createMonitor } from "./monitor.js";
 
 const CELL = 48;
 const GAP = 3;
@@ -126,9 +127,18 @@ const moduleNavigationEl = document.getElementById("module-navigation");
 const moduleBackEl = document.getElementById("module-back");
 const modulePathEl = document.getElementById("module-path");
 const moduleStack = [];
+const monitor = createMonitor({
+  getEditor: () => editor,
+  signalsEl: document.getElementById("monitor-signals"),
+  noSignalsEl: document.getElementById("monitor-no-signals"),
+  gridEl: document.getElementById("monitor-grid"),
+  emptyEl: document.getElementById("monitor-empty"),
+  countEl: document.getElementById("monitor-count"),
+});
 
 const viewRenderers = {
   "canvas-view": applyView,
+  "monitor-view": monitor.render,
   "rom-view": renderRomTab,
   "module-layout-view": renderModuleLayout,
 };
@@ -1640,6 +1650,7 @@ function loadFromText(text) {
     romJumpEl.value = "";
     romJumpEl.dataset.valid = "";
     romStatus("");
+    monitor.reset();
     setSelection([]);
     placingType = null;
     clearWireGesture();

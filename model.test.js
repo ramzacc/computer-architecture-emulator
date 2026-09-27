@@ -53,7 +53,18 @@ test("a tag displays its label and observes a bus without driving it", () => {
   assert.equal(pinsFor(tag)[0].size, 4);
   assert.equal(addWireEdge(board, { o: "H", x: 5, y: 1, size: 4 }), true);
   assert.equal(evaluateBoard(board).states.get("tag").inputs[0], 10);
+  assert.equal(evaluateBoard(board).states.get("tag").value, 10);
   assert.equal(parseDocument(serialize(board)).board.components[1].label, "DATA");
+});
+
+test("a tag follows a clock as the circuit evaluation changes", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "clock", t: "clock", x: 0, y: 0, enable: true }), true);
+  assert.equal(addComponent(board, { id: "tag", t: "tag", x: -1, y: 4, r: 1, size: 1, label: "CLK" }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 2 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 1, y: 3 }), true);
+  assert.equal(evaluateBoard(board).states.get("tag").value, 0);
+  assert.equal(evaluateBoard(board, new Set(), new Set(["clock"])).states.get("tag").value, 1);
 });
 
 test("tag rotation moves only its pin around a fixed 4x2 body", () => {
