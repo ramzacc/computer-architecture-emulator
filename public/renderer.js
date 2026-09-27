@@ -130,6 +130,18 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       ports(actualPins(c), w, h, partAccent(s)), s, 0);
   }
 
+  function portalArt(c, s) {
+    const w = 120, h = 80;
+    const name = c.label || "PORTAL";
+    const shown = name.length > 12 ? `${name.slice(0, 11)}…` : name;
+    const inner = frame(w, h, partAccent(s)) +
+      `<path d="M8 40 H25 L36 28 H106 L114 40 L106 52 H36 L25 40" fill="none" stroke="${partAccent(s)}" stroke-width="2"/>` +
+      ports(localPins(c, s), w, h, partAccent(s));
+    const d = dimsOf(c);
+    return svgWrap(inner, s, c.r,
+      textAt(d.w * U / 2, d.h * U / 2, escapeText(shown), 10, ink, 700));
+  }
+
   function ledArt(c, s) {
     return svgWrap(frame(80, 80, partAccent(s)) + textAt(40, 23, "LED", 9, partAccent(s), 750) +
       `<circle cx="40" cy="49" r="17" fill="${recess}" stroke="${border}" stroke-width="1.5"/>
@@ -233,6 +245,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
 
   function componentArt(c, s, value = 0, inputs = []) {
     if (s.splitter) return splitterArt(c, s);
+    if (s.portal) return portalArt(c, s);
     if (s.constant || s.input || s.output) return numberArt(c, s, value, !!(s.constant || s.input));
     if (["button", "switch", "clock"].includes(s.shape)) return sourceArt(c, s, value !== 0);
     if (s.shape === "led") return ledArt(c, s);

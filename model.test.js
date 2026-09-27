@@ -6,6 +6,42 @@ import { addComponent, addWireEdge, canPlaceEdge, computeNets, createBoard,
   edgeKey, edgePlacementError, evaluateBoard, isValidComponent, parseDocument, resizeNet,
   sanitizeWires, serialize, wireRoute } from "./public/model.js";
 
+test("matching portals connect separated buses and preserve their names", () => {
+  const board = createBoard();
+  for (const component of [
+    { id: "source", t: "constant", x: -6, y: 0, r: 2, size: 4, value: 10 },
+    { id: "a", t: "portal", x: 1, y: 0, r: 0, size: 4, label: "DATA" },
+    { id: "b", t: "portal", x: 9, y: 0, r: 2, size: 4, label: "DATA" },
+    { id: "sink", t: "output", x: 13, y: 0, r: 0, size: 4, label: "Read" },
+  ]) assert.equal(addComponent(board, component), true);
+  for (const edge of [
+    { o: "H", x: -1, y: 1, size: 4 }, { o: "H", x: 0, y: 1, size: 4 },
+    { o: "H", x: 12, y: 1, size: 4 },
+  ]) assert.equal(addWireEdge(board, edge), true);
+  assert.equal(evaluateBoard(board).states.get("sink").value, 10);
+  assert.equal(computeNets(board).size, 1);
+  const restored = parseDocument(serialize(board)).board;
+  assert.equal(restored.components[1].label, "DATA");
+  assert.equal(evaluateBoard(restored).states.get(restored.components[3].id).value, 10);
+  assert.equal(addComponent(board, { id: "wrong", t: "portal", x: 20, y: 0, size: 1, label: "DATA" }), false);
+});
+
+test("separate portal names stay isolated and linked drivers cannot conflict", () => {
+  const board = createBoard();
+  for (const component of [
+    { id: "high", t: "constant", x: -3, y: 0, r: 2, value: 1 },
+    { id: "a", t: "portal", x: 1, y: 0, label: "A" },
+    { id: "b", t: "portal", x: 9, y: 0, r: 2, label: "B" },
+    { id: "low", t: "constant", x: 13, y: 0, r: 0, value: 0 },
+  ]) assert.equal(addComponent(board, component), true);
+  assert.equal(addWireEdge(board, { o: "H", x: -1, y: 1 }), true);
+  assert.equal(addWireEdge(board, { o: "H", x: 0, y: 1 }), true);
+  assert.equal(addWireEdge(board, { o: "H", x: 12, y: 1 }), true);
+  assert.equal(computeNets(board).size, 2);
+  board.components[2].label = "A";
+  assert.throws(() => parseDocument(serialize(board)), /Short circuit/);
+});
+
 test("a button drives its one output HIGH only during an evaluation with its input pressed", () => {
   const board = createBoard();
   assert.equal(addComponent(board, { id: "button", t: "button", x: 0, y: 0 }), true);

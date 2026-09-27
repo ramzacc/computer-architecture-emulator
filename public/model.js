@@ -37,7 +37,7 @@ function validComponentProperties(component) {
       (component.t === "clock" && !validClockFrequency(component.frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
       (component.t === "clock" && component.enable !== undefined && typeof component.enable !== "boolean") ||
       (["constant", "input"].includes(component.t) && !validConstant(component)) ||
-      (["input", "output"].includes(component.t) && (typeof (component.label ?? "") !== "string" || (component.label ?? "").length > 80)) ||
+      (["input", "output", "portal"].includes(component.t) && (typeof (component.label ?? "") !== "string" || (component.label ?? "").length > 80)) ||
       (component.t === "rom" && !validRom(component)) ||
       (component.t === "ram" && !validRam(component)) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
@@ -279,7 +279,29 @@ function buildUnionFind(board) {
       union(edgeKey(pair[0]), edgeKey(pair[1]));
     } else for (const edge of edges.slice(1)) union(edgeKey(edges[0]), edgeKey(edge));
   }
+  const named = new Map();
+  for (const component of board.components) {
+    if (component.t !== "portal" || !component.label) continue;
+    const pin = pinsFor(component)[0];
+    const edge = atPoint.get(`${pin.px},${pin.py}`)?.[0];
+    if (!edge) continue;
+    const first = named.get(component.label);
+    if (first) union(first, edgeKey(edge));
+    else named.set(component.label, edgeKey(edge));
+  }
   return { parent, find, atPoint };
+}
+
+function portalWidthError(board) {
+  const widths = new Map();
+  for (const component of board.components) {
+    if (component.t !== "portal" || !component.label) continue;
+    const width = bitWidth(component);
+    if (widths.has(component.label) && widths.get(component.label) !== width)
+      return "Bus size mismatch between matching portals.";
+    widths.set(component.label, width);
+  }
+  return null;
 }
 
 // Solve the board to a fixed point: nets carry a value, each component's
@@ -416,6 +438,8 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
 // Compare actual output drivers after evaluation, including drivers connected
 // through splitters; a driven zero must count just as much as a driven one.
 export function shortCircuitError(board, pressedButtons) {
+  const widthError = portalWidthError(board);
+  if (widthError) return widthError;
   const { nets, states, settled } = evaluateBoard(board, pressedButtons);
   if (!settled) return "Short circuit: feedback loop does not settle.";
   const parent = new Map();
@@ -517,7 +541,7 @@ function documentFields(t) {
     ...(t === "splitter" ? ["order"] : []),
     ...(t === "mux" || t === "demux" ? ["channels"] : []),
     ...(["constant", "input", "output"].includes(t) ? ["format"] : []),
-    ...(["input", "output"].includes(t) ? ["label"] : []),
+    ...(["input", "output", "portal"].includes(t) ? ["label"] : []),
   ];
   DOCUMENT_FIELD_CACHE.set(t, fields);
   return fields;
@@ -547,7 +571,7 @@ export function serialize(board) {
           (["constant", "input", "output"].includes(t) && ![0, 2].includes(r ?? 0)) ||
           (isSizable({ t }) && !validBitWidth(size ?? 1)) ||
           (["constant", "input"].includes(t) && !validConstant({ t, size, value })) ||
-          (["input", "output"].includes(t) && (typeof (label ?? "") !== "string" || (label ?? "").length > 80)) ||
+          (["input", "output", "portal"].includes(t) && (typeof (label ?? "") !== "string" || (label ?? "").length > 80)) ||
           (t === "rom" && !validRom({ t, size, addressSize, data })) ||
           (t === "ram" && !validRam({ t, size, addressSize })) ||
           (t === "switch" && ![0, 1].includes(value ?? 0)) ||
