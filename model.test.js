@@ -28,6 +28,41 @@ test("modules expose named ports and carry parent inputs through nested circuitr
   assert.equal(evaluateBoard(board).states.get("sink").value, 0);
 });
 
+test("module documents accept legacy pins and reject corner or duplicate layouts", () => {
+  const inner = createBoard();
+  assert.equal(addComponent(inner, { id: "c1", t: "input", x: 0, y: 0, r: 0, size: 1, value: 0, label: "A" }), true);
+  assert.equal(addComponent(inner, { id: "c2", t: "output", x: 4, y: 0, r: 0, size: 1, label: "Y" }), true);
+  const legacy = { components: [["module", 0, 0, 0, "M", JSON.parse(serialize(inner))]], wires: [], junctions: [] };
+  assert.equal(parseDocument(JSON.stringify(legacy)).board.components[0].pinLayout, undefined);
+  const prior = structuredClone(legacy);
+  prior.components[0].push([["N", 2], ["E", 1]]);
+  assert.deepEqual(parseDocument(JSON.stringify(prior)).board.components[0].pinLayout, [["N", 2], ["E", 1]]);
+  const previousFace = structuredClone(legacy);
+  previousFace.components[0].push(null, [[1, 0, 0]]);
+  assert.deepEqual(parseDocument(JSON.stringify(previousFace)).board.components[0].faceLayout, [[1, 1, 2]]);
+  for (const layout of [[['N', 0], ['E', 1]], [['N', 2], ['N', 2]], [['W', 3], ['E', 1]]]) {
+    const document = structuredClone(legacy);
+    document.components[0].push(layout);
+    assert.throws(() => parseDocument(JSON.stringify(document)), /invalid/);
+  }
+});
+
+test("module face indicators reflect their internal circuit state", () => {
+  const inner = createBoard();
+  assert.equal(addComponent(inner, { id: "c1", t: "constant", x: 0, y: 0, r: 2, size: 1, value: 1 }), true);
+  assert.equal(addComponent(inner, { id: "c2", t: "led", x: 4, y: 1, r: 0 }), true);
+  for (const x of [2, 3, 4]) assert.equal(addWireEdge(inner, { o: "H", x, y: 1, size: 1 }), true);
+  const board = createBoard();
+  const module = { id: "m", t: "module", x: 0, y: 0, r: 0, label: "Lamp", module: JSON.parse(serialize(inner)), faceLayout: [[1, 2, 2]] };
+  assert.equal(addComponent(board, module), true);
+  assert.equal(evaluateBoard(board).states.get("m").faceStates.get("c2").lit, true);
+  const saved = JSON.parse(serialize(board));
+  saved.components[0][7] = [[1, 2, 2], [1, 3, 2]];
+  assert.throws(() => parseDocument(JSON.stringify(saved)), /invalid/);
+  saved.components[0][7] = [[1, 0, 2]];
+  assert.throws(() => parseDocument(JSON.stringify(saved)), /invalid/);
+});
+
 test("matching portals connect separated buses and preserve their names", () => {
   const board = createBoard();
   for (const component of [

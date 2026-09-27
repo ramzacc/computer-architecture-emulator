@@ -19,6 +19,7 @@
     <div class="view-tabs" role="tablist" aria-label="Views">
       <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
       <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
+      <button id="tab-module-layout" type="button" role="tab" aria-controls="module-layout-view" aria-selected="false" tabindex="-1">Module Layout</button>
     </div>
     <div id="module-navigation" class="module-navigation" hidden>
       <button id="module-back" type="button">← Save &amp; back</button>
@@ -71,8 +72,8 @@
         <input id="component-label" type="text" maxlength="80" disabled />
       </label>
       <button id="module-open" type="button" hidden>Open module</button>
-      <p id="module-help" class="hint" hidden>Add Input and Output components inside to create the module's pins.</p>
-      <button id="rom-open" type="button" hidden>Open ROM</button>
+      <button id="module-layout-open" type="button" hidden>Edit module layout</button>
+      <button id="rom-open" type="button" hidden>Edit ROM contents</button>
       <label id="value-format-row" class="property" hidden>Value format
         <select id="value-format" disabled>
           <option value="decimal">Decimal</option>
@@ -125,23 +126,19 @@
     </div>
     <section id="rom-view" class="rom-view" role="tabpanel" aria-labelledby="tab-rom" hidden>
       <section class="panel rom-panel">
-        <h2>ROM file</h2>
-        <label class="rom-selector" for="rom-select">Select ROM
-          <select id="rom-select"></select>
-        </label>
-        <label class="rom-selector" for="rom-name">ROM label
-          <input id="rom-name" type="text" maxlength="80" disabled />
-        </label>
-        <p id="rom-target" class="hint">Choose a ROM to edit its contents.</p>
-        <p id="rom-widths" class="hint"></p>
+        <h2>ROMs</h2>
+        <div class="rom-picker">
+          <div id="rom-list" class="rom-list"></div>
+        </div>
+        <p id="rom-widths" class="hint" hidden></p>
         <div class="rom-actions">
-          <button id="rom-save" type="button" disabled>Save to component</button>
+          <button id="rom-save" type="button" disabled>Save ROM changes</button>
           <label class="file-label"><span>Import ROM file</span>
             <input id="rom-file-input" type="file" accept="text/plain,.txt" disabled />
           </label>
           <button id="rom-export" type="button" disabled>Export ROM file</button>
         </div>
-        <p id="rom-status" class="hint" role="status" aria-live="polite">Select a ROM from this circuit.</p>
+        <p id="rom-status" class="hint" role="status" aria-live="polite" hidden></p>
       </section>
       <section class="rom-editor-wrap">
         <div class="rom-editor-heading">
@@ -159,6 +156,34 @@
           <div id="rom-rows" class="rom-rows"></div>
         </div>
       </section>
+    </section>
+    <section id="module-layout-view" class="module-layout-view" role="tabpanel" aria-labelledby="tab-module-layout" hidden>
+      <div id="module-layout" class="module-layout">
+        <section class="panel module-layout-sidebar">
+          <h2>Modules</h2>
+          <div class="module-layout-module-picker">
+            <div id="module-layout-list" class="module-layout-list"></div>
+          </div>
+          <div id="module-layout-tray" class="module-layout-tray" hidden>
+            <h3>Available components</h3>
+            <div id="module-layout-items" class="module-layout-items"></div>
+          </div>
+          <p id="module-layout-status" class="hint" role="status" aria-live="polite" hidden></p>
+        </section>
+        <section class="module-layout-workspace" aria-label="Module face">
+          <div id="module-layout-empty" class="module-layout-empty">Choose a module</div>
+          <div id="module-layout-scroll" class="module-layout-scroll" hidden>
+            <h2 id="module-layout-title" class="module-layout-title"></h2>
+            <div id="module-layout-stage" class="module-layout-stage">
+              <div id="module-layout-board" class="module-layout-board"></div>
+              <div id="module-layout-next" class="module-layout-next"></div>
+              <div id="module-layout-next-right" class="module-layout-next-right"></div>
+              <button id="module-layout-resize" class="module-layout-resize" type="button" data-kind="resize" title="Resize module" aria-label="Resize module"></button>
+              <div id="module-layout-target" class="module-layout-target" hidden></div>
+            </div>
+          </div>
+        </section>
+      </div>
     </section>
   </main>
 

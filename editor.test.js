@@ -34,6 +34,64 @@ test('module edits save atomically and reject incompatible parent wiring', () =>
   assert.deepEqual(pinsFor(ctx.editor.component(module.id)).map((pin) => pin.size), [1]);
 });
 
+test('module pin layout persists and rejects rotation, occupied or connected positions', () => {
+  const ctx = setup();
+  const module = ctx.editor.place('module', 0, 0);
+  const child = new BoardEditor();
+  assert.ok(child.place('input', 0, 0));
+  assert.ok(child.place('output', 4, 0));
+  assert.equal(ctx.editor.setModuleBoard(module.id, child.board), true);
+  assert.equal(ctx.editor.setModulePin(module.id, 0, 'N', 2), true);
+  assert.equal(ctx.editor.setModulePin(module.id, 1, 'N', 2), false);
+  assert.equal(ctx.editor.setModulePin(module.id, 1, 'N', 0), false);
+  assert.deepEqual(pinsFor(ctx.editor.component(module.id)).map(({ px, py, dir }) => [px, py, dir]),
+    [[2, 0, 'N'], [4, 1, 'E']]);
+  const restored = parseDocument(serialize(ctx.editor.board)).board.components[0];
+  assert.deepEqual(restored.pinLayout, [['N', 2], ['E', 1]]);
+  assert.equal(ctx.editor.rotate(module.id), false);
+  assert.equal(ctx.editor.component(module.id).r, 0);
+  assert.equal(ctx.editor.addWire({ o: 'V', x: 2, y: -1, size: 1 }), true);
+  assert.equal(ctx.editor.setModulePin(module.id, 0, 'W', 2), false);
+});
+
+test('module face displays can be placed and moved without changing the port interface', () => {
+  const { editor } = setup();
+  const module = editor.place('module', 0, 0);
+  const child = new BoardEditor();
+  assert.ok(child.place('led', 0, 0));
+  assert.ok(child.place('sevenseg', 3, 0));
+  assert.equal(editor.setModuleBoard(module.id, child.board), true);
+  assert.equal(editor.setModuleFacePart(module.id, 0, 2, 2), true);
+  assert.equal(editor.setModuleFacePart(module.id, 1, 2, 2), false);
+  assert.equal(editor.setModuleFacePart(module.id, 1, 3, 2), true);
+  assert.deepEqual(dimsOf(module), { w: 4, h: 3 });
+  assert.deepEqual(parseDocument(serialize(editor.board)).board.components[0].faceLayout, [[0, 2, 2], [1, 3, 2]]);
+  const art = createRenderer(null, () => null, () => null, () => new Set(), () => new Set())
+    .componentArt(module, spec('module'), 0, [], { faceStates: new Map([
+      ['c1', { lit: true }], ['c2', { inputs: [1, 0, 0, 0, 0, 0, 0] }],
+    ]) });
+  assert.match(art, /var\(--lamp-lit\)/);
+  assert.match(art, /var\(--part-segment-on\)/);
+  assert.equal(editor.setModuleFacePart(module.id, 1, 5, 2), true);
+  assert.equal(dimsOf(module).w, 6);
+  assert.equal(editor.setModuleFacePart(module.id, 1, null, null), true);
+  assert.equal(editor.setModuleSize(module.id, 4, 3), true);
+  assert.equal(dimsOf(module).w, 4);
+  assert.equal(editor.undo(), true);
+  assert.equal(dimsOf(editor.component(module.id)).w, 6);
+});
+
+test('debug display can be placed on a module face without external ports', () => {
+  const { editor } = setup();
+  const module = editor.place('module', 0, 0);
+  const child = new BoardEditor();
+  assert.ok(child.place('debugdisplay', 0, 0));
+  assert.equal(editor.setModuleBoard(module.id, child.board), true);
+  assert.equal(editor.setModuleFacePart(module.id, 0, 2, 2), true);
+  assert.deepEqual(editor.component(module.id).faceLayout, [[0, 2, 2]]);
+  assert.equal(editor.evaluation.states.get(module.id).faceStates.get('c1').value, 0);
+});
+
 test('successful edits render and save once, while rejected edits do neither', () => {
   const ctx = setup();
   const { editor } = ctx;

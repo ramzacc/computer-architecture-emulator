@@ -1,4 +1,4 @@
-import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePorts, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRam, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
+import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePorts, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRam, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { validValueFormat } from "./value-format.js";
 
 export function createBoard() {
@@ -42,7 +42,8 @@ function validComponentProperties(component, depth = 0) {
       (component.t === "ram" && !validRam(component)) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
   if (component.t === "module") {
-    if (typeof component.label !== "string" || component.label.length > 80 || !component.module) return false;
+    if (typeof component.label !== "string" || component.label.length > 80 || !component.module ||
+        !validModuleSize(component) || !validModulePinLayout(component) || !validModuleFaceLayout(component)) return false;
     if (depth >= 8) return false;
     try { parseDocument(JSON.stringify(component.module), depth + 1); }
     catch { return false; }
@@ -419,8 +420,8 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     return (GATE_OPS[part.op](a, b) & bitMask(part.size)) >>> 0;
   };
 
-  const moduleOutputs = (part, values) => {
-    if (!part.module || depth >= 8) return [];
+  const moduleEvaluation = (part, values) => {
+    if (!part.module || depth >= 8) return { outputs: [], states: new Map() };
     let inner = moduleBoardCache.get(part.module);
     if (!inner) {
       inner = parseDocument(JSON.stringify(part.module), depth + 1).board;
@@ -434,7 +435,8 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       inputs.set(port.id, root === null ? 0 : (values.get(root) ?? 0));
     }
     const result = evaluateBoard(inner, new Set(), new Set(), new Map(), new Map(), inputs, depth + 1);
-    return ports.filter((port) => port.role === "out").map((port) => result.states.get(port.id)?.value ?? 0);
+    return { outputs: ports.filter((port) => port.role === "out")
+      .map((port) => result.states.get(port.id)?.value ?? 0), states: result.states };
   };
 
   let values = new Map();
@@ -455,7 +457,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
         });
         drive(part.ins[0], combined >>> 0);
       } else if (part.module) {
-        moduleOutputs(part, values).forEach((output, index) => drive(part.outs[index], output));
+        moduleEvaluation(part, values).outputs.forEach((output, index) => drive(part.outs[index], output));
       } else if (part.block) {
         const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
         blockOutputs(part.block, inputs, part.size, part.channels).forEach((output, index) => drive(part.outs[index], output));
@@ -475,7 +477,8 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
   const states = new Map();
   for (const part of parts) {
     const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
-    const outputs = part.module ? moduleOutputs(part, values) : null;
+    const moduleResult = part.module ? moduleEvaluation(part, values) : null;
+    const outputs = moduleResult?.outputs ?? null;
     const value = part.output || part.debug ? inputs[0] : part.module ? (outputs[0] ?? 0) : outputOf(part, values);
     const actualOutputs = outputs ?? (part.block ? blockOutputs(part.block, inputs, part.size, part.channels)
       : part.splitter ? part.outs.map((_, bit) => (value >>> bit) & 1)
@@ -485,6 +488,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       value,
       outputs: actualOutputs,
       lit: inputs.length === 1 && inputs[0] !== 0,
+      faceStates: moduleResult?.states,
     });
   }
   for (const net of nets.values()) {
@@ -602,7 +606,7 @@ function documentFields(t) {
     ...(t === "mux" || t === "demux" ? ["channels"] : []),
     ...(["constant", "input", "output"].includes(t) ? ["format"] : []),
     ...(["input", "output", "portal", "rom"].includes(t) ? ["label"] : []),
-    ...(t === "module" ? ["label", "module"] : []),
+    ...(t === "module" ? ["label", "module", "pinLayout", "faceLayout", "moduleWidth", "moduleHeight"] : []),
   ];
   DOCUMENT_FIELD_CACHE.set(t, fields);
   return fields;
@@ -621,6 +625,10 @@ function documentValue(component, field) {
     case "format": return DOCUMENT_FORMATS.indexOf(component.format ?? "decimal");
     case "label": return component.label ?? "";
     case "module": return component.module;
+    case "pinLayout": return component.pinLayout ?? null;
+    case "faceLayout": return component.faceLayout ?? null;
+    case "moduleWidth": return component.moduleWidth ?? 4;
+    case "moduleHeight": return component.moduleHeight ?? 3;
   }
 }
 
@@ -715,8 +723,9 @@ export function parseDocument(text, depth = 0) {
     const fields = documentFields(t);
     const legacyClock = t === "clock" && raw.length === 5;
     const legacyOutput = t === "output" && raw.length === 4 + fields.length - 1;
+    const legacyModule = t === "module" && [6, 7, 8].includes(raw.length);
     const legacyRom = t === "rom" && raw.length === 4 + fields.length - 1;
-    if (raw.length !== 4 + fields.length && !legacyClock && !legacyOutput && !legacyRom)
+    if (raw.length !== 4 + fields.length && !legacyClock && !legacyOutput && !legacyModule && !legacyRom)
       throw new Error(`${path} must have ${4 + fields.length} entries.`);
     coordinate(x, `${path}[1]`);
     coordinate(y, `${path}[2]`);
@@ -745,11 +754,24 @@ export function parseDocument(text, depth = 0) {
         throw new Error(`${fieldPath} must be a string of at most 80 characters.`);
       if (field === "module" && (!value || typeof value !== "object" || Array.isArray(value)))
         throw new Error(`${fieldPath} must be a module document.`);
+      if (field === "pinLayout" && !legacyModule && value !== null && !Array.isArray(value))
+        throw new Error(`${fieldPath} must be a pin layout array or null.`);
+      if (field === "faceLayout" && value !== undefined && value !== null && !Array.isArray(value))
+        throw new Error(`${fieldPath} must be a face layout array or null.`);
+      if (field === "moduleWidth" && value !== undefined && (!Number.isInteger(value) || value < 4 || value > 20))
+        throw new Error(`${fieldPath} must be 4–20.`);
+      if (field === "moduleHeight" && value !== undefined && (!Number.isInteger(value) || value < 3 || value > 32))
+        throw new Error(`${fieldPath} must be 3–32.`);
       if (field === "order") component.order = value ? "descendant" : "ascendant";
       else if (field === "format") {
         if (value) component.format = DOCUMENT_FORMATS[value];
-      } else component[field] = field === "enable" && legacyClock ? true : field === "label" && (legacyOutput || legacyRom) ? "" : value;
+      } else if (field === "enable" && legacyClock) component.enable = true;
+      else if (field === "label" && (legacyOutput || legacyRom)) component.label = "";
+      else if (value !== undefined && (!["pinLayout", "faceLayout"].includes(field) || value !== null))
+        component[field] = value;
     }
+    if (t === "module" && raw.length === 8 && component.faceLayout)
+      component.faceLayout = component.faceLayout.map(([index, column, row]) => [index, 1 + 2 * column, 2 + 2 * row]);
     if (!validComponentProperties(component, depth)) throw new Error(`${path} is invalid.`);
     const { w, h } = dimsOf(component);
     for (let y = component.y; y < component.y + h; y++) for (let x = component.x; x < component.x + w; x++) {
