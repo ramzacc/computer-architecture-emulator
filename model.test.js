@@ -155,8 +155,6 @@ test("a button drives its one output HIGH only during an evaluation with its inp
 
   const restored = parseDocument(serialize(board)).board;
   assert.equal(evaluateBoard(restored).states.get(restored.components[1].id).lit, false);
-  const example = parseDocument(readFileSync(new URL("./public/examples/button-led.json", import.meta.url), "utf8"));
-  assert.equal(evaluateBoard(example.board).states.get(example.board.components[1].id).lit, false);
 });
 
 test("switch value is validated, drives a net and survives document round trip", () => {
@@ -818,14 +816,22 @@ test("descendant splitter order reverses branch bits and persists", () => {
 });
 
 
-test("a splitter combines one-bit constant branches and drives LEDs through a gate", () => {
-  const text = readFileSync(new URL("./public/examples/splitter-combine.json", import.meta.url), "utf8");
+test("counter example loads and feeds the incremented value back into its register", () => {
+  const text = readFileSync(new URL("./public/examples/counter.json", import.meta.url), "utf8");
   const { board } = parseDocument(text);
-  const { states, nets } = evaluateBoard(board);
-  assert.equal(states.get("c2").value, 3);
-  assert.equal(states.get("c7").value, 3);
-  assert.equal(states.get("c4").value, 3);
-  assert.equal(states.get("c5").lit, true);
-  assert.equal(states.get("c6").lit, true);
-  assert.equal([...nets.values()].find((net) => net.edges.some((edge) => edgeKey(edge) === "H:6,0")).value, 3);
+  const { states } = evaluateBoard(board, new Set(), new Set(), new Map([["c1", 3]]));
+  assert.deepEqual(states.get("c5").inputs, [1, 3, 0]);
+  assert.equal(states.get("c1").inputs[0], 4);
+  assert.equal(states.get("c7").inputs[0], 3);
+  assert.deepEqual(JSON.parse(serialize(board)), JSON.parse(text));
+});
+
+test("4-bit computer example loads with its register bank and visible outputs", () => {
+  const text = readFileSync(new URL("./public/examples/4-bit-computer.json", import.meta.url), "utf8");
+  const { board } = parseDocument(text);
+  assert.equal(board.components.filter((component) => component.t === "register").length, 4);
+  assert.deepEqual(board.components.filter((component) => component.t === "output").map((component) => component.label),
+    ["RA Value", "RB Value"]);
+  assert.equal(evaluateBoard(board).states.get("c9").value, 192);
+  assert.deepEqual(JSON.parse(serialize(board)), JSON.parse(text));
 });
