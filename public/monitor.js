@@ -1,7 +1,27 @@
 import { bitWidth } from "./components.js";
 import { formatValue, validValueFormat } from "./value-format.js";
 
-export function createMonitor({ getEditor, signalsEl, noSignalsEl, gridEl, emptyEl }) {
+// Cards stay in reading order across responsive rows. Blank space in a row
+// maps to its end; space below the final row maps to the end of the list.
+export function insertionIndex(rects, x, y) {
+  let start = 0;
+  while (start < rects.length) {
+    let end = start + 1;
+    while (end < rects.length && Math.abs(rects[end].top - rects[start].top) < 2) end++;
+    const bottom = Math.max(...rects.slice(start, end).map((rect) => rect.bottom));
+    if (y < rects[start].top) return start;
+    if (y <= bottom) {
+      for (let index = start; index < end; index++) {
+        if (x < rects[index].left + rects[index].width / 2) return index;
+      }
+      return end;
+    }
+    start = end;
+  }
+  return rects.length;
+}
+
+export function createMonitor({ getEditor, signalsEl, noSignalsEl, workspaceEl, gridEl, emptyEl }) {
   const layouts = new WeakMap();
   let draggingId = null;
   let renderedScope = null;
@@ -118,6 +138,25 @@ export function createMonitor({ getEditor, signalsEl, noSignalsEl, gridEl, empty
     } else updateValues();
   }
 
+  function dropPosition(event) {
+    const cards = [...gridEl.querySelectorAll(".monitor-card")];
+    return insertionIndex(cards.map((card) => card.getBoundingClientRect()), event.clientX, event.clientY);
+  }
+
+  function clearDropCue() {
+    workspaceEl.classList.remove("drag-over");
+    for (const card of gridEl.querySelectorAll(".monitor-card"))
+      card.classList.remove("drop-before", "drop-after");
+  }
+
+  function showDropCue(index) {
+    clearDropCue();
+    workspaceEl.classList.add("drag-over");
+    const cards = gridEl.querySelectorAll(".monitor-card");
+    if (index < cards.length) cards[index].classList.add("drop-before");
+    else cards[cards.length - 1]?.classList.add("drop-after");
+  }
+
   signalsEl.addEventListener("click", (event) => {
     const button = event.target.closest("[data-id]");
     if (button) add(button.dataset.id);
@@ -145,29 +184,24 @@ export function createMonitor({ getEditor, signalsEl, noSignalsEl, gridEl, empty
       event.dataTransfer.effectAllowed = "move";
       event.dataTransfer.setData("text/plain", draggingId);
     });
-    source.addEventListener("dragend", () => { draggingId = null; gridEl.classList.remove("drag-over"); });
+    source.addEventListener("dragend", () => { draggingId = null; clearDropCue(); });
   }
-  gridEl.addEventListener("dragover", (event) => {
+  workspaceEl.addEventListener("dragover", (event) => {
     if (!draggingId) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-    gridEl.classList.add("drag-over");
+    showDropCue(dropPosition(event));
   });
-  gridEl.addEventListener("dragleave", (event) => {
-    if (!gridEl.contains(event.relatedTarget)) gridEl.classList.remove("drag-over");
+  workspaceEl.addEventListener("dragleave", (event) => {
+    if (!workspaceEl.contains(event.relatedTarget)) clearDropCue();
   });
-  gridEl.addEventListener("drop", (event) => {
+  workspaceEl.addEventListener("drop", (event) => {
     if (!draggingId) return;
     event.preventDefault();
-    const card = event.target.closest(".monitor-card");
-    let index = layout().ids.length;
-    if (card) {
-      index = layout().ids.indexOf(card.dataset.id);
-      if (event.clientX > card.getBoundingClientRect().left + card.getBoundingClientRect().width / 2) index++;
-    }
+    const index = dropPosition(event);
     add(draggingId, index);
     draggingId = null;
-    gridEl.classList.remove("drag-over");
+    clearDropCue();
   });
 
   return { render, reset() { layouts.delete(getEditor()); renderedScope = null; } };

@@ -131,6 +131,7 @@ const monitor = createMonitor({
   getEditor: () => editor,
   signalsEl: document.getElementById("monitor-signals"),
   noSignalsEl: document.getElementById("monitor-no-signals"),
+  workspaceEl: document.querySelector(".monitor-workspace"),
   gridEl: document.getElementById("monitor-grid"),
   emptyEl: document.getElementById("monitor-empty"),
 });
