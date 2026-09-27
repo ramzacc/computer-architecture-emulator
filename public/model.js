@@ -37,14 +37,14 @@ function validComponentProperties(component, depth = 0) {
       (component.t === "clock" && !validClockFrequency(component.frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
       (component.t === "clock" && component.enable !== undefined && typeof component.enable !== "boolean") ||
       (["constant", "input"].includes(component.t) && !validConstant(component)) ||
-      (["input", "output", "portal", "rom"].includes(component.t) && (typeof (component.label ?? "") !== "string" || (component.label ?? "").length > 80)) ||
+      (typeof (component.label ?? "") !== "string" || (component.label ?? "").length > 80) ||
       (component.t === "rom" && !validRom(component)) ||
       (component.t === "ram" && !validRam(component)) ||
       (component.format !== undefined && (!["constant", "input", "output"].includes(component.t) ||
         !validValueFormat(component.format))) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
   if (component.t === "module") {
-    if (typeof component.label !== "string" || component.label.length > 80 || !component.module ||
+    if (!component.module ||
         !validModuleSize(component) || !validModulePinLayout(component) || !validModuleFaceLayout(component)) return false;
     if (depth >= 8) return false;
     try { parseDocument(JSON.stringify(component.module), depth + 1); }
@@ -73,6 +73,7 @@ export function isValidComponent(board, component) {
 
 export function addComponent(board, component) {
   if (!isValidComponent(board, component)) return false;
+  component.label ??= "";
   board.components.push(component);
   if (shortCircuitError(board)) {
     board.components.pop();

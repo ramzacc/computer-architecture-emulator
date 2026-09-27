@@ -249,21 +249,21 @@ export function isSizable(component) {
 
 const DOCUMENT_FIELDS = {
   constant: ["size", "value", "format"],
-  input: ["size", "value", "format", "label"],
-  output: ["size", "format", "label"],
-  portal: ["size", "label"],
-  rom: ["size", "addressSize", "data", "label"],
+  input: ["size", "value", "format"],
+  output: ["size", "format"],
+  portal: ["size"],
+  rom: ["size", "addressSize", "data"],
   ram: ["size", "addressSize"],
   clock: ["frequency", "enable"],
   switch: ["value"],
   splitter: ["size", "order"],
   mux: ["size", "channels"],
   demux: ["size", "channels"],
-  module: ["label", "module", "pinLayout", "faceLayout", "moduleWidth", "moduleHeight"],
+  module: ["module", "pinLayout", "faceLayout", "moduleWidth", "moduleHeight"],
 };
 
 export function documentFields(type) {
-  return DOCUMENT_FIELDS[type] ?? (isSizable({ t: type }) ? ["size"] : []);
+  return [...(DOCUMENT_FIELDS[type] ?? (isSizable({ t: type }) ? ["size"] : [])), "label"];
 }
 
 function tupleField(tuple, field) {

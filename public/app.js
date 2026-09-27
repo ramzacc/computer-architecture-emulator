@@ -199,10 +199,9 @@ function renderProperties() {
   constantValueEl.disabled = !source;
   sourceValueLabelEl.textContent = component?.t === "input" ? "Input value" : "Constant value";
   setFieldValue(constantValueEl, source ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "");
-  const named = component?.t === "input" || component?.t === "output" || component?.t === "portal" || component?.t === "module" || component?.t === "rom";
-  componentLabelRowEl.hidden = !named;
-  componentLabelEl.disabled = !named;
-  setFieldValue(componentLabelEl, named ? component.label ?? "" : "");
+  componentLabelRowEl.hidden = !component;
+  componentLabelEl.disabled = !component;
+  setFieldValue(componentLabelEl, component?.label ?? "");
   moduleOpenEl.hidden = component?.t !== "module";
   moduleLayoutOpenEl.hidden = component?.t !== "module" ||
     (!modulePorts(component).length && !moduleFaceParts(component).length);

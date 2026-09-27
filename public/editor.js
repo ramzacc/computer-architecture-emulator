@@ -19,13 +19,13 @@ function movesConnectedPin(board, component, next) {
 }
 
 function newComponent(type, id, x, y, board) {
-  const base = { id, t: type, x, y, r: 0 };
+  const base = { id, t: type, x, y, r: 0, label: "" };
   switch (type) {
     case "splitter": return { ...base, size: 4, order: "ascendant" };
     case "constant": return { ...base, size: 1, value: 0 };
-    case "input": return { ...base, size: 1, value: 0, label: "" };
+    case "input": return { ...base, size: 1, value: 0 };
     case "output":
-    case "portal": return { ...base, size: 1, label: "" };
+    case "portal": return { ...base, size: 1 };
     case "rom": {
       const labels = new Set(board.components.filter((item) => item.t === "rom").map((item) => item.label));
       let number = 1;
@@ -523,7 +523,7 @@ export class BoardEditor {
 
   setLabel(id, label) {
     const component = this.component(id);
-    if (!component || !["input", "output", "portal", "module", "rom"].includes(component.t) || typeof label !== "string" || label.length > 80 || component.label === label) return false;
+    if (!component || typeof label !== "string" || label.length > 80 || component.label === label) return false;
     return this.editComponent(component, { label });
   }
 
