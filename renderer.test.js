@@ -2,6 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRenderer } from "./public/renderer.js";
 import { createBoard, edgeKey } from "./public/model.js";
+import { spec } from "./public/components.js";
+
+test("ROM canvas art shows its label safely", () => {
+  const { componentArt } = createRenderer(null, () => null, () => null, () => null, () => null);
+  const rom = { id: "c1", t: "rom", x: 0, y: 0, r: 0, size: 8, addressSize: 8, data: [], label: "Boot <code>" };
+  const art = componentArt(rom, spec("rom"));
+  assert.match(art, /Boot &lt;code&gt;/);
+  assert.doesNotMatch(art, /Boot <code>/);
+});
 
 test("renderer reuses unchanged canvas elements and removes stale ones", () => {
   const originalDocument = globalThis.document;

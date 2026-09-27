@@ -282,10 +282,15 @@ export class BoardEditor {
   place(type, x, y) {
     let id;
     do { id = `c${this.nextComponentId++}`; } while (this.component(id));
+    let romLabel = "ROM 1";
+    if (type === "rom") {
+      const labels = new Set(this.board.components.filter((item) => item.t === "rom").map((item) => item.label));
+      for (let number = 1; labels.has(romLabel); number++) romLabel = `ROM ${number + 1}`;
+    }
     const component = { id, t: type, x, y, r: 0,
       ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
       ...(["constant", "input"].includes(type) ? { size: 1, value: 0 } : {}),
-      ...(type === "rom" ? { size: 8, addressSize: 8, data: [] } : {}),
+      ...(type === "rom" ? { size: 8, addressSize: 8, data: [], label: romLabel } : {}),
       ...(type === "ram" ? { size: 8, addressSize: 8 } : {}),
       ...(type === "switch" ? { value: 0 } : {}),
       ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY, enable: false } : {}),
@@ -503,7 +508,7 @@ export class BoardEditor {
 
   setLabel(id, label) {
     const component = this.component(id);
-    if (!component || !["input", "output", "portal", "module"].includes(component.t) || typeof label !== "string" || label.length > 80 || component.label === label) return false;
+    if (!component || !["input", "output", "portal", "module", "rom"].includes(component.t) || typeof label !== "string" || label.length > 80 || component.label === label) return false;
     return this.editComponent(component, { label });
   }
 

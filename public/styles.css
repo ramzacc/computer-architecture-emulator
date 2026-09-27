@@ -435,7 +435,7 @@ main[hidden] { display: none; }
 #rom-open[hidden] { display: none; }
 .rom-panel { display: flex; flex-direction: column; }
 .rom-selector { display: grid; gap: 6px; margin: 4px 0 8px; font-size: 12px; }
-.rom-selector select { width: 100%; padding: 7px 9px; color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 6px; }
+.rom-selector select, .rom-selector input { width: 100%; padding: 7px 9px; color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 6px; }
 .rom-actions { display: grid; gap: 8px; }
 .rom-actions > * { text-align: center; }
 .rom-actions .file-label { display: block; }
