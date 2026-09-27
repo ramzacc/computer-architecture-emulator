@@ -49,9 +49,11 @@ test("input bit toggles and labels persist; rotating moves its pin to the other 
   assert.equal(editor.toggleInputBit(input.id, 4), false);
 });
 
-test("older output tuples load with an empty label", () => {
-  const board = parseDocument(JSON.stringify({ components: [["output", 0, 0, 0, 1, 0]], wires: [] })).board;
-  assert.equal(board.components[0].label, "");
+test("output tuples require a label", () => {
+  const document = { components: [["output", 0, 0, 0, 1, 0]], wires: [], junctions: [] };
+  assert.throws(() => parseDocument(JSON.stringify(document)), /entries/);
+  document.components[0].push("");
+  const board = parseDocument(JSON.stringify(document)).board;
   assert.deepEqual(dimsOf(board.components[0]), { w: 2, h: 2 });
 });
 

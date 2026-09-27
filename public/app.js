@@ -4,6 +4,7 @@ import { BoardEditor } from "./editor.js";
 import { createRenderer } from "./renderer.js";
 import { formatValue, parseValue } from "./value-format.js";
 import { parseRomFile, serializeRomFile, validHexWord } from "./rom-format.js";
+import { createTabs } from "./tabs.js";
 
 const CELL = 48;
 const GAP = 3;
@@ -53,11 +54,6 @@ const btnWire = document.getElementById("btn-wire");
 const btnPan = document.getElementById("btn-pan");
 const btnSelect = document.getElementById("btn-select");
 const canvasViewEl = document.getElementById("canvas-view");
-const romViewEl = document.getElementById("rom-view");
-const moduleLayoutViewEl = document.getElementById("module-layout-view");
-const tabCanvasEl = document.getElementById("tab-canvas");
-const tabRomEl = document.getElementById("tab-rom");
-const tabModuleLayoutEl = document.getElementById("tab-module-layout");
 const btnCopy = document.getElementById("btn-copy");
 const btnPaste = document.getElementById("btn-paste");
 const btnDelete = document.getElementById("btn-delete");
@@ -129,38 +125,15 @@ const moduleBackEl = document.getElementById("module-back");
 const modulePathEl = document.getElementById("module-path");
 const moduleStack = [];
 
-function showView(view) {
-  const canvasActive = view === "canvas";
-  canvasViewEl.hidden = !canvasActive;
-  romViewEl.hidden = view !== "rom";
-  moduleLayoutViewEl.hidden = view !== "layout";
-  for (const [tab, name] of [[tabCanvasEl, "canvas"], [tabRomEl, "rom"], [tabModuleLayoutEl, "layout"]]) {
-    tab.setAttribute("aria-selected", String(view === name));
-    tab.tabIndex = view === name ? 0 : -1;
-  }
-  if (canvasActive) applyView();
-}
-
-for (const [tab, view] of [[tabCanvasEl, "canvas"], [tabRomEl, "rom"], [tabModuleLayoutEl, "layout"]]) {
-  tab.addEventListener("click", () => {
-    if (view === "rom") renderRomTab();
-    if (view === "layout") renderModuleLayout();
-    showView(view);
-  });
-  tab.addEventListener("keydown", (e) => {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
-    e.preventDefault();
-    const visible = [tabCanvasEl, tabRomEl, tabModuleLayoutEl].filter((item) => !item.hidden);
-    const current = visible.indexOf(tab);
-    const target = e.key === "Home" ? visible[0] : e.key === "End" ? visible.at(-1)
-      : visible[(current + (e.key === "ArrowRight" ? 1 : -1) + visible.length) % visible.length];
-    target.click();
-    target.focus();
-  });
-}
+const viewRenderers = {
+  "canvas-view": applyView,
+  "rom-view": renderRomTab,
+  "module-layout-view": renderModuleLayout,
+};
+const tabs = createTabs(document.querySelector(".view-tabs"), (panelId) => viewRenderers[panelId]?.());
 moduleLayoutOpenEl.addEventListener("click", () => {
   layoutTargetId = selectedId;
-  tabModuleLayoutEl.click();
+  tabs.show("module-layout-view", { focus: true });
 });
 const busStatusEl = document.getElementById("bus-status");
 const { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox } =
@@ -233,7 +206,6 @@ function renderProperties() {
   moduleOpenEl.hidden = component?.t !== "module";
   moduleLayoutOpenEl.hidden = component?.t !== "module" ||
     (!modulePorts(component).length && !moduleFaceParts(component).length);
-  renderModuleLayout();
   const rom = component?.t === "rom";
   romAddressSizeRowEl.hidden = !memory;
   romAddressSizeEl.disabled = !memory;
@@ -540,7 +512,7 @@ romDataSizeEl.addEventListener("change", () => {
 romAddressSizeEl.addEventListener("change", () => {
   const size = Number(romAddressSizeEl.value);
   const kind = editor.component(selectedId)?.t;
-  const changed = kind === "ram" ? editor.resizeRamAddress(selectedId, size) : editor.resizeRomAddress(selectedId, size);
+  const changed = editor.resizeMemoryAddress(selectedId, size);
   if (changed) busStatus(`${kind.toUpperCase()} address size set to ${size} bits.`);
   else busStatus(`${kind?.toUpperCase() ?? "Memory"} address width must be 1, 2, 4, 8, or 16 bits and fit connected wires${kind === "rom" ? ", and include every stored address" : ""}.`, true);
   renderProperties();
@@ -764,9 +736,8 @@ function openRom(id) {
   romRenderedKey = null;
   romJumpEl.value = "";
   romJumpEl.dataset.valid = "";
-  renderRomTab();
   romStatus(romDrafts.has(component.id) ? "Unsaved ROM edits." : "");
-  showView("rom");
+  tabs.show("rom-view");
   romRowsEl.querySelector("input")?.focus();
 }
 
@@ -1006,13 +977,12 @@ function syncPlacingCursor() {
 }
 
 function render() {
-  applyView();
   const logic = editor.evaluation;
   renderWires(logic);
   renderComponents(logic);
   renderPins();
   renderProperties();
-  renderRomTab();
+  viewRenderers[tabs.active]?.();
 }
 
 function showModulePath() {
@@ -1042,7 +1012,7 @@ function openModule(id) {
   renderPalette();
   syncPlacingCursor();
   showModulePath();
-  showView("canvas");
+  tabs.show("canvas-view");
   syncClockTimers();
   render();
   resetView();
@@ -1069,7 +1039,7 @@ function closeModule() {
   render();
   resetView();
   const component = editor.component(parent.id);
-  if (component && (modulePorts(component).length || moduleFaceParts(component).length)) showView("layout");
+  if (component && (modulePorts(component).length || moduleFaceParts(component).length)) tabs.show("module-layout-view");
   busStatus("Module saved.");
 }
 

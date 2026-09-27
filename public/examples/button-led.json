@@ -1,1 +1,1 @@
-{"components":[["button",2,0,0],["led",2,3,0]],"wires":[["V",3,2,1]]}
+{"components":[["button",2,0,0],["led",2,3,0]],"wires":[["V",3,2,1]],"junctions":[]}

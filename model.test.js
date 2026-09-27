@@ -28,22 +28,19 @@ test("modules expose named ports and carry parent inputs through nested circuitr
   assert.equal(evaluateBoard(board).states.get("sink").value, 0);
 });
 
-test("module documents accept legacy pins and reject corner or duplicate layouts", () => {
+test("module documents reject incomplete, corner, or duplicate pin layouts", () => {
   const inner = createBoard();
   assert.equal(addComponent(inner, { id: "c1", t: "input", x: 0, y: 0, r: 0, size: 1, value: 0, label: "A" }), true);
   assert.equal(addComponent(inner, { id: "c2", t: "output", x: 4, y: 0, r: 0, size: 1, label: "Y" }), true);
-  const legacy = { components: [["module", 0, 0, 0, "M", JSON.parse(serialize(inner))]], wires: [], junctions: [] };
-  assert.equal(parseDocument(JSON.stringify(legacy)).board.components[0].pinLayout, undefined);
-  const prior = structuredClone(legacy);
-  prior.components[0].push([["N", 2], ["E", 1]]);
-  assert.deepEqual(parseDocument(JSON.stringify(prior)).board.components[0].pinLayout, [["N", 2], ["E", 1]]);
-  const previousFace = structuredClone(legacy);
-  previousFace.components[0].push(null, [[1, 0, 0]]);
-  assert.deepEqual(parseDocument(JSON.stringify(previousFace)).board.components[0].faceLayout, [[1, 1, 2]]);
+  const document = { components: [["module", 0, 0, 0, "M", JSON.parse(serialize(inner)), null, null, 4, 3]], wires: [], junctions: [] };
+  assert.throws(() => parseDocument(JSON.stringify({ ...document, components: [document.components[0].slice(0, 6)] })), /entries/);
+  const withPins = structuredClone(document);
+  withPins.components[0][6] = [["N", 2], ["E", 1]];
+  assert.deepEqual(parseDocument(JSON.stringify(withPins)).board.components[0].pinLayout, [["N", 2], ["E", 1]]);
   for (const layout of [[['N', 0], ['E', 1]], [['N', 2], ['N', 2]], [['W', 3], ['E', 1]]]) {
-    const document = structuredClone(legacy);
-    document.components[0].push(layout);
-    assert.throws(() => parseDocument(JSON.stringify(document)), /invalid/);
+    const invalid = structuredClone(document);
+    invalid.components[0][6] = layout;
+    assert.throws(() => parseDocument(JSON.stringify(invalid)), /invalid/);
   }
 });
 
@@ -179,7 +176,7 @@ test("a clock drives its output from the supplied evaluation state and persists 
   assert.equal(evaluateBoard(board).states.get("led").lit, false);
   assert.equal(parseDocument(serialize(board)).board.components[0].frequency, 2.5);
   assert.equal(addComponent(board, { id: "bad", t: "clock", x: 4, y: 0, frequency: 0 }), false);
-  assert.throws(() => parseDocument(JSON.stringify({ components: [["clock", 0, 0, 0, 21]], wires: [] })), /frequency/);
+  assert.throws(() => parseDocument(JSON.stringify({ components: [["clock", 0, 0, 0, 21, true]], wires: [], junctions: [] })), /frequency/);
 });
 
 test("a disabled clock stays low and its enable setting survives serialization", () => {
@@ -187,9 +184,8 @@ test("a disabled clock stays low and its enable setting survives serialization",
   assert.equal(addComponent(board, { id: "clock", t: "clock", x: 0, y: 0, enable: false }), true);
   assert.equal(evaluateBoard(board, new Set(), new Set(["clock"])).states.get("clock").value, 0);
   assert.equal(parseDocument(serialize(board)).board.components[0].enable, false);
-  assert.equal(parseDocument(JSON.stringify({ components: [["clock", 0, 0, 0, 2]], wires: [] }))
-    .board.components[0].enable, true);
-  assert.throws(() => parseDocument(JSON.stringify({ components: [["clock", 0, 0, 0, 2, 0]], wires: [] })), /boolean/);
+  assert.throws(() => parseDocument(JSON.stringify({ components: [["clock", 0, 0, 0, 2]], wires: [], junctions: [] })), /entries/);
+  assert.throws(() => parseDocument(JSON.stringify({ components: [["clock", 0, 0, 0, 2, 0]], wires: [], junctions: [] })), /boolean/);
   assert.equal(addComponent(board, { id: "bad", t: "clock", x: 3, y: 0, enable: 0 }), false);
 });
 
@@ -221,7 +217,7 @@ test("a wire cannot join HIGH and LOW drivers, including driven zero bits", () =
   assert.throws(() => parseDocument(JSON.stringify({ components: [
     ["constant", -1, 1, 2, 1, 0, 0],
     ["constant", 3, 1, 2, 1, 1, 0],
-  ], wires: [...wires.map((wire) => [wire.o, wire.x, wire.y, 1]), [last.o, last.x, last.y, 1]] })), /Short circuit/);
+  ], wires: [...wires.map((wire) => [wire.o, wire.x, wire.y, 1]), [last.o, last.x, last.y, 1]], junctions: [] })), /Short circuit/);
 });
 
 test("a splitter carries short-circuit checks between a bus bit and its branch", () => {
@@ -277,8 +273,8 @@ test("orthogonal crossings stay separate, while explicit junctions join them", (
   board.junctions.add("1,1");
   assert.equal(computeNets(board).size, 1);
   assert.deepEqual(parseDocument(serialize(board)).board.junctions, new Set(["1,1"]));
-  const legacy = JSON.stringify({ components: [], wires: JSON.parse(serialize(board)).wires });
-  assert.deepEqual(parseDocument(legacy).board.junctions, new Set(["1,1"]));
+  const withoutJunctions = JSON.stringify({ components: [], wires: JSON.parse(serialize(board)).wires });
+  assert.throws(() => parseDocument(withoutJunctions), /junctions/);
 });
 
 test("a whole route can cross a different width wire without joining it", () => {
@@ -338,14 +334,14 @@ test("a high constant drives an LED and sanitizes after edits", () => {
 
 test("documents reject unsupported metadata and removed components", () => {
   for (const document of [
-    { version: 9, components: [], wires: [] },
-    { components: [["power", 0, 0, 0]], wires: [] },
+    { version: 9, components: [], wires: [], junctions: [] },
+    { components: [["power", 0, 0, 0]], wires: [], junctions: [] },
   ]) assert.throws(() => parseDocument(JSON.stringify(document)));
   assert.equal(spec("power"), null);
 });
 
 test("documents reject coercion, unknown fields, and duplicate wires", () => {
-  const base = { components: [], wires: [] };
+  const base = { components: [], wires: [], junctions: [] };
   for (const change of [
     { components: [["led", "1", 0, 0]] },
     { components: [["led", 1.5, 0, 0]] },
@@ -678,7 +674,7 @@ test("constant drives its configured value and enforces its width and range", ()
   for (const component of [
     ["constant", 0, 0, 0, 9, 1, 0],
     ["constant", 3, 0, 0, 2, 4, 0],
-  ]) assert.throws(() => parseDocument(JSON.stringify({ components: [component], wires: [] })));
+  ]) assert.throws(() => parseDocument(JSON.stringify({ components: [component], wires: [], junctions: [] })));
 });
 
 test("output reads a matching bus without driving it and survives serialization", () => {
@@ -706,7 +702,7 @@ test("output reads a matching bus without driving it and survives serialization"
 });
 
 test("imports reject unknown component types", () => {
-  const data = { components: [["alu", 0, 0, 0, 4]], wires: [] };
+  const data = { components: [["alu", 0, 0, 0, 4]], wires: [], junctions: [] };
   assert.throws(() => parseDocument(JSON.stringify(data)), /components\[0\]\.t/);
 });
 
@@ -714,7 +710,7 @@ test("imports reject mixed width connections", () => {
   const data = { components: [["and", 0, 2, 0, 8]], wires: [
     ["V", 1, 1, 8],
     ["V", 1, 0, 4],
-  ] };
+  ], junctions: [] };
   assert.throws(() => parseDocument(JSON.stringify(data)), /wires\[1\] has a bus size mismatch/);
 });
 
@@ -779,7 +775,7 @@ test("descendant splitter order reverses branch bits and persists", () => {
   assert.deepEqual(JSON.parse(serialize(reloaded)), saved);
   splitter.order = "backward";
   assert.equal(isValidComponent(board, splitter), false);
-  assert.throws(() => parseDocument(JSON.stringify({ components: [["splitter", 0, 0, 0, 2]], wires: [] })), /entries/);
+  assert.throws(() => parseDocument(JSON.stringify({ components: [["splitter", 0, 0, 0, 2]], wires: [], junctions: [] })), /entries/);
 });
 
 

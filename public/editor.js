@@ -11,6 +11,44 @@ function attachedWires(board, pin) {
     .filter((key) => board.wires.has(key));
 }
 
+function movesConnectedPin(board, component, next) {
+  const nextPins = pinsFor(next);
+  return pinsFor(component).some((pin, index) =>
+    (pin.px !== nextPins[index].px || pin.py !== nextPins[index].py) &&
+    attachedWires(board, pin).length > 0);
+}
+
+function newComponent(type, id, x, y, board) {
+  const base = { id, t: type, x, y, r: 0 };
+  switch (type) {
+    case "splitter": return { ...base, size: 4, order: "ascendant" };
+    case "constant": return { ...base, size: 1, value: 0 };
+    case "input": return { ...base, size: 1, value: 0, label: "" };
+    case "output":
+    case "portal": return { ...base, size: 1, label: "" };
+    case "rom": {
+      const labels = new Set(board.components.filter((item) => item.t === "rom").map((item) => item.label));
+      let number = 1;
+      while (labels.has(`ROM ${number}`)) number++;
+      return { ...base, size: 8, addressSize: 8, data: [], label: `ROM ${number}` };
+    }
+    case "ram": return { ...base, size: 8, addressSize: 8 };
+    case "switch": return { ...base, value: 0 };
+    case "clock": return { ...base, frequency: DEFAULT_CLOCK_FREQUENCY, enable: false };
+    case "module": return { ...base, label: "Module", module: JSON.parse(serialize(createBoard())) };
+    case "mux":
+    case "demux": return { ...base, size: 4, channels: 2 };
+    case "adder":
+    case "twos":
+    case "comparator":
+    case "shl":
+    case "shr":
+    case "register":
+    case "counter": return { ...base, size: 4 };
+    default: return base;
+  }
+}
+
 function trimCoveredRun(original, trial, component, pin, destination, movingWireKeys) {
   const dx = destination.px - pin.px, dy = destination.py - pin.py;
   if ((!dx && !dy) || (dx && dy)) return false;
@@ -282,23 +320,7 @@ export class BoardEditor {
   place(type, x, y) {
     let id;
     do { id = `c${this.nextComponentId++}`; } while (this.component(id));
-    let romLabel = "ROM 1";
-    if (type === "rom") {
-      const labels = new Set(this.board.components.filter((item) => item.t === "rom").map((item) => item.label));
-      for (let number = 1; labels.has(romLabel); number++) romLabel = `ROM ${number + 1}`;
-    }
-    const component = { id, t: type, x, y, r: 0,
-      ...(type === "splitter" ? { size: 4, order: "ascendant" } : {}),
-      ...(["constant", "input"].includes(type) ? { size: 1, value: 0 } : {}),
-      ...(type === "rom" ? { size: 8, addressSize: 8, data: [], label: romLabel } : {}),
-      ...(type === "ram" ? { size: 8, addressSize: 8 } : {}),
-      ...(type === "switch" ? { value: 0 } : {}),
-      ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY, enable: false } : {}),
-      ...(["output", "portal"].includes(type) ? { size: 1 } : {}),
-      ...(["input", "output", "portal"].includes(type) ? { label: "" } : {}),
-      ...(type === "module" ? { label: "Module", module: JSON.parse(serialize(createBoard())) } : {}),
-      ...(["mux", "demux"].includes(type) ? { channels: 2 } : {}) };
-    if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr", "register", "counter"].includes(type)) component.size = 4;
+    const component = newComponent(type, id, x, y, this.board);
     if (!addComponent(this.board, component)) return null;
     this.commitComponentEdit();
     return component;
@@ -452,16 +474,9 @@ export class BoardEditor {
     return this.editComponent(component, { data: sorted }, { validate: (board) => !shortCircuitError(board) });
   }
 
-  resizeRomAddress(id, addressSize) {
+  resizeMemoryAddress(id, addressSize) {
     const component = this.component(id);
-    if (component?.t !== "rom" || !validRomAddressWidth(addressSize) ||
-        (component.addressSize ?? 8) === addressSize) return false;
-    return this.editComponent(component, { addressSize }, { sanitize: true });
-  }
-
-  resizeRamAddress(id, addressSize) {
-    const component = this.component(id);
-    if (component?.t !== "ram" || !validRomAddressWidth(addressSize) ||
+    if (!component || !["rom", "ram"].includes(component.t) || !validRomAddressWidth(addressSize) ||
         (component.addressSize ?? 8) === addressSize) return false;
     return this.editComponent(component, { addressSize }, { sanitize: true });
   }
@@ -540,9 +555,7 @@ export class BoardEditor {
     }
     const next = { ...component, ...changes };
     if (!validModuleFaceLayout(next) || !validModuleSize(next)) return false;
-    const oldPins = pinsFor(component), nextPins = pinsFor(next);
-    if (oldPins.some((pin, pinIndex) => (pin.px !== nextPins[pinIndex].px || pin.py !== nextPins[pinIndex].py) &&
-        attachedWires(this.board, pin).length)) return false;
+    if (movesConnectedPin(this.board, component, next)) return false;
     return this.editComponent(component, changes, { captureEdges: true });
   }
 
@@ -554,9 +567,7 @@ export class BoardEditor {
     const actual = dimsOf({ ...next, r: 0 });
     if (actual.w !== width || actual.h !== height) return false;
     if ((component.moduleWidth ?? 4) === width && (component.moduleHeight ?? 3) === height) return true;
-    const oldPins = pinsFor(component), nextPins = pinsFor(next);
-    if (oldPins.some((pin, index) => (pin.px !== nextPins[index].px || pin.py !== nextPins[index].py) &&
-        attachedWires(this.board, pin).length)) return false;
+    if (movesConnectedPin(this.board, component, next)) return false;
     return this.editComponent(component, { moduleWidth: width, moduleHeight: height }, { captureEdges: true });
   }
 
@@ -569,8 +580,7 @@ export class BoardEditor {
     layout[index] = [side, position];
     const next = { ...component, pinLayout: layout };
     if (!validModulePinLayout(next)) return false;
-    const oldPin = pinsFor(component)[index], newPin = pinsFor(next)[index];
-    if ((oldPin.px !== newPin.px || oldPin.py !== newPin.py) && attachedWires(this.board, oldPin).length) return false;
+    if (movesConnectedPin(this.board, component, next)) return false;
     return this.editComponent(component, { pinLayout: layout }, { captureEdges: true });
   }
 
