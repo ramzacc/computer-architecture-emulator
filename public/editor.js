@@ -11,7 +11,36 @@ function attachedWires(board, pin) {
     .filter((key) => board.wires.has(key));
 }
 
+function trimCoveredRun(original, trial, component, pin, destination, movingWireKeys) {
+  const dx = destination.px - pin.px, dy = destination.py - pin.py;
+  if ((!dx && !dy) || (dx && dy)) return false;
+  const length = Math.abs(dx || dy);
+  if (length > 256 || attachedWires(original, pin).length !== 1) return false;
+  const stepX = Math.sign(dx), stepY = Math.sign(dy);
+  const edgeAt = (x, y) => edgeKey(stepX
+    ? { o: "H", x: stepX > 0 ? x : x - 1, y }
+    : { o: "V", x, y: stepY > 0 ? y : y - 1 });
+  const otherPins = new Set(original.components.filter((item) => item.id !== component.id)
+    .flatMap((item) => pinsFor(item).map(({ px, py }) => `${px},${py}`)));
+  const covered = [];
+  for (let index = 0; index < length; index++) {
+    const x = pin.px + index * stepX, y = pin.py + index * stepY;
+    const key = edgeAt(x, y);
+    const wire = original.wires.get(key);
+    if (!wire || movingWireKeys.has(key) || (wire.size ?? 1) !== pin.size) return false;
+    if (index && attachedWires(original, { px: x, py: y }).length !== 2) return false;
+    if (otherPins.has(`${x},${y}`)) return false;
+    covered.push(key);
+  }
+  const beyond = edgeAt(destination.px, destination.py);
+  const remaining = original.wires.get(beyond);
+  if (!remaining || movingWireKeys.has(beyond) || (remaining.size ?? 1) !== pin.size) return false;
+  for (const key of covered) trial.wires.delete(key);
+  return true;
+}
+
 function extendMovedPins(original, trial, moved, movingWireKeys = new Set()) {
+  const extensions = [];
   for (const component of moved) {
     const next = trial.components.find((item) => item.id === component.id);
     const oldPins = pinsFor(component);
@@ -20,11 +49,19 @@ function extendMovedPins(original, trial, moved, movingWireKeys = new Set()) {
       const pin = oldPins[index];
       if (!attachedWires(original, pin).some((key) => !movingWireKeys.has(key))) continue;
       const destination = newPins[index];
-      const route = wireRoute(trial, { x: pin.px, y: pin.py },
-        { x: destination.px, y: destination.py }, pin.size);
-      if (route.error) return false;
-      for (const edge of route.edges) trial.wires.set(edgeKey(edge), edge);
+      if (!trimCoveredRun(original, trial, component, pin, destination, movingWireKeys))
+        extensions.push({ pin, destination });
     }
+  }
+  for (const component of moved) {
+    const next = trial.components.find((item) => item.id === component.id);
+    if (!isValidComponent(trial, next)) return false;
+  }
+  for (const { pin, destination } of extensions) {
+    const route = wireRoute(trial, { x: pin.px, y: pin.py },
+      { x: destination.px, y: destination.py }, pin.size);
+    if (route.error) return false;
+    for (const edge of route.edges) trial.wires.set(edgeKey(edge), edge);
   }
   return !wireLayoutError(trial);
 }
@@ -323,8 +360,7 @@ export class BoardEditor {
       wires: new Map(this.board.wires),
       junctions: new Set(this.board.junctions),
     };
-    const next = trial.components.find((item) => item.id === id);
-    if (!isValidComponent(trial, next) || !extendMovedPins(this.board, trial, [component])) return null;
+    if (!extendMovedPins(this.board, trial, [component])) return null;
     return trial;
   }
 
@@ -361,11 +397,8 @@ export class BoardEditor {
       if (trial.wires.has(key)) return null;
       trial.wires.set(key, moved);
     }
-    for (const component of trial.components) {
-      if (selected.has(component.id) && !isValidComponent(trial, component)) return null;
-    }
     pruneJunctions(trial);
-    if (wireLayoutError(trial) || !extendMovedPins(this.board, trial, moving, edges)) return null;
+    if (!extendMovedPins(this.board, trial, moving, edges)) return null;
     return trial;
   }
 
