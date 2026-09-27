@@ -265,7 +265,7 @@ test('RAM writes on a rising WR edge, reads continuously, and resets on reload',
   editor.setButtonPressed(write.id, false);
   editor.setButtonPressed(write.id, true);
   assert.equal(editor.evaluation.states.get(ram.id).value, 0x3C);
-  assert.equal(JSON.parse(serialize(editor.board)).components.find((entry) => entry[0] === 'ram').length, 6);
+  assert.equal(JSON.parse(serialize(editor.board)).components.find((entry) => entry[0] === 'ram').length, 7);
   const restored = parseDocument(serialize(editor.board)).board;
   editor.replaceBoard(restored);
   assert.equal(editor.evaluation.states.get(restored.components.find((component) => component.t === 'ram').id).value, 0);
@@ -287,7 +287,7 @@ test('RAM width rules match ROM and resizing trims simulation contents', () => {
   assert.equal(editor.resizeComponent(ram.id, 8), true);
   assert.equal(editor.evaluation.states.get(ram.id).value, 0xFF);
   assert.deepEqual(pinsFor(ram).map((pin) => pin.size), [8, 8, 1, 8]);
-  assert.throws(() => parseDocument(JSON.stringify({ components: [['ram', 0, 0, 0, 3, 8]], wires: [], junctions: [] })), /power of two/);
+  assert.throws(() => parseDocument(JSON.stringify({ components: [['ram', 0, 0, 0, 3, 8, 'RAM 1']], wires: [], junctions: [] })), /power of two/);
 });
 
 test('moving a selection translates components and complete wire nets in one edit', () => {
@@ -438,21 +438,20 @@ test('output width is configurable and must match its connected net', () => {
   assert.equal(editor.resizeComponent(output.id, 8), true);
 });
 
-test('portal names and widths edit together and survive undo', () => {
+test('portal labels are unique and widths edit independently', () => {
   const { editor } = setup();
   const first = editor.place('portal', 0, 0);
   const second = editor.place('portal', 5, 0);
   assert.ok(first && second);
   assert.equal(editor.setLabel(first.id, 'DATA'), true);
-  assert.equal(editor.setLabel(second.id, 'DATA'), true);
-  assert.equal(editor.resizeComponent(first.id, 8), false);
-  assert.equal(editor.component(first.id).size, 1);
-  assert.equal(editor.setLabel(second.id, 'OTHER'), true);
+  assert.equal(editor.setLabel(second.id, 'DATA'), false);
   assert.equal(editor.resizeComponent(first.id, 8), true);
+  assert.equal(editor.component(first.id).size, 8);
+  assert.equal(editor.setLabel(second.id, 'OTHER'), true);
   assert.equal(editor.setLabel(second.id, 'DATA'), false);
   assert.equal(editor.component(second.id).label, 'OTHER');
   assert.equal(editor.undo(), true);
-  assert.equal(editor.component(first.id).size, 1);
+  assert.equal(editor.component(first.id).size, 8);
   assert.equal(parseDocument(serialize(editor.board)).board.components[0].label, 'DATA');
 });
 
@@ -539,7 +538,7 @@ test('constant and output canvas art uses the selected value format', () => {
 
 test('imports save only after a complete valid document is parsed', () => {
   const ctx = setup();
-  const document = JSON.stringify({ components: [['constant', 0, 0, 0, 1, 1, 0]], wires: [['V', 1, 2, 1]], junctions: [] });
+  const document = JSON.stringify({ components: [['constant', 0, 0, 0, 1, 1, 0, 'Constant 1']], wires: [['V', 1, 2, 1]], junctions: [] });
   const result = ctx.editor.importText(document);
   assert.equal(result.board.components[0].y, 0);
   assert.equal(result.board.components[0].t, 'constant');

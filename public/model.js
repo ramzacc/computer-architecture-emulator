@@ -34,8 +34,11 @@ export function labelAvailable(board, component) {
 export function nextLabel(board, type, base = spec(type)?.label ?? type) {
   const used = new Set(board.components.filter((item) => item.t === type).map((item) => item.label));
   let number = 1;
-  while (used.has(`${base} ${number}`)) number++;
-  return `${base} ${number}`;
+  while (true) {
+    const suffix = ` ${number++}`;
+    const label = `${base.slice(0, 80 - suffix.length)}${suffix}`;
+    if (!used.has(label)) return label;
+  }
 }
 
 function validComponentProperties(component, depth = 0) {

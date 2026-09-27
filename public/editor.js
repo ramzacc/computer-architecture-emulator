@@ -25,7 +25,8 @@ function newComponent(type, id, x, y, board) {
     case "constant": return { ...base, size: 1, value: 0 };
     case "input": return { ...base, size: 1, value: 0 };
     case "output":
-    case "portal": return { ...base, size: 1 };
+    case "portal":
+    case "tag": return { ...base, size: 1 };
     case "rom": return { ...base, size: 8, addressSize: 8, data: [] };
     case "ram": return { ...base, size: 8, addressSize: 8 };
     case "switch": return { ...base, value: 0 };

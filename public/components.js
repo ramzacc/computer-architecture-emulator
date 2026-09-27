@@ -79,6 +79,10 @@ export const COMPONENT_TYPES = {
     label: "Portal", w: 3, h: 2, color: "#afb2b9", shape: "portal", portal: true,
     pins: [{ x: 0, y: 1, dir: "W", role: "in" }],
   },
+  tag: {
+    label: "Tag", w: 4, h: 2, color: "#afb2b9", shape: "tag", tag: true,
+    pins: [{ x: 0, y: 1, dir: "W", role: "in" }],
+  },
   led: {
     label: "LED", w: 2, h: 2, color: "#c8b49b", shape: "led",
     pins: [
@@ -244,7 +248,7 @@ export function selectWidth(component) {
 
 export function isSizable(component) {
   const entry = spec(component.t);
-  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output || entry?.portal);
+  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output || entry?.portal || entry?.tag);
 }
 
 const DOCUMENT_FIELDS = {

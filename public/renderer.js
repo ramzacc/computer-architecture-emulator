@@ -108,7 +108,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   function numberArt(c, s, value, source) {
     const width = bitWidth(c), w = (width + 1) * U, h = 2 * U;
     const current = source ? c.value ?? 0 : value;
-    const title = displayName(c, c.t === "input" ? "INPUT" : source ? "CONST" : "OUTPUT", 11);
+    const title = s.constant ? "CONST" : displayName(c, c.t === "input" ? "INPUT" : "OUTPUT", 11);
     const tiles = Array.from({ length: width }, (_, index) => {
       const bit = width - 1 - index;
       const on = (current >>> bit) & 1;
@@ -151,6 +151,16 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const d = dimsOf(c);
     return svgWrap(inner, s, c.r,
       textAt(d.w * U / 2, d.h * U / 2, displayName(c, "PORTAL", 12), 10, ink, 700));
+  }
+
+  function tagArt(c, s) {
+    const w = 160, h = 80;
+    const inner = frame(w, h, partAccent(s)) +
+      `<path d="M10 40 H28" fill="none" stroke="${partAccent(s)}" stroke-width="2"/>` +
+      ports(localPins(c, s), w, h, partAccent(s));
+    const d = dimsOf(c);
+    return svgWrap(inner, s, c.r,
+      textAt(d.w * U / 2, d.h * U / 2, displayName(c, "TAG", 20), 13, ink, 700));
   }
 
   function ledArt(c, s) {
@@ -289,6 +299,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     if (s.module) return moduleArt(c, s, state);
     if (s.splitter) return splitterArt(c, s);
     if (s.portal) return portalArt(c, s);
+    if (s.tag) return tagArt(c, s);
     if (s.constant || s.input || s.output) return numberArt(c, s, value, !!(s.constant || s.input));
     if (["button", "switch", "clock"].includes(s.shape)) return sourceArt(c, s, value !== 0);
     if (s.shape === "led") return ledArt(c, s);

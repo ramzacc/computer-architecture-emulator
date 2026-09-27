@@ -12,6 +12,15 @@ test("ROM canvas art shows its label safely", () => {
   assert.doesNotMatch(art, /Boot <code>/);
 });
 
+test("tag canvas art shows the escaped label upright when rotated", () => {
+  const { componentArt } = createRenderer(null, () => null, () => null, () => null, () => null);
+  const tag = { t: "tag", x: 0, y: 0, r: 1, size: 8, label: "DATA <bus>" };
+  const art = componentArt(tag, spec("tag"));
+  assert.match(art, /viewBox="0 0 80 160"/);
+  assert.match(art, /DATA &lt;bus&gt;/);
+  assert.doesNotMatch(art, /DATA <bus>/);
+});
+
 test("renderer reuses unchanged canvas elements and removes stale ones", () => {
   const originalDocument = globalThis.document;
   const grid = {
