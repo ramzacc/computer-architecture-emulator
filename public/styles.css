@@ -182,7 +182,7 @@ main > [role="tabpanel"] { height: 100%; }
 main > [role="tabpanel"][hidden] { display: none; }
 .canvas-view, .rom-view, .monitor-view { display: flex; align-items: stretch; }
 
-.monitor-sidebar { gap: 12px; padding-top: 20px; }
+.panel.monitor-sidebar { gap: 12px; padding-top: 20px; }
 .monitor-sidebar h2 { margin: 0; }
 .monitor-sidebar > .hint { margin: 0; }
 .monitor-signals { display: grid; gap: 6px; }
