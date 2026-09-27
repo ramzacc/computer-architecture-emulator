@@ -1,4 +1,4 @@
-import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, modulePinLayout, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
+import { bitWidth, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePinLayout, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, createBoard, crossingAt, edgeKey, isValidComponent,
   evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, wireLayoutError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
@@ -415,7 +415,7 @@ export class BoardEditor {
 
   rotate(id) {
     const component = this.component(id);
-    if (!component) return false;
+    if (!component || component.t === "module") return false;
     const old = component.r ?? 0;
     if (["constant", "input", "output"].includes(component.t))
       return this.editComponent(component, { r: old === 2 ? 0 : 2 }, { sanitize: true });
@@ -521,19 +521,38 @@ export class BoardEditor {
     return this.editComponent(component, changes, { captureEdges: true });
   }
 
-  setModuleFacePart(id, index, column, row) {
+  setModuleFacePart(id, index, x, y) {
     const component = this.component(id);
     if (component?.t !== "module" || !Number.isInteger(index)) return false;
     const current = (component.faceLayout ?? []).find(([partIndex]) => partIndex === index);
-    if (column === null ? !current : current?.[1] === column && current?.[2] === row) return true;
+    if (x === null ? !current : current?.[1] === x && current?.[2] === y) return true;
     const layout = (component.faceLayout ?? []).filter(([partIndex]) => partIndex !== index);
-    if (column !== null) layout.push([index, column, row]);
-    const next = { ...component, faceLayout: layout };
-    if (!validModuleFaceLayout(next)) return false;
+    if (x !== null) layout.push([index, x, y]);
+    const changes = { faceLayout: layout };
+    if (x !== null) {
+      changes.moduleWidth = Math.max(component.moduleWidth ?? 4, x + 1);
+      changes.moduleHeight = Math.max(component.moduleHeight ?? 3, Math.min(32, y + 1));
+    }
+    const next = { ...component, ...changes };
+    if (!validModuleFaceLayout(next) || !validModuleSize(next)) return false;
     const oldPins = pinsFor(component), nextPins = pinsFor(next);
     if (oldPins.some((pin, pinIndex) => (pin.px !== nextPins[pinIndex].px || pin.py !== nextPins[pinIndex].py) &&
         attachedWires(this.board, pin).length)) return false;
-    return this.editComponent(component, { faceLayout: layout }, { captureEdges: true });
+    return this.editComponent(component, changes, { captureEdges: true });
+  }
+
+  setModuleSize(id, width, height) {
+    const component = this.component(id);
+    if (component?.t !== "module") return false;
+    const next = { ...component, moduleWidth: width, moduleHeight: height };
+    if (!validModuleSize(next)) return false;
+    const actual = dimsOf({ ...next, r: 0 });
+    if (actual.w !== width || actual.h !== height) return false;
+    if ((component.moduleWidth ?? 4) === width && (component.moduleHeight ?? 3) === height) return true;
+    const oldPins = pinsFor(component), nextPins = pinsFor(next);
+    if (oldPins.some((pin, index) => (pin.px !== nextPins[index].px || pin.py !== nextPins[index].py) &&
+        attachedWires(this.board, pin).length)) return false;
+    return this.editComponent(component, { moduleWidth: width, moduleHeight: height }, { captureEdges: true });
   }
 
   setModulePin(id, index, side, position) {

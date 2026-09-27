@@ -1,4 +1,4 @@
-import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePorts, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validRam, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
+import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePorts, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRam, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { validValueFormat } from "./value-format.js";
 
 export function createBoard() {
@@ -43,7 +43,7 @@ function validComponentProperties(component, depth = 0) {
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
   if (component.t === "module") {
     if (typeof component.label !== "string" || component.label.length > 80 || !component.module ||
-        !validModulePinLayout(component) || !validModuleFaceLayout(component)) return false;
+        !validModuleSize(component) || !validModulePinLayout(component) || !validModuleFaceLayout(component)) return false;
     if (depth >= 8) return false;
     try { parseDocument(JSON.stringify(component.module), depth + 1); }
     catch { return false; }
@@ -576,7 +576,7 @@ function documentFields(t) {
     ...(t === "mux" || t === "demux" ? ["channels"] : []),
     ...(["constant", "input", "output"].includes(t) ? ["format"] : []),
     ...(["input", "output", "portal"].includes(t) ? ["label"] : []),
-    ...(t === "module" ? ["label", "module", "pinLayout", "faceLayout"] : []),
+    ...(t === "module" ? ["label", "module", "pinLayout", "faceLayout", "moduleWidth", "moduleHeight"] : []),
   ];
   DOCUMENT_FIELD_CACHE.set(t, fields);
   return fields;
@@ -597,6 +597,8 @@ function documentValue(component, field) {
     case "module": return component.module;
     case "pinLayout": return component.pinLayout ?? null;
     case "faceLayout": return component.faceLayout ?? null;
+    case "moduleWidth": return component.moduleWidth ?? 4;
+    case "moduleHeight": return component.moduleHeight ?? 3;
   }
 }
 
@@ -691,7 +693,7 @@ export function parseDocument(text, depth = 0) {
     const fields = documentFields(t);
     const legacyClock = t === "clock" && raw.length === 5;
     const legacyOutput = t === "output" && raw.length === 4 + fields.length - 1;
-    const legacyModule = t === "module" && (raw.length === 4 + fields.length - 1 || raw.length === 4 + fields.length - 2);
+    const legacyModule = t === "module" && [6, 7, 8].includes(raw.length);
     if (raw.length !== 4 + fields.length && !legacyClock && !legacyOutput && !legacyModule)
       throw new Error(`${path} must have ${4 + fields.length} entries.`);
     coordinate(x, `${path}[1]`);
@@ -725,12 +727,20 @@ export function parseDocument(text, depth = 0) {
         throw new Error(`${fieldPath} must be a pin layout array or null.`);
       if (field === "faceLayout" && value !== undefined && value !== null && !Array.isArray(value))
         throw new Error(`${fieldPath} must be a face layout array or null.`);
+      if (field === "moduleWidth" && value !== undefined && (!Number.isInteger(value) || value < 4 || value > 20))
+        throw new Error(`${fieldPath} must be 4–20.`);
+      if (field === "moduleHeight" && value !== undefined && (!Number.isInteger(value) || value < 3 || value > 32))
+        throw new Error(`${fieldPath} must be 3–32.`);
       if (field === "order") component.order = value ? "descendant" : "ascendant";
       else if (field === "format") {
         if (value) component.format = DOCUMENT_FORMATS[value];
-      } else if (!["pinLayout", "faceLayout"].includes(field) || (value !== null && value !== undefined))
-        component[field] = field === "enable" && legacyClock ? true : field === "label" && legacyOutput ? "" : value;
+      } else if (field === "enable" && legacyClock) component.enable = true;
+      else if (field === "label" && legacyOutput) component.label = "";
+      else if (value !== undefined && (!["pinLayout", "faceLayout"].includes(field) || value !== null))
+        component[field] = value;
     }
+    if (t === "module" && raw.length === 8 && component.faceLayout)
+      component.faceLayout = component.faceLayout.map(([index, column, row]) => [index, 1 + 2 * column, 2 + 2 * row]);
     if (!validComponentProperties(component, depth)) throw new Error(`${path} is invalid.`);
     const { w, h } = dimsOf(component);
     for (let y = component.y; y < component.y + h; y++) for (let x = component.x; x < component.x + w; x++) {

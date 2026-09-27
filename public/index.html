@@ -19,6 +19,7 @@
     <div class="view-tabs" role="tablist" aria-label="Views">
       <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
       <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
+      <button id="tab-module-layout" type="button" role="tab" aria-controls="module-layout-view" aria-selected="false" tabindex="-1" hidden>Module Layout</button>
     </div>
     <div id="module-navigation" class="module-navigation" hidden>
       <button id="module-back" type="button">← Save &amp; back</button>
@@ -71,20 +72,7 @@
         <input id="component-label" type="text" maxlength="80" disabled />
       </label>
       <button id="module-open" type="button" hidden>Open module</button>
-      <div id="module-layout" class="module-layout" hidden>
-        <h3>Module layout</h3>
-        <div class="module-layout-scroll">
-          <div id="module-layout-stage" class="module-layout-stage">
-            <div id="module-layout-board" class="module-layout-board"></div>
-            <div id="module-layout-next" class="module-layout-next"></div>
-            <div id="module-layout-target" class="module-layout-target" hidden></div>
-          </div>
-        </div>
-        <div id="module-layout-tray" class="module-layout-tray" hidden>
-          <span class="module-layout-tray-title">Displays</span>
-          <div id="module-layout-items" class="module-layout-items"></div>
-        </div>
-      </div>
+      <button id="module-layout-open" type="button" hidden>Edit module layout</button>
       <button id="rom-open" type="button" hidden>Edit ROM contents</button>
       <label id="value-format-row" class="property" hidden>Value format
         <select id="value-format" disabled>
@@ -166,6 +154,30 @@
           <div id="rom-rows" class="rom-rows"></div>
         </div>
       </section>
+    </section>
+    <section id="module-layout-view" class="module-layout-view" role="tabpanel" aria-labelledby="tab-module-layout" hidden>
+      <div id="module-layout" class="module-layout" hidden>
+        <section class="module-layout-sidebar">
+          <h2 id="module-layout-title">Module layout</h2>
+          <button id="module-layout-canvas" type="button">← Canvas</button>
+          <div id="module-layout-tray" class="module-layout-tray" hidden>
+            <h3>Displays</h3>
+            <div id="module-layout-items" class="module-layout-items"></div>
+          </div>
+          <p id="module-layout-status" class="hint" role="status" aria-live="polite" hidden></p>
+        </section>
+        <section class="module-layout-workspace" aria-label="Module face">
+          <div class="module-layout-scroll">
+            <div id="module-layout-stage" class="module-layout-stage">
+              <div id="module-layout-board" class="module-layout-board"></div>
+              <div id="module-layout-next" class="module-layout-next"></div>
+              <div id="module-layout-next-right" class="module-layout-next-right"></div>
+              <button id="module-layout-resize" class="module-layout-resize" type="button" data-kind="resize" title="Resize module" aria-label="Resize module"></button>
+              <div id="module-layout-target" class="module-layout-target" hidden></div>
+            </div>
+          </div>
+        </section>
+      </div>
     </section>
   </main>
 

@@ -253,21 +253,21 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const face = moduleFaceParts(c).flatMap((part) => {
       const placement = c.faceLayout?.find(([index]) => index === part.index);
       if (!placement) return [];
-      const [, column, row] = placement;
-      const x = 40 + column * 80, y = 78 + row * 80;
+      const [, cellX, cellY] = placement;
+      const x = cellX * U, y = cellY * U;
       const status = state?.faceStates?.get(part.id);
-      const base = `<rect x="${x - 34}" y="${y - 31}" width="68" height="62" rx="7" fill="${display}" stroke="${displayBorder}"/>`;
-      if (part.type === "led") return [base + textAt(x, y - 19, "LED", 8, muted, 700) +
-        `<circle cx="${x}" cy="${y + 7}" r="14" fill="${status?.lit ? "var(--lamp-lit)" : "var(--part-lamp-off)"}"/>`];
+      const base = `<rect x="${x - 17}" y="${y - 17}" width="34" height="34" rx="5" fill="${display}" stroke="${displayBorder}"/>`;
+      if (part.type === "led") return [base +
+        `<circle cx="${x}" cy="${y}" r="10" fill="${status?.lit ? "var(--lamp-lit)" : "var(--part-lamp-off)"}"/>`];
       if (part.type === "sevenseg" || part.type === "debugdisplay") {
         const patterns = ["1111110", "0110000", "1101101", "1111001", "0110011", "1011011", "1011111", "1110000",
           "1111111", "1111011", "1110111", "0011111", "1001110", "0111101", "1001111", "1000111"];
         const bits = part.type === "sevenseg" ? status?.inputs ?? [] : [...patterns[(status?.value ?? 0) & 15]].map(Number);
-        return [base + `<g transform="translate(${x - 41} ${y - 34}) scale(.34)">${segments(bits)}</g>`];
+        return [base + `<g transform="translate(${x - 21.6} ${y - 18}) scale(.18)">${segments(bits)}</g>`];
       }
       const label = part.label || "OUT";
-      return [base + textAt(x, y - 17, escapeText(label.length > 10 ? `${label.slice(0, 9)}…` : label), 8, muted, 700) +
-        textAt(x, y + 8, status?.value ?? 0, 17, ink, 750)];
+      return [base + textAt(x, y - 10, escapeText(label.length > 5 ? `${label.slice(0, 4)}…` : label), 6, muted, 700) +
+        textAt(x, y + 5, status?.value ?? 0, 12, ink, 750)];
     }).join("");
     return svgWrap(frame(w, h, partAccent(s)) + ports(pins, w, h, partAccent(s)) +
       textAt(w / 2, face ? 23 : h / 2 - 8, escapeText(shown), 13, ink, 750) +

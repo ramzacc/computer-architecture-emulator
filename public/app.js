@@ -50,8 +50,10 @@ const btnPan = document.getElementById("btn-pan");
 const btnSelect = document.getElementById("btn-select");
 const canvasViewEl = document.getElementById("canvas-view");
 const romViewEl = document.getElementById("rom-view");
+const moduleLayoutViewEl = document.getElementById("module-layout-view");
 const tabCanvasEl = document.getElementById("tab-canvas");
 const tabRomEl = document.getElementById("tab-rom");
+const tabModuleLayoutEl = document.getElementById("tab-module-layout");
 const btnCopy = document.getElementById("btn-copy");
 const btnPaste = document.getElementById("btn-paste");
 const btnDelete = document.getElementById("btn-delete");
@@ -102,13 +104,20 @@ const clockFrequencyEl = document.getElementById("clock-frequency");
 const clockEnableRowEl = document.getElementById("clock-enable-row");
 const clockEnableEl = document.getElementById("clock-enable");
 const moduleOpenEl = document.getElementById("module-open");
+const moduleLayoutOpenEl = document.getElementById("module-layout-open");
+const moduleLayoutCanvasEl = document.getElementById("module-layout-canvas");
 const moduleLayoutEl = document.getElementById("module-layout");
+const moduleLayoutTitleEl = document.getElementById("module-layout-title");
+const moduleLayoutStatusEl = document.getElementById("module-layout-status");
 const moduleLayoutStageEl = document.getElementById("module-layout-stage");
 const moduleLayoutBoardEl = document.getElementById("module-layout-board");
 const moduleLayoutNextEl = document.getElementById("module-layout-next");
+const moduleLayoutNextRightEl = document.getElementById("module-layout-next-right");
+const moduleLayoutResizeEl = document.getElementById("module-layout-resize");
 const moduleLayoutTargetEl = document.getElementById("module-layout-target");
 const moduleLayoutTrayEl = document.getElementById("module-layout-tray");
 const moduleLayoutItemsEl = document.getElementById("module-layout-items");
+const moduleLayoutTrayHeadingEl = moduleLayoutTrayEl.querySelector("h3");
 const moduleNavigationEl = document.getElementById("module-navigation");
 const moduleBackEl = document.getElementById("module-back");
 const modulePathEl = document.getElementById("module-path");
@@ -117,27 +126,34 @@ const moduleStack = [];
 function showView(view) {
   const canvasActive = view === "canvas";
   canvasViewEl.hidden = !canvasActive;
-  romViewEl.hidden = canvasActive;
-  tabCanvasEl.setAttribute("aria-selected", String(canvasActive));
-  tabRomEl.setAttribute("aria-selected", String(!canvasActive));
-  tabCanvasEl.tabIndex = canvasActive ? 0 : -1;
-  tabRomEl.tabIndex = canvasActive ? -1 : 0;
+  romViewEl.hidden = view !== "rom";
+  moduleLayoutViewEl.hidden = view !== "layout";
+  for (const [tab, name] of [[tabCanvasEl, "canvas"], [tabRomEl, "rom"], [tabModuleLayoutEl, "layout"]]) {
+    tab.setAttribute("aria-selected", String(view === name));
+    tab.tabIndex = view === name ? 0 : -1;
+  }
   if (canvasActive) applyView();
 }
 
-for (const [tab, view] of [[tabCanvasEl, "canvas"], [tabRomEl, "rom"]]) {
+for (const [tab, view] of [[tabCanvasEl, "canvas"], [tabRomEl, "rom"], [tabModuleLayoutEl, "layout"]]) {
   tab.addEventListener("click", () => {
     if (view === "rom") renderRomTab();
+    if (view === "layout") renderModuleLayout(editor.component(selectedId));
     showView(view);
   });
   tab.addEventListener("keydown", (e) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
-    const target = e.key === "Home" ? tabCanvasEl : e.key === "End" ? tabRomEl : tab === tabCanvasEl ? tabRomEl : tabCanvasEl;
+    const visible = [tabCanvasEl, tabRomEl, tabModuleLayoutEl].filter((item) => !item.hidden);
+    const current = visible.indexOf(tab);
+    const target = e.key === "Home" ? visible[0] : e.key === "End" ? visible.at(-1)
+      : visible[(current + (e.key === "ArrowRight" ? 1 : -1) + visible.length) % visible.length];
     target.click();
     target.focus();
   });
 }
+moduleLayoutOpenEl.addEventListener("click", () => tabModuleLayoutEl.click());
+moduleLayoutCanvasEl.addEventListener("click", () => tabCanvasEl.click());
 const busStatusEl = document.getElementById("bus-status");
 const { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox } =
   createRenderer(gridEl, () => state, () => editor.evaluation, () => selectedIds, () => selectedWires);
@@ -249,28 +265,37 @@ function renderProperties() {
   syncActionButtons();
 }
 
-const MODULE_LAYOUT_STEP = 54;
+const MODULE_LAYOUT_STEP = 80;
 let moduleLayoutDragging = false;
 
 function renderModuleLayout(component) {
   if (moduleLayoutDragging && component?.id === selectedId) return;
   const ports = component?.t === "module" ? modulePorts(component) : [];
   const parts = component?.t === "module" ? moduleFaceParts(component) : [];
-  moduleLayoutEl.hidden = !ports.length && !parts.length;
+  const available = ports.length > 0 || parts.length > 0;
+  tabModuleLayoutEl.hidden = !available;
+  moduleLayoutOpenEl.hidden = !available;
+  moduleLayoutEl.hidden = !available;
+  if (!available && !moduleLayoutViewEl.hidden) showView("canvas");
   if (moduleLayoutEl.hidden) return;
+  moduleLayoutTitleEl.textContent = component.label ? `${component.label} layout` : "Module layout";
 
   const local = { ...component, x: 0, y: 0, r: 0 };
-  const { h } = dimsOf(local);
+  const { w, h } = dimsOf(local);
   const step = MODULE_LAYOUT_STEP;
-  const width = 4 * step;
-  moduleLayoutStageEl.style.width = `${width}px`;
-  moduleLayoutStageEl.style.height = `${(h + (parts.length ? 2 : 0)) * step}px`;
-  moduleLayoutBoardEl.style.width = `${width}px`;
+  moduleLayoutStageEl.style.width = `${(w + 2) * step}px`;
+  moduleLayoutStageEl.style.height = `${(h + 2) * step}px`;
+  moduleLayoutBoardEl.style.width = `${w * step}px`;
   moduleLayoutBoardEl.style.height = `${h * step}px`;
   moduleLayoutBoardEl.innerHTML = componentArt(local, spec("module"), 0, [], editor.evaluation.states.get(component.id));
   moduleLayoutNextEl.style.top = `${h * step}px`;
   moduleLayoutNextEl.style.height = `${2 * step}px`;
-  moduleLayoutNextEl.hidden = !parts.length;
+  moduleLayoutNextEl.style.width = `${(w + 2) * step}px`;
+  moduleLayoutNextRightEl.style.left = `${w * step}px`;
+  moduleLayoutNextRightEl.style.width = `${2 * step}px`;
+  moduleLayoutNextRightEl.style.height = `${h * step}px`;
+  moduleLayoutResizeEl.style.left = `${w * step}px`;
+  moduleLayoutResizeEl.style.top = `${h * step}px`;
   moduleLayoutStageEl.querySelectorAll(".module-layout-pin, .module-layout-face").forEach((item) => item.remove());
   moduleLayoutTargetEl.hidden = true;
 
@@ -281,14 +306,15 @@ function renderModuleLayout(component) {
     pin.className = `module-layout-pin ${port.role}`;
     pin.dataset.kind = "pin";
     pin.dataset.index = String(index);
-    pin.style.left = `${(side === "W" ? 0 : side === "E" ? 4 : position) * step}px`;
+    pin.style.left = `${(side === "W" ? 0 : side === "E" ? w : position) * step}px`;
     pin.style.top = `${(side === "N" ? 0 : side === "S" ? h : position) * step}px`;
     pin.title = `${port.name || `Pin ${index + 1}`} · ${port.role === "in" ? "Input" : "Output"}`;
     pin.setAttribute("aria-label", `Move ${pin.title}`);
     moduleLayoutStageEl.append(pin);
   });
 
-  moduleLayoutTrayEl.hidden = !parts.length;
+  moduleLayoutTrayEl.hidden = parts.every((part) => component.faceLayout?.some(([index]) => index === part.index));
+  moduleLayoutTrayHeadingEl.textContent = "Displays";
   moduleLayoutItemsEl.replaceChildren();
   for (const part of parts) {
     const slot = component.faceLayout?.find(([index]) => index === part.index);
@@ -301,14 +327,49 @@ function renderModuleLayout(component) {
     item.title = name;
     item.setAttribute("aria-label", slot ? `Move ${name}` : `Place ${name}`);
     if (slot) {
-      item.style.left = `${(1 + 2 * slot[1]) * step}px`;
-      item.style.top = `${(1.95 + 2 * slot[2]) * step}px`;
+      item.style.left = `${slot[1] * step}px`;
+      item.style.top = `${slot[2] * step}px`;
       moduleLayoutStageEl.append(item);
     } else {
       item.textContent = name;
-      moduleLayoutItemsEl.append(item);
+      const entry = document.createElement("div");
+      entry.className = "module-layout-entry";
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "module-layout-add";
+      add.textContent = "+";
+      add.title = `Add ${name} to module face`;
+      add.setAttribute("aria-label", add.title);
+      add.addEventListener("click", () => addModuleFacePart(component.id, part.index));
+      entry.append(item, add);
+      moduleLayoutItemsEl.append(entry);
     }
   }
+}
+
+function moduleLayoutStatus(message, error = false) {
+  moduleLayoutStatusEl.textContent = message;
+  moduleLayoutStatusEl.hidden = !message;
+  moduleLayoutStatusEl.classList.toggle("error", error);
+}
+
+function addModuleFacePart(id, index) {
+  const component = editor.component(id);
+  if (component?.t !== "module") return;
+  const { w, h } = dimsOf({ ...component, r: 0 });
+  const cells = [];
+  for (let y = 2; y <= Math.min(32, h + 1); y++) for (let x = 1; x <= Math.min(19, w + 1); x++)
+    cells.push([x, y]);
+  cells.sort((a, b) => Math.abs(a[0] - w / 2) + Math.abs(a[1] - 2) -
+    Math.abs(b[0] - w / 2) - Math.abs(b[1] - 2));
+  for (const [x, y] of cells) {
+    if (editor.setModuleFacePart(id, index, x, y)) {
+      moduleLayoutStatus("");
+      renderProperties();
+      return;
+    }
+  }
+  moduleLayoutStatus("No available space for this display.", true);
 }
 
 function moduleLayoutCandidate(kind, index, clientX, clientY) {
@@ -317,28 +378,34 @@ function moduleLayoutCandidate(kind, index, clientX, clientY) {
   const step = MODULE_LAYOUT_STEP;
   const rect = moduleLayoutStageEl.getBoundingClientRect();
   const x = clientX - rect.left, y = clientY - rect.top;
-  const h = dimsOf({ ...component, r: 0 }).h;
+  const { w, h } = dimsOf({ ...component, r: 0 });
   const boardHeight = h * step;
   if (kind === "face" && moduleLayoutTrayEl.getBoundingClientRect().left <= clientX &&
       moduleLayoutTrayEl.getBoundingClientRect().right >= clientX &&
       moduleLayoutTrayEl.getBoundingClientRect().top <= clientY &&
       moduleLayoutTrayEl.getBoundingClientRect().bottom >= clientY) return { hidden: true };
-  if (x < 0 || x > 4 * step || y < 0 || y > (h + (kind === "face" ? 2 : 0)) * step) return null;
+  if (kind === "resize") {
+    const width = Math.max(4, Math.min(20, Math.round(x / step)));
+    const height = Math.max(3, Math.min(32, Math.round(y / step)));
+    return { width, height, x: width * step, y: height * step };
+  }
+  if (x < 0 || x > (w + (kind === "face" ? 2 : 0)) * step ||
+      y < 0 || y > (h + (kind === "face" ? 2 : 0)) * step) return null;
   if (kind === "pin") {
-    const distances = [["N", y], ["E", 4 * step - x], ["S", boardHeight - y], ["W", x]];
+    const distances = [["N", y], ["E", w * step - x], ["S", boardHeight - y], ["W", x]];
     const side = distances.sort((a, b) => a[1] - b[1])[0][0];
-    const maximum = side === "N" || side === "S" ? 3 : h - 1;
+    const maximum = side === "N" || side === "S" ? w - 1 : h - 1;
     const position = Math.max(1, Math.min(maximum, Math.round((side === "N" || side === "S" ? x : y) / step)));
     if (modulePinLayout(component).some(([usedSide, usedPosition], other) =>
       other !== index && usedSide === side && usedPosition === position)) return null;
-    return { side, position, x: (side === "W" ? 0 : side === "E" ? 4 : position) * step,
+    return { side, position, x: (side === "W" ? 0 : side === "E" ? w : position) * step,
       y: (side === "N" ? 0 : side === "S" ? h : position) * step };
   }
-  const column = x < 2 * step ? 0 : 1;
-  const row = Math.max(0, Math.min(15, Math.round((y / step - 1.95) / 2)));
-  if ((1.95 + 2 * row) * step > (h + 2) * step || (component.faceLayout ?? []).some(([partIndex, col, faceRow]) =>
-    partIndex !== index && col === column && faceRow === row)) return null;
-  return { column, row, x: (1 + 2 * column) * step, y: (1.95 + 2 * row) * step };
+  const cellX = Math.max(1, Math.min(19, Math.round(x / step)));
+  const cellY = Math.max(2, Math.min(32, Math.round(y / step)));
+  if ((component.faceLayout ?? []).some(([partIndex, placedX, placedY]) =>
+    partIndex !== index && placedX === cellX && placedY === cellY)) return null;
+  return { cellX, cellY, x: cellX * step, y: cellY * step };
 }
 
 moduleLayoutEl.addEventListener("pointerdown", (event) => {
@@ -356,6 +423,10 @@ moduleLayoutEl.addEventListener("pointerdown", (event) => {
   source.classList.add("dragging");
   source.setPointerCapture(event.pointerId);
   moduleLayoutDragging = true;
+  if (kind === "face" && source.classList.contains("module-layout-face")) {
+    moduleLayoutTrayEl.hidden = false;
+    if (!moduleLayoutItemsEl.childElementCount) moduleLayoutTrayHeadingEl.textContent = "Remove display";
+  }
   let candidate = null;
   const move = (nextEvent) => {
     ghost.style.left = `${nextEvent.clientX}px`;
@@ -378,14 +449,15 @@ moduleLayoutEl.addEventListener("pointerdown", (event) => {
     source.classList.remove("dragging");
     moduleLayoutTargetEl.hidden = true;
     moduleLayoutTrayEl.classList.remove("drop-target");
-    if (nextEvent.type === "pointercancel") return;
+    if (nextEvent.type === "pointercancel") { renderProperties(); return; }
     candidate = moduleLayoutCandidate(kind, index, nextEvent.clientX, nextEvent.clientY);
-    if (!candidate) return;
+    if (!candidate) { renderProperties(); return; }
     const id = selectedId;
     const changed = kind === "pin" ? editor.setModulePin(id, index, candidate.side, candidate.position)
-      : editor.setModuleFacePart(id, index, candidate.hidden ? null : candidate.column, candidate.hidden ? null : candidate.row);
-    if (!changed) busStatus("That placement is blocked by a wire, another component, or the module boundary.", true);
-    else if (busStatusEl.classList.contains("error")) busStatus("");
+      : kind === "resize" ? editor.setModuleSize(id, candidate.width, candidate.height)
+      : editor.setModuleFacePart(id, index, candidate.hidden ? null : candidate.cellX, candidate.hidden ? null : candidate.cellY);
+    if (!changed) moduleLayoutStatus("That placement is blocked by a wire, another component, or the module boundary.", true);
+    else moduleLayoutStatus("");
     renderProperties();
   };
   const cancel = (nextEvent) => finish(nextEvent);
@@ -937,6 +1009,7 @@ function closeModule() {
   syncClockTimers();
   render();
   resetView();
+  if (!tabModuleLayoutEl.hidden) showView("layout");
   busStatus("Module saved.");
 }
 
