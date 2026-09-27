@@ -1,4 +1,4 @@
-import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRam, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
+import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePorts, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRam, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { validValueFormat } from "./value-format.js";
 
 export function createBoard() {
@@ -27,7 +27,7 @@ export function componentAt(board, x, y, ignoreId) {
   });
 }
 
-function validComponentProperties(component) {
+function validComponentProperties(component, depth = 0) {
   const size = dimsOf(component);
   if (!size || !Number.isSafeInteger(component.x) || !Number.isSafeInteger(component.y) ||
       !validBitWidth(bitWidth(component)) ||
@@ -41,6 +41,12 @@ function validComponentProperties(component) {
       (component.t === "rom" && !validRom(component)) ||
       (component.t === "ram" && !validRam(component)) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
+  if (component.t === "module") {
+    if (typeof component.label !== "string" || component.label.length > 80 || !component.module) return false;
+    if (depth >= 8) return false;
+    try { parseDocument(JSON.stringify(component.module), depth + 1); }
+    catch { return false; }
+  }
   return true;
 }
 
@@ -223,6 +229,7 @@ const GATE_OPS = {
 };
 
 function bitMask(size) { return size === 32 ? 0xffffffff : (2 ** size - 1); }
+const moduleBoardCache = new WeakMap();
 
 function blockOutputs(kind, inputs, size, channels = 2) {
   const mask = bitMask(size) >>> 0;
@@ -307,7 +314,7 @@ function portalWidthError(board) {
 // Solve the board to a fixed point: nets carry a value, each component's
 // output (or LED) follows from its inputs. Oscillating feedback is reported
 // to callers so edits can reject it.
-export function evaluateBoard(board, pressedButtons = new Set(), highClocks = new Set(), registerValues = new Map(), ramValues = new Map()) {
+export function evaluateBoard(board, pressedButtons = new Set(), highClocks = new Set(), registerValues = new Map(), ramValues = new Map(), injectedInputs = new Map(), depth = 0) {
   const { find, atPoint } = buildUnionFind(board);
   const nets = new Map();
   for (const edge of board.wires.values()) {
@@ -335,6 +342,8 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       storedValue: (registerValues.get(component.id) ?? 0) & bitMask(bitWidth(component)),
       constant: !!(entry.constant || entry.input),
       constantValue: component.value ?? 0,
+      injectedValue: injectedInputs.get(component.id),
+      module: entry.module ? component.module : null,
       rom: !!entry.rom,
       romData: entry.rom ? new Map(component.data ?? []) : null,
       ram: !!entry.ram,
@@ -352,7 +361,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     };
   });
   const outputOf = (part, values) => {
-    if (part.constant) return part.constantValue;
+    if (part.constant) return part.injectedValue ?? part.constantValue;
     if (part.rom) {
       const address = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
       return part.romData.get(address % (2 ** part.addressSize)) ?? 0;
@@ -380,6 +389,24 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     return (GATE_OPS[part.op](a, b) & bitMask(part.size)) >>> 0;
   };
 
+  const moduleOutputs = (part, values) => {
+    if (!part.module || depth >= 8) return [];
+    let inner = moduleBoardCache.get(part.module);
+    if (!inner) {
+      inner = parseDocument(JSON.stringify(part.module), depth + 1).board;
+      moduleBoardCache.set(part.module, inner);
+    }
+    const ports = modulePorts({ module: part.module });
+    const inputs = new Map();
+    let index = 0;
+    for (const port of ports) if (port.role === "in") {
+      const root = part.ins[index++];
+      inputs.set(port.id, root === null ? 0 : (values.get(root) ?? 0));
+    }
+    const result = evaluateBoard(inner, new Set(), new Set(), new Map(), new Map(), inputs, depth + 1);
+    return ports.filter((port) => port.role === "out").map((port) => result.states.get(port.id)?.value ?? 0);
+  };
+
   let values = new Map();
   let settled = false;
   for (let round = 0; round <= board.components.length; round++) {
@@ -397,6 +424,8 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
           drive(root, (bus >>> bit) & 1);
         });
         drive(part.ins[0], combined >>> 0);
+      } else if (part.module) {
+        moduleOutputs(part, values).forEach((output, index) => drive(part.outs[index], output));
       } else if (part.block) {
         const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
         blockOutputs(part.block, inputs, part.size, part.channels).forEach((output, index) => drive(part.outs[index], output));
@@ -416,14 +445,15 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
   const states = new Map();
   for (const part of parts) {
     const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
-    const value = part.output || part.debug ? inputs[0] : outputOf(part, values);
-    const outputs = part.block ? blockOutputs(part.block, inputs, part.size, part.channels)
+    const outputs = part.module ? moduleOutputs(part, values) : null;
+    const value = part.output || part.debug ? inputs[0] : part.module ? (outputs[0] ?? 0) : outputOf(part, values);
+    const actualOutputs = outputs ?? (part.block ? blockOutputs(part.block, inputs, part.size, part.channels)
       : part.splitter ? part.outs.map((_, bit) => (value >>> bit) & 1)
-      : part.outs.map(() => value);
+      : part.outs.map(() => value));
     states.set(part.id, {
       inputs,
       value,
-      outputs,
+      outputs: actualOutputs,
       lit: inputs.length === 1 && inputs[0] !== 0,
     });
   }
@@ -468,7 +498,7 @@ export function shortCircuitError(board, pressedButtons) {
   const driven = new Map();
   for (const component of board.components) {
     const entry = spec(component.t);
-    if (!entry?.momentary && !entry?.toggle && !entry?.clock && !entry?.constant && !entry?.input && !entry?.rom && !entry?.ram && !entry?.op && !entry?.block && !entry?.register && !entry?.counter) continue;
+    if (!entry?.momentary && !entry?.toggle && !entry?.clock && !entry?.constant && !entry?.input && !entry?.rom && !entry?.ram && !entry?.op && !entry?.block && !entry?.register && !entry?.counter && !entry?.module) continue;
     const outputs = states.get(component.id).outputs;
     for (const [index, pin] of pinsFor(component).filter((item) => item.role === "out").entries()) {
       const net = netAt(pin);
@@ -542,6 +572,7 @@ function documentFields(t) {
     ...(t === "mux" || t === "demux" ? ["channels"] : []),
     ...(["constant", "input", "output"].includes(t) ? ["format"] : []),
     ...(["input", "output", "portal"].includes(t) ? ["label"] : []),
+    ...(t === "module" ? ["label", "module"] : []),
   ];
   DOCUMENT_FIELD_CACHE.set(t, fields);
   return fields;
@@ -559,13 +590,14 @@ function documentValue(component, field) {
     case "channels": return component.channels ?? 2;
     case "format": return DOCUMENT_FORMATS.indexOf(component.format ?? "decimal");
     case "label": return component.label ?? "";
+    case "module": return component.module;
   }
 }
 
 export function serialize(board) {
   return JSON.stringify({
     components: board.components.map((component) => {
-      const { t, x, y, r, size, value, data, addressSize, format, order, channels, frequency, enable, label } = component;
+      const { t, x, y, r, size, value, data, addressSize, format, order, channels, frequency, enable, label, module } = component;
       if (!spec(t) || !Number.isSafeInteger(x) || !Number.isSafeInteger(y) ||
           (r !== undefined && (!Number.isInteger(r) || r < 0 || r > 3)) ||
           (["constant", "input", "output"].includes(t) && ![0, 2].includes(r ?? 0)) ||
@@ -579,6 +611,7 @@ export function serialize(board) {
           (t === "clock" && enable !== undefined && typeof enable !== "boolean") ||
           (t === "splitter" && !validSplitterOrder(order ?? "ascendant")) ||
           ((t === "mux" || t === "demux") && !validChannelCount(channels ?? 2)) ||
+          (t === "module" && !validComponentProperties(component)) ||
           (format !== undefined && (!["constant", "input", "output"].includes(t) || !validValueFormat(format))))
         throw new Error(`Cannot serialize invalid ${String(t)} component.`);
       return [t, x, y, r ?? 0, ...documentFields(t).map((field) => documentValue(component, field))];
@@ -635,7 +668,7 @@ function coordinate(value, path) {
 }
 
 // Parsing builds a complete board before callers replace the visible one.
-export function parseDocument(text) {
+export function parseDocument(text, depth = 0) {
   const data = JSON.parse(text);
   object(data, "Document", ["components", "wires", "junctions"]);
   if (!Array.isArray(data.components)) throw new Error("Document.components must be an array.");
@@ -679,12 +712,14 @@ export function parseDocument(text) {
         throw new Error(`${fieldPath} is an invalid value format.`);
       if (field === "label" && !legacyOutput && (typeof value !== "string" || value.length > 80))
         throw new Error(`${fieldPath} must be a string of at most 80 characters.`);
+      if (field === "module" && (!value || typeof value !== "object" || Array.isArray(value)))
+        throw new Error(`${fieldPath} must be a module document.`);
       if (field === "order") component.order = value ? "descendant" : "ascendant";
       else if (field === "format") {
         if (value) component.format = DOCUMENT_FORMATS[value];
       } else component[field] = field === "enable" && legacyClock ? true : field === "label" && legacyOutput ? "" : value;
     }
-    if (!validComponentProperties(component)) throw new Error(`${path} is invalid.`);
+    if (!validComponentProperties(component, depth)) throw new Error(`${path} is invalid.`);
     const { w, h } = dimsOf(component);
     for (let y = component.y; y < component.y + h; y++) for (let x = component.x; x < component.x + w; x++) {
       const key = `${x},${y}`;

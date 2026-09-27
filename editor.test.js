@@ -18,6 +18,22 @@ function setup() {
   return { editor, data, get renders() { return renders; }, get saves() { return saves; } };
 }
 
+test('module edits save atomically and reject incompatible parent wiring', () => {
+  const ctx = setup();
+  const module = ctx.editor.place('module', 0, 0);
+  assert.ok(module);
+  const child = new BoardEditor();
+  assert.ok(child.place('output', 5, 0));
+  assert.equal(ctx.editor.setModuleBoard(module.id, child.board), true);
+  assert.deepEqual(pinsFor(ctx.editor.component(module.id)).map((pin) => pin.size), [1]);
+  assert.equal(ctx.editor.addWire({ o: 'H', x: 4, y: 1, size: 1 }), true);
+  const before = ctx.saves;
+  assert.equal(child.resizeComponent(child.board.components[0].id, 2), true);
+  assert.equal(ctx.editor.setModuleBoard(module.id, child.board), false);
+  assert.equal(ctx.saves, before);
+  assert.deepEqual(pinsFor(ctx.editor.component(module.id)).map((pin) => pin.size), [1]);
+});
+
 test('successful edits render and save once, while rejected edits do neither', () => {
   const ctx = setup();
   const { editor } = ctx;

@@ -11,6 +11,10 @@
 // no single outward normal). Concretely: N/S pins need 0 < x < w; E/W pins
 // need 0 < y < h. So 1-tall parts carry N/S pins and 1-wide parts carry W/E.
 export const COMPONENT_TYPES = {
+  module: {
+    label: "Module", w: 4, h: 3, color: "#aaa8b1", shape: "module", module: true,
+    pins: [],
+  },
   button: {
     label: "Button", w: 2, h: 2, color: "#b4b1aa", shape: "button", momentary: true,
     pins: [
@@ -243,6 +247,16 @@ export function isSizable(component) {
   return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output || entry?.portal);
 }
 
+// A module's interface follows the order of its Input and Output parts.
+// Tuple indexes match the document format used by model.js.
+export function modulePorts(component) {
+  return (component.module?.components ?? []).flatMap((part, index) => {
+    if (!Array.isArray(part) || !["input", "output"].includes(part[0])) return [];
+    return [{ id: `c${index + 1}`, role: part[0] === "input" ? "in" : "out",
+      size: part[4], name: part[0] === "input" ? part[7] : part[6] }];
+  });
+}
+
 export function bitWidth(component) {
   if (component.t === "debugdisplay") return 4;
   return isSizable(component) ? (component.size ?? 1) : 1;
@@ -323,6 +337,12 @@ export function dimsFor(type, r = 0) {
 }
 
 export function dimsOf(component) {
+  if (component.t === "module") {
+    const ports = modulePorts(component);
+    const height = Math.max(3, 2 * Math.max(ports.filter((p) => p.role === "in").length,
+      ports.filter((p) => p.role === "out").length) + 1);
+    return normalizeRotation(component.r) % 2 ? { w: height, h: 4 } : { w: 4, h: height };
+  }
   if (["constant", "input", "output"].includes(component.t)) {
     return { w: bitWidth(component) + 1, h: 2 };
   }
@@ -352,6 +372,21 @@ export function pinsFor(component) {
   const r = normalizeRotation(component.r);
   const width = bitWidth(component);
   const plexer = component.t === "mux" || component.t === "demux";
+  if (entry.module) {
+    const ports = modulePorts(component);
+    const localH = dimsOf({ ...component, r: 0 }).h;
+    let inputs = 0, outputs = 0;
+    return ports.map((port) => {
+      const incoming = port.role === "in";
+      const x = incoming ? 0 : 4;
+      const y = 1 + 2 * (incoming ? inputs++ : outputs++);
+      const [lx, ly] = rotatePoint(x, y, 4, localH, r);
+      const px = component.x + lx, py = component.y + ly;
+      const dir = rotateDir(incoming ? "W" : "E", r);
+      return { px, py, dir, role: port.role, name: port.name || (incoming ? `IN${inputs}` : `OUT${outputs}`),
+        size: port.size, edge: outwardEdge(px, py, dir) };
+    });
+  }
   const bitRow = !!(entry.constant || entry.input || entry.output);
   const localW = plexer ? dimsOf({ ...component, r: 0 }).w : entry.w;
   const localH = entry.splitter ? width + 1 : entry.h;

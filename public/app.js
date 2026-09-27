@@ -101,6 +101,12 @@ const clockFrequencyRowEl = document.getElementById("clock-frequency-row");
 const clockFrequencyEl = document.getElementById("clock-frequency");
 const clockEnableRowEl = document.getElementById("clock-enable-row");
 const clockEnableEl = document.getElementById("clock-enable");
+const moduleOpenEl = document.getElementById("module-open");
+const moduleHelpEl = document.getElementById("module-help");
+const moduleNavigationEl = document.getElementById("module-navigation");
+const moduleBackEl = document.getElementById("module-back");
+const modulePathEl = document.getElementById("module-path");
+const moduleStack = [];
 
 function showView(view) {
   const canvasActive = view === "canvas";
@@ -190,10 +196,12 @@ function renderProperties() {
   constantValueEl.disabled = !source;
   sourceValueLabelEl.textContent = component?.t === "input" ? "Input value" : "Constant value";
   setFieldValue(constantValueEl, source ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "");
-  const named = component?.t === "input" || component?.t === "output" || component?.t === "portal";
+  const named = component?.t === "input" || component?.t === "output" || component?.t === "portal" || component?.t === "module";
   componentLabelRowEl.hidden = !named;
   componentLabelEl.disabled = !named;
   setFieldValue(componentLabelEl, named ? component.label ?? "" : "");
+  moduleOpenEl.hidden = component?.t !== "module";
+  moduleHelpEl.hidden = component?.t !== "module";
   const rom = component?.t === "rom";
   romAddressSizeRowEl.hidden = !memory;
   romAddressSizeEl.disabled = !memory;
@@ -727,6 +735,63 @@ function render() {
   renderRomTab();
 }
 
+function showModulePath() {
+  moduleNavigationEl.hidden = moduleStack.length === 0;
+  modulePathEl.textContent = ["Canvas", ...moduleStack.map(({ name }) => name)].join(" / ");
+}
+
+function openModule(id) {
+  const component = editor.component(id);
+  if (component?.t !== "module") return;
+  if (moduleStack.length >= 8) {
+    busStatus("Modules can be nested up to eight levels.", true);
+    return;
+  }
+  const { board } = parseDocument(JSON.stringify(component.module));
+  clearWireGesture();
+  moduleStack.push({ editor, id, name: component.label || "Module" });
+  editor = new BoardEditor({ storage: { setItem() {} },
+    onChange: (board) => { state = board; syncClockTimers(); render(); } });
+  editor.replaceBoard(board, { save: false });
+  state = editor.board;
+  romTargetId = null;
+  setSelection([]);
+  placingType = null;
+  mode = MODE.PAN;
+  renderPalette();
+  syncPlacingCursor();
+  showModulePath();
+  showView("canvas");
+  syncClockTimers();
+  render();
+  resetView();
+}
+
+function closeModule() {
+  const parent = moduleStack.at(-1);
+  if (!parent) return;
+  const child = editor;
+  clearWireGesture();
+  editor = parent.editor;
+  if (!editor.setModuleBoard(parent.id, child.board)) {
+    editor = child;
+    busStatus("The module cannot fit here. Check its pins, connected wire sizes, overlaps, and short circuits.", true);
+    return;
+  }
+  moduleStack.pop();
+  state = editor.board;
+  romTargetId = null;
+  setSelection([parent.id]);
+  showModulePath();
+  syncClockTimers();
+  render();
+  resetView();
+  busStatus("Module saved.");
+}
+
+moduleOpenEl.addEventListener("click", () => openModule(selectedId));
+moduleBackEl.addEventListener("click", closeModule);
+
 /* ---------- Interaction ---------- */
 
 for (const controls of document.querySelectorAll(".canvas-controls")) {
@@ -1094,6 +1159,12 @@ function updateWirePreview(point) {
 }
 
 canvasWrapEl.addEventListener("dblclick", (e) => {
+  const id = e.target.closest?.(".comp")?.dataset.id;
+  if (id && editor.component(id)?.t === "module") {
+    e.preventDefault();
+    openModule(id);
+    return;
+  }
   if (mode !== MODE.WIRE || !wireStart) return;
   e.preventDefault();
   clearWireGesture();
@@ -1339,7 +1410,7 @@ function syncClockTimers() {
   }
 }
 
-const editor = new BoardEditor({
+let editor = new BoardEditor({
   storage: getStorage(),
   onChange: (board) => { state = board; syncClockTimers(); render(); },
   onStorageError: (error) => {

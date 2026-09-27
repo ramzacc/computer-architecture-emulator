@@ -1,4 +1,4 @@
-import { bitWidth, channelCount, dimsOf, pinsFor, spec } from "./components.js";
+import { bitWidth, channelCount, dimsOf, modulePorts, pinsFor, spec } from "./components.js";
 import { edgeKey, edgePoints, wireSize } from "./model.js";
 import { formatValue } from "./value-format.js";
 
@@ -37,7 +37,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
 
   function partAccent(s) {
     if (s.splitter) return "var(--part-splitter)";
-    if (s.register || s.rom || s.ram || s.counter || s.block) return "var(--part-memory)";
+    if (s.register || s.rom || s.ram || s.counter || s.block || s.module) return "var(--part-memory)";
     if (s.op) return "var(--part-logic)";
     if (["output", "led", "sevenseg", "debugdisplay"].includes(s.shape)) return "var(--part-output)";
     return "var(--part-control)";
@@ -245,7 +245,19 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       { w: 2, h: n + 1 }, c.r, bitLabels, "none");
   }
 
+  function moduleArt(c, s) {
+    const d = dimsOf(c), w = d.w * U, h = d.h * U;
+    const pins = actualPins(c);
+    const name = c.label || "Module";
+    const shown = name.length > 18 ? `${name.slice(0, 17)}…` : name;
+    return svgWrap(frame(w, h, partAccent(s)) + ports(pins, w, h, partAccent(s)) +
+      textAt(w / 2, h / 2 - 8, escapeText(shown), 13, ink, 750) +
+      textAt(w / 2, h / 2 + 12, "MODULE", 8, muted, 700) +
+      portLabels(pins, w, h), d, 0);
+  }
+
   function componentArt(c, s, value = 0, inputs = []) {
+    if (s.module) return moduleArt(c, s);
     if (s.splitter) return splitterArt(c, s);
     if (s.portal) return portalArt(c, s);
     if (s.constant || s.input || s.output) return numberArt(c, s, value, !!(s.constant || s.input));
@@ -279,7 +291,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);
       if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
       el.innerHTML = componentArt(c, s, st?.value ?? 0, st?.inputs ?? []);
-      el.title = `${c.label || s.label}  [${c.t}]  ${d.w}x${d.h}  ${bitWidth(c)} bit(s)${c.t === "clock" ? `  ${c.frequency ?? 1} Hz  ${c.enable === false ? "disabled" : "enabled"}` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${c.t === "constant" || c.t === "input" ? "  value: " + formatValue(c.value ?? 0, bitWidth(c), c.format) : st && (["output", "debugdisplay"].includes(c.t) || st.value) ? "  value: " + (["output", "debugdisplay"].includes(c.t) ? formatValue(st.value, bitWidth(c), c.t === "debugdisplay" ? "hex" : c.format) : st.value) : ""}`;
+      el.title = `${c.label || s.label}  [${c.t}]  ${d.w}x${d.h}  ${s.module ? `${modulePorts(c).filter((p) => p.role === "in").length} inputs, ${modulePorts(c).filter((p) => p.role === "out").length} outputs` : `${bitWidth(c)} bit(s)`}${c.t === "clock" ? `  ${c.frequency ?? 1} Hz  ${c.enable === false ? "disabled" : "enabled"}` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${c.t === "constant" || c.t === "input" ? "  value: " + formatValue(c.value ?? 0, bitWidth(c), c.format) : st && (["output", "debugdisplay"].includes(c.t) || st.value) ? "  value: " + (["output", "debugdisplay"].includes(c.t) ? formatValue(st.value, bitWidth(c), c.t === "debugdisplay" ? "hex" : c.format) : st.value) : ""}`;
       gridEl.appendChild(el);
     }
   }

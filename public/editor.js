@@ -291,6 +291,7 @@ export class BoardEditor {
       ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY, enable: false } : {}),
       ...(["output", "portal"].includes(type) ? { size: 1 } : {}),
       ...(["input", "output", "portal"].includes(type) ? { label: "" } : {}),
+      ...(type === "module" ? { label: "Module", module: JSON.parse(serialize(createBoard())) } : {}),
       ...(["mux", "demux"].includes(type) ? { channels: 2 } : {}) };
     if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr", "register", "counter"].includes(type)) component.size = 4;
     if (!addComponent(this.board, component)) return null;
@@ -502,8 +503,16 @@ export class BoardEditor {
 
   setLabel(id, label) {
     const component = this.component(id);
-    if (!component || !["input", "output", "portal"].includes(component.t) || typeof label !== "string" || label.length > 80 || component.label === label) return false;
+    if (!component || !["input", "output", "portal", "module"].includes(component.t) || typeof label !== "string" || label.length > 80 || component.label === label) return false;
     return this.editComponent(component, { label });
+  }
+
+  setModuleBoard(id, board) {
+    const component = this.component(id);
+    if (component?.t !== "module") return false;
+    const module = JSON.parse(serialize(board));
+    if (JSON.stringify(module) === JSON.stringify(component.module)) return true;
+    return this.editComponent(component, { module }, { captureEdges: true });
   }
 
   setValueFormat(id, format) {
