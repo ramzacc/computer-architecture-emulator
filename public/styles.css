@@ -481,6 +481,12 @@ main[hidden] { display: none; }
 #module-layout-status.error { color: var(--status-error); }
 .module-layout-ghost { position: fixed; z-index: 100; transform: translate(-50%, -50%); min-width: 28px; min-height: 28px; padding: 6px 8px; border: 2px solid var(--accent); border-radius: 8px; background: var(--button); color: var(--text); pointer-events: none; font-size: 12px; white-space: nowrap; }
 .rom-panel { display: flex; flex-direction: column; }
+.rom-picker h3 { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+.rom-list { display: flex; flex-direction: column; gap: 6px; }
+.rom-list-item, #rom-all { width: 100%; text-align: left; }
+.rom-list-item.active { border-color: var(--accent); background: var(--selection-fill); }
+#rom-all { margin-bottom: 8px; }
+#rom-all[hidden] { display: none; }
 .rom-actions { display: grid; gap: 8px; }
 .rom-actions > * { text-align: center; }
 .rom-actions .file-label { display: block; }

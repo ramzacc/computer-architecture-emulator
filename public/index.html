@@ -127,7 +127,12 @@
     <section id="rom-view" class="rom-view" role="tabpanel" aria-labelledby="tab-rom" hidden>
       <section class="panel rom-panel">
         <h2>ROM file</h2>
-        <p id="rom-target" class="hint">Select a ROM on the canvas to edit it.</p>
+        <p id="rom-target" class="hint">Choose a ROM</p>
+        <div class="rom-picker">
+          <h3>ROMs</h3>
+          <button id="rom-all" type="button" hidden>← All ROMs</button>
+          <div id="rom-list" class="rom-list"></div>
+        </div>
         <p id="rom-widths" class="hint"></p>
         <div class="rom-actions">
           <button id="rom-save" type="button" disabled>Save to component</button>
@@ -136,7 +141,7 @@
           </label>
           <button id="rom-export" type="button" disabled>Export ROM file</button>
         </div>
-        <p id="rom-status" class="hint" role="status" aria-live="polite">Open a ROM from its component properties.</p>
+        <p id="rom-status" class="hint" role="status" aria-live="polite"></p>
       </section>
       <section class="rom-editor-wrap">
         <div class="rom-editor-heading">
