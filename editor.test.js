@@ -176,6 +176,24 @@ test('ROM reads an eight-bit address, drives a sized word, and persists its cont
   assert.equal(editor.resizeComponent(rom.id, 32), false); // output bus is connected
 });
 
+test('ROM labels can be edited, saved, and loaded from older circuits', () => {
+  const { editor } = setup();
+  const first = editor.place('rom', 0, 0);
+  const second = editor.place('rom', 5, 0);
+  assert.equal(first.label, 'ROM 1');
+  assert.equal(second.label, 'ROM 2');
+  assert.equal(editor.setLabel(second.id, 'Boot program'), true);
+  assert.equal(editor.setLabel(second.id, 'x'.repeat(81)), false);
+  assert.equal(parseDocument(serialize(editor.board)).board.components[1].label, 'Boot program');
+  assert.equal(editor.undo(), true);
+  assert.equal(editor.component(second.id).label, 'ROM 2');
+
+  const legacy = JSON.stringify({ components: [['rom', 0, 0, 0, 8, 8, []]], wires: [] });
+  const restored = parseDocument(legacy).board;
+  assert.equal(restored.components[0].label, '');
+  assert.equal(parseDocument(serialize(restored)).board.components[0].label, '');
+});
+
 test('ROM address and data sizes edit independently and preserve valid contents', () => {
   const { editor } = setup();
   const rom = editor.place('rom', 0, 0);
@@ -204,7 +222,7 @@ test('ROM imports reject malformed memory entries', () => {
 
 test('ROM imports reject the old tuple without an address width', () => {
   const old = JSON.stringify({ components: [['rom', 0, 0, 0, 8, [[255, 42]]]], wires: [] });
-  assert.throws(() => parseDocument(old), /7 entries/);
+  assert.throws(() => parseDocument(old), /8 entries/);
 });
 
 test('ROM address size must match its connected bus', () => {

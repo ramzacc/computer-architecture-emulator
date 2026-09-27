@@ -37,7 +37,7 @@ function validComponentProperties(component, depth = 0) {
       (component.t === "clock" && !validClockFrequency(component.frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
       (component.t === "clock" && component.enable !== undefined && typeof component.enable !== "boolean") ||
       (["constant", "input"].includes(component.t) && !validConstant(component)) ||
-      (["input", "output", "portal"].includes(component.t) && (typeof (component.label ?? "") !== "string" || (component.label ?? "").length > 80)) ||
+      (["input", "output", "portal", "rom"].includes(component.t) && (typeof (component.label ?? "") !== "string" || (component.label ?? "").length > 80)) ||
       (component.t === "rom" && !validRom(component)) ||
       (component.t === "ram" && !validRam(component)) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
@@ -86,6 +86,20 @@ function edgeBlocked(board, edge) {
     const { w, h } = dimsOf(component);
     return mx > component.x && mx < component.x + w && my > component.y && my < component.y + h;
   });
+}
+
+function blockedEdgeKeys(board) {
+  const blocked = new Set();
+  for (const component of board.components) {
+    const { w, h } = dimsOf(component);
+    for (let y = component.y + 1; y < component.y + h; y++)
+      for (let x = component.x; x < component.x + w; x++)
+        blocked.add(edgeKey({ o: "H", x, y }));
+    for (let x = component.x + 1; x < component.x + w; x++)
+      for (let y = component.y; y < component.y + h; y++)
+        blocked.add(edgeKey({ o: "V", x, y }));
+  }
+  return blocked;
 }
 
 export function wireSize(wire) { return wire.size ?? 1; }
@@ -147,14 +161,29 @@ export function addWireEdge(board, edge) {
   return true;
 }
 
-export function wireLayoutError(board) {
+export function wireLayoutError(board, blocked = blockedEdgeKeys(board)) {
+  const atPoint = new Map();
+  const pins = new Map();
+  const add = (map, x, y, value) => {
+    const key = `${x},${y}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(value);
+  };
+  for (const edge of board.wires.values())
+    for (const [x, y] of edgePoints(edge)) add(atPoint, x, y, edge);
+  for (const component of board.components)
+    for (const pin of pinsFor(component)) add(pins, pin.px, pin.py, pin.size);
   for (const edge of board.wires.values()) {
     if (!edgeInBounds(board, edge) || !Number.isSafeInteger(edge.x) || !Number.isSafeInteger(edge.y) ||
         !validBitWidth(wireSize(edge))) return "Invalid wire route.";
-    if (edgeBlocked(board, edge)) return "Wire is blocked by a component.";
+    if (blocked.has(edgeKey(edge))) return "Wire is blocked by a component.";
     for (const [x, y] of edgePoints(edge)) {
-      if (connectedAtPoint(board, edge, x, y).some((wire) => wireSize(wire) !== wireSize(edge)) ||
-          pinsAtPoint(board, x, y).some((size) => size !== wireSize(edge))) return "Bus size mismatch.";
+      const key = `${x},${y}`;
+      const touching = atPoint.get(key) ?? [];
+      const connected = touching.length === 4 && !board.junctions?.has(key) && !pins.has(key)
+        ? touching.filter((wire) => wire.o === edge.o) : touching;
+      if (connected.some((wire) => wireSize(wire) !== wireSize(edge)) ||
+          pins.get(key)?.some((size) => size !== wireSize(edge))) return "Bus size mismatch.";
     }
   }
   return shortCircuitError(board);
@@ -188,6 +217,7 @@ export function wireRoute(board, start, end, size) {
   };
 
   let firstError = null;
+  const blocked = blockedEdgeKeys(board);
   for (const horizontalFirst of [true, false]) {
     const edges = build(horizontalFirst);
     const trial = { ...board, wires: new Map(board.wires) };
@@ -197,11 +227,11 @@ export function wireRoute(board, start, end, size) {
       if (existing) {
         if (wireSize(existing) !== size) { error = "Bus size mismatch."; break; }
       } else {
-        if (edgeBlocked(trial, edge)) { error = "Wire is blocked by a component."; break; }
+        if (blocked.has(edgeKey(edge))) { error = "Wire is blocked by a component."; break; }
         trial.wires.set(edgeKey(edge), edge);
       }
     }
-    if (!error) error = wireLayoutError(trial);
+    if (!error) error = wireLayoutError(trial, blocked);
     if (!error) return { edges, error: null };
     firstError ??= error;
   }
@@ -575,7 +605,7 @@ function documentFields(t) {
     ...(t === "splitter" ? ["order"] : []),
     ...(t === "mux" || t === "demux" ? ["channels"] : []),
     ...(["constant", "input", "output"].includes(t) ? ["format"] : []),
-    ...(["input", "output", "portal"].includes(t) ? ["label"] : []),
+    ...(["input", "output", "portal", "rom"].includes(t) ? ["label"] : []),
     ...(t === "module" ? ["label", "module", "pinLayout", "faceLayout", "moduleWidth", "moduleHeight"] : []),
   ];
   DOCUMENT_FIELD_CACHE.set(t, fields);
@@ -611,7 +641,7 @@ export function serialize(board) {
           (["constant", "input", "output"].includes(t) && ![0, 2].includes(r ?? 0)) ||
           (isSizable({ t }) && !validBitWidth(size ?? 1)) ||
           (["constant", "input"].includes(t) && !validConstant({ t, size, value })) ||
-          (["input", "output", "portal"].includes(t) && (typeof (label ?? "") !== "string" || (label ?? "").length > 80)) ||
+          (["input", "output", "portal", "rom"].includes(t) && (typeof (label ?? "") !== "string" || (label ?? "").length > 80)) ||
           (t === "rom" && !validRom({ t, size, addressSize, data })) ||
           (t === "ram" && !validRam({ t, size, addressSize })) ||
           (t === "switch" && ![0, 1].includes(value ?? 0)) ||
@@ -694,7 +724,8 @@ export function parseDocument(text, depth = 0) {
     const legacyClock = t === "clock" && raw.length === 5;
     const legacyOutput = t === "output" && raw.length === 4 + fields.length - 1;
     const legacyModule = t === "module" && [6, 7, 8].includes(raw.length);
-    if (raw.length !== 4 + fields.length && !legacyClock && !legacyOutput && !legacyModule)
+    const legacyRom = t === "rom" && raw.length === 4 + fields.length - 1;
+    if (raw.length !== 4 + fields.length && !legacyClock && !legacyOutput && !legacyModule && !legacyRom)
       throw new Error(`${path} must have ${4 + fields.length} entries.`);
     coordinate(x, `${path}[1]`);
     coordinate(y, `${path}[2]`);
@@ -719,7 +750,7 @@ export function parseDocument(text, depth = 0) {
       if (field === "channels" && !validChannelCount(value)) throw new Error(`${fieldPath} is an invalid channel count.`);
       if (field === "format" && (!Number.isInteger(value) || value < 0 || value >= DOCUMENT_FORMATS.length))
         throw new Error(`${fieldPath} is an invalid value format.`);
-      if (field === "label" && !legacyOutput && (typeof value !== "string" || value.length > 80))
+      if (field === "label" && !legacyOutput && !legacyRom && (typeof value !== "string" || value.length > 80))
         throw new Error(`${fieldPath} must be a string of at most 80 characters.`);
       if (field === "module" && (!value || typeof value !== "object" || Array.isArray(value)))
         throw new Error(`${fieldPath} must be a module document.`);
@@ -735,7 +766,7 @@ export function parseDocument(text, depth = 0) {
       else if (field === "format") {
         if (value) component.format = DOCUMENT_FORMATS[value];
       } else if (field === "enable" && legacyClock) component.enable = true;
-      else if (field === "label" && legacyOutput) component.label = "";
+      else if (field === "label" && (legacyOutput || legacyRom)) component.label = "";
       else if (value !== undefined && (!["pinLayout", "faceLayout"].includes(field) || value !== null))
         component[field] = value;
     }

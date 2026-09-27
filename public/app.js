@@ -34,6 +34,9 @@ let marquee = null;
 let copiedSelection = { components: [], wires: [], wireKeys: [] };
 let newWireSize = 1;
 let wireStart = null;
+let wirePreviewFrame = null;
+let pendingWirePreviewPoint = null;
+let lastWirePreviewKey = null;
 let romTargetId = null;
 let layoutTargetId = null;
 const romDrafts = new Map();
@@ -243,7 +246,7 @@ function renderProperties() {
   constantValueEl.disabled = !source;
   sourceValueLabelEl.textContent = component?.t === "input" ? "Input value" : "Constant value";
   setFieldValue(constantValueEl, source ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "");
-  const named = component?.t === "input" || component?.t === "output" || component?.t === "portal" || component?.t === "module";
+  const named = component?.t === "input" || component?.t === "output" || component?.t === "portal" || component?.t === "module" || component?.t === "rom";
   componentLabelRowEl.hidden = !named;
   componentLabelEl.disabled = !named;
   setFieldValue(componentLabelEl, named ? component.label ?? "" : "");
@@ -1130,6 +1133,10 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
         busStatus("Corner placed. Click to continue, or double-click/right-click to finish.");
       }
     }
+    if (wirePreviewFrame !== null) cancelAnimationFrame(wirePreviewFrame);
+    wirePreviewFrame = null;
+    pendingWirePreviewPoint = null;
+    lastWirePreviewKey = null;
     updateWirePreview(point);
     return;
   }
@@ -1275,7 +1282,7 @@ canvasWrapEl.addEventListener("pointermove", (e) => {
   }
 
   if (mode === MODE.WIRE && !drag) {
-    updateWirePreview(pointFromEvent(e));
+    scheduleWirePreview(pointFromEvent(e));
     return;
   }
 
@@ -1430,17 +1437,39 @@ function releasePressedButton() {
 }
 
 canvasWrapEl.addEventListener("pointerleave", () => {
+  if (wirePreviewFrame !== null) cancelAnimationFrame(wirePreviewFrame);
+  wirePreviewFrame = null;
+  pendingWirePreviewPoint = null;
+  lastWirePreviewKey = null;
   gridEl.querySelectorAll(".wire-preview").forEach((el) => el.remove());
 });
 
 function clearWireGesture() {
   wireStart = null;
+  if (wirePreviewFrame !== null) cancelAnimationFrame(wirePreviewFrame);
+  wirePreviewFrame = null;
+  pendingWirePreviewPoint = null;
+  lastWirePreviewKey = null;
   gridEl.querySelectorAll(".wire-preview, .wire-anchor").forEach((el) => el.remove());
 }
 
+function scheduleWirePreview(point) {
+  pendingWirePreviewPoint = point;
+  if (wirePreviewFrame !== null) return;
+  wirePreviewFrame = requestAnimationFrame(() => {
+    wirePreviewFrame = null;
+    const next = pendingWirePreviewPoint;
+    pendingWirePreviewPoint = null;
+    if (next) updateWirePreview(next);
+  });
+}
+
 function updateWirePreview(point) {
-  gridEl.querySelectorAll(".wire-preview, .wire-anchor").forEach((el) => el.remove());
   if (mode !== MODE.WIRE) return;
+  const key = `${wireStart?.x},${wireStart?.y}:${point.x},${point.y}:${newWireSize}`;
+  if (key === lastWirePreviewKey) return;
+  lastWirePreviewKey = key;
+  gridEl.querySelectorAll(".wire-preview, .wire-anchor").forEach((el) => el.remove());
   const anchor = wireStart ?? point;
   const marker = document.createElement("div");
   marker.className = "wire-anchor";

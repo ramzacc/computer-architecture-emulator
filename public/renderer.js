@@ -11,6 +11,15 @@ export function wireTitle(wire, value) {
 }
 
 export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, getSelectedWires) {
+  const componentEls = new Map();
+  const wireEls = new Map();
+  const junctionEls = new Map();
+  // Face states are Maps, so they need a Map-aware serialization to participate
+  // in the render-caching signature.
+  function stateSignature(st) {
+    if (!st) return null;
+    return JSON.stringify(st, (key, value) => value instanceof Map ? [...value] : value);
+  }
   function svgWrap(inner, s, r, overlay = "", aspectRatio = "xMidYMid meet") {
     const q = ((r % 4) + 4) % 4;
     const vw = (q % 2 ? s.h : s.w) * U;
@@ -212,7 +221,9 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const glyphY = isCompact ? 52 : labelCenter + 18;
     const symbolSize = rw === 80 ? 20 : isCompact ? 22 : 25;
     const smallLabel = rw <= 120 && title.length >= 11 ? 8 : title.length > 11 ? 9 : 10;
-    const glyph = textAt(rw / 2, glyphY, glyphs[s.shape], symbolSize, ink, 650);
+    const romName = c.t === "rom" && c.label?.trim() ? c.label.trim() : null;
+    const glyphText = romName && romName.length > 16 ? `${romName.slice(0, 15)}…` : romName;
+    const glyph = textAt(rw / 2, glyphY, glyphText ? escapeText(glyphText) : glyphs[s.shape], glyphText ? 14 : symbolSize, ink, 650);
     const negation = ["nand", "nor", "xnor"].includes(s.shape)
       ? `<circle cx="${rw / 2 + (rw === 80 ? 19 : 31)}" cy="${glyphY - 1}" r="3" fill="${partAccent(s)}"/>` : "";
     const channel = ["mux", "demux"].includes(s.shape)
@@ -290,28 +301,41 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   function renderComponents(logic = getEvaluation()) {
     const state = getBoard();
     const selectedIds = getSelectedIds();
-    gridEl.querySelectorAll(".comp").forEach((el) => el.remove());
+    const present = new Set();
     for (const c of state.components) {
       const s = spec(c.t);
       const d = dimsOf(c);
       if (!s || !d) continue;
-      const el = document.createElement("div");
-      el.className = "comp shaped" + (["button", "switch"].includes(c.t) || s.splitter ? ` ${c.t}` : "");
-      el.dataset.id = c.id;
-      el.style.left = c.x * CELL + "px";
-      el.style.top = c.y * CELL + "px";
-      // The SVG and pins must span the same lattice footprint. Shrinking the
-      // element makes preserveAspectRatio center its art away from the pins,
-      // with an increasingly visible offset on long muxes and splitters.
-      el.style.width = d.w * CELL + "px";
-      el.style.height = d.h * CELL + "px";
-      if (selectedIds.has(c.id)) el.classList.add("selected");
+      present.add(c.id);
       const st = logic.states.get(c.id);
-      if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);
-      if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
-      el.innerHTML = componentArt(c, s, st?.value ?? 0, st?.inputs ?? [], st);
-      el.title = `${c.label || s.label}  [${c.t}]  ${d.w}x${d.h}  ${s.module ? `${modulePorts(c).filter((p) => p.role === "in").length} inputs, ${modulePorts(c).filter((p) => p.role === "out").length} outputs` : `${bitWidth(c)} bit(s)`}${c.t === "clock" ? `  ${c.frequency ?? 1} Hz  ${c.enable === false ? "disabled" : "enabled"}` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${c.t === "constant" || c.t === "input" ? "  value: " + formatValue(c.value ?? 0, bitWidth(c), c.format) : st && (["output", "debugdisplay"].includes(c.t) || st.value) ? "  value: " + (["output", "debugdisplay"].includes(c.t) ? formatValue(st.value, bitWidth(c), c.t === "debugdisplay" ? "hex" : c.format) : st.value) : ""}`;
-      gridEl.appendChild(el);
+      let entry = componentEls.get(c.id);
+      if (!entry) {
+        const el = document.createElement("div");
+        el.dataset.id = c.id;
+        gridEl.appendChild(el);
+        entry = { el, signature: null };
+        componentEls.set(c.id, entry);
+      }
+      const { el } = entry;
+      const signature = JSON.stringify(c) + stateSignature(st);
+      if (signature !== entry.signature) {
+        entry.signature = signature;
+        el.style.left = c.x * CELL + "px";
+        el.style.top = c.y * CELL + "px";
+        // The SVG and pins must span the same lattice footprint.
+        el.style.width = d.w * CELL + "px";
+        el.style.height = d.h * CELL + "px";
+        el.innerHTML = componentArt(c, s, st?.value ?? 0, st?.inputs ?? [], st);
+        el.title = `${c.label || s.label}  [${c.t}]  ${d.w}x${d.h}  ${s.module ? `${modulePorts(c).filter((p) => p.role === "in").length} inputs, ${modulePorts(c).filter((p) => p.role === "out").length} outputs` : `${bitWidth(c)} bit(s)`}${c.t === "clock" ? `  ${c.frequency ?? 1} Hz  ${c.enable === false ? "disabled" : "enabled"}` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${c.t === "constant" || c.t === "input" ? "  value: " + formatValue(c.value ?? 0, bitWidth(c), c.format) : st && (["output", "debugdisplay"].includes(c.t) || st.value) ? "  value: " + (["output", "debugdisplay"].includes(c.t) ? formatValue(st.value, bitWidth(c), c.t === "debugdisplay" ? "hex" : c.format) : st.value) : ""}`;
+      }
+      const className = "comp shaped" + (["button", "switch"].includes(c.t) || s.splitter ? ` ${c.t}` : "") +
+        (selectedIds.has(c.id) ? " selected" : "") + (c.t === "button" && st?.value === 1 ? " pressed" : "") +
+        (c.t === "led" && st?.lit ? " lit" : "");
+      if (el.className !== className) el.className = className;
+    }
+    for (const [id, entry] of componentEls) if (!present.has(id)) {
+      entry.el.remove();
+      componentEls.delete(id);
     }
   }
 
@@ -358,7 +382,8 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   function renderWires(logic = getEvaluation()) {
     const state = getBoard();
     const selectedWires = getSelectedWires();
-    gridEl.querySelectorAll(".wire, .wire-junction").forEach((el) => el.remove());
+    const presentWires = new Set();
+    const presentJunctions = new Set();
     const info = new Map();
     for (const net of logic.nets.values()) {
       for (const edge of net.edges) info.set(edgeKey(edge), { on: net.on, value: net.value, netId: net.id });
@@ -366,14 +391,30 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const selectedNetIds = new Set([...selectedWires].filter((key) => info.has(key)).map((key) => info.get(key).netId));
     for (const w of state.wires.values()) {
       const key = edgeKey(w);
+      presentWires.add(key);
       const i = info.get(key);
-      const el = document.createElement("div");
-      el.dataset.key = key;
+      let entry = wireEls.get(key);
+      if (!entry) {
+        const el = document.createElement("div");
+        el.dataset.key = key;
+        gridEl.appendChild(el);
+        entry = { el, size: null };
+        wireEls.set(key, entry);
+      }
+      const { el } = entry;
       const selected = selectedNetIds.has(i.netId);
-      el.className = "wire " + (i.on ? "on" : "off") + (wireSize(w) > 1 ? " bus" : "") + (selected ? " selected" : "");
-      el.title = wireTitle(w, i.value);
-      applyBox(el, edgeBox(w));
-      gridEl.appendChild(el);
+      const className = "wire " + (i.on ? "on" : "off") + (wireSize(w) > 1 ? " bus" : "") + (selected ? " selected" : "");
+      if (el.className !== className) el.className = className;
+      const title = wireTitle(w, i.value);
+      if (el.title !== title) el.title = title;
+      if (entry.size !== wireSize(w)) {
+        applyBox(el, edgeBox(w));
+        entry.size = wireSize(w);
+      }
+    }
+    for (const [key, entry] of wireEls) if (!presentWires.has(key)) {
+      entry.el.remove();
+      wireEls.delete(key);
     }
     const points = new Map();
     for (const wire of state.wires.values()) for (const [x, y] of edgePoints(wire)) {
@@ -387,12 +428,22 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
           (wires.length === 4 && !state.junctions?.has(point))) continue;
       const [x, y] = point.split(",").map(Number);
       const net = info.get(edgeKey(wires[0]));
-      const el = document.createElement("div");
-      el.className = "wire-junction " + (net?.on ? "on" : "off") +
+      presentJunctions.add(point);
+      let el = junctionEls.get(point);
+      if (!el) {
+        el = document.createElement("div");
+        el.style.left = x * CELL + "px";
+        el.style.top = y * CELL + "px";
+        gridEl.appendChild(el);
+        junctionEls.set(point, el);
+      }
+      const className = "wire-junction " + (net?.on ? "on" : "off") +
         (selectedNetIds.has(net?.netId) ? " selected" : "");
-      el.style.left = x * CELL + "px";
-      el.style.top = y * CELL + "px";
-      gridEl.appendChild(el);
+      if (el.className !== className) el.className = className;
+    }
+    for (const [point, el] of junctionEls) if (!presentJunctions.has(point)) {
+      el.remove();
+      junctionEls.delete(point);
     }
   }
 
