@@ -6,6 +6,28 @@ import { addComponent, addWireEdge, canPlaceEdge, computeNets, createBoard,
   edgeKey, edgePlacementError, evaluateBoard, isValidComponent, parseDocument, resizeNet,
   sanitizeWires, serialize, wireRoute } from "./public/model.js";
 
+test("modules expose named ports and carry parent inputs through nested circuitry", () => {
+  const inner = createBoard();
+  assert.equal(addComponent(inner, { id: "c1", t: "input", x: 0, y: 0, r: 2, size: 1, value: 0, label: "A" }), true);
+  assert.equal(addComponent(inner, { id: "c2", t: "output", x: 4, y: 0, r: 0, size: 1, label: "Y" }), true);
+  for (const x of [2, 3]) assert.equal(addWireEdge(inner, { o: "H", x, y: 1, size: 1 }), true);
+
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "source", t: "input", x: -3, y: 0, r: 2, size: 1, value: 1, label: "Source" }), true);
+  const module = { id: "module", t: "module", x: 0, y: 0, r: 0, label: "Pass through", module: JSON.parse(serialize(inner)) };
+  assert.equal(addComponent(board, module), true);
+  assert.deepEqual(pinsFor(module).map(({ role, name, size }) => ({ role, name, size })), [
+    { role: "in", name: "A", size: 1 }, { role: "out", name: "Y", size: 1 },
+  ]);
+  assert.equal(addComponent(board, { id: "sink", t: "output", x: 5, y: 0, r: 0, size: 1, label: "Sink" }), true);
+  assert.equal(addWireEdge(board, { o: "H", x: -1, y: 1, size: 1 }), true);
+  assert.equal(addWireEdge(board, { o: "H", x: 4, y: 1, size: 1 }), true);
+  assert.equal(evaluateBoard(board).states.get("sink").value, 1);
+  assert.equal(evaluateBoard(parseDocument(serialize(board)).board).states.get("c3").value, 1);
+  board.components[0].value = 0;
+  assert.equal(evaluateBoard(board).states.get("sink").value, 0);
+});
+
 test("matching portals connect separated buses and preserve their names", () => {
   const board = createBoard();
   for (const component of [

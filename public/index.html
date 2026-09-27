@@ -20,6 +20,10 @@
       <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
       <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
     </div>
+    <div id="module-navigation" class="module-navigation" hidden>
+      <button id="module-back" type="button">← Save &amp; back</button>
+      <span id="module-path" aria-live="polite"></span>
+    </div>
     <button id="btn-theme" class="theme-toggle" type="button">Theme</button>
   </header>
 
@@ -66,6 +70,8 @@
       <label id="component-label-row" class="property" hidden>Label
         <input id="component-label" type="text" maxlength="80" disabled />
       </label>
+      <button id="module-open" type="button" hidden>Open module</button>
+      <p id="module-help" class="hint" hidden>Add Input and Output components inside to create the module's pins.</p>
       <button id="rom-open" type="button" hidden>Edit ROM contents</button>
       <label id="value-format-row" class="property" hidden>Value format
         <select id="value-format" disabled>
