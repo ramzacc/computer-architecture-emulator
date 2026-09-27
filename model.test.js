@@ -56,6 +56,17 @@ test("a tag displays its label and observes a bus without driving it", () => {
   assert.equal(parseDocument(serialize(board)).board.components[1].label, "DATA");
 });
 
+test("tag rotation moves only its pin around a fixed 4x2 body", () => {
+  const tag = { t: "tag", x: 5, y: 7, size: 8, label: "DATA" };
+  const expected = [[5, 8, "W"], [7, 7, "N"], [9, 8, "E"], [7, 9, "S"]];
+  for (let r = 0; r < 4; r++) {
+    tag.r = r;
+    assert.deepEqual(dimsOf(tag), { w: 4, h: 2 });
+    const { px, py, dir, size } = pinsFor(tag)[0];
+    assert.deepEqual([px, py, dir, size], [...expected[r], 8]);
+  }
+});
+
 test("module documents reject incomplete, corner, or duplicate pin layouts", () => {
   const inner = createBoard();
   assert.equal(addComponent(inner, { id: "c1", t: "input", x: 0, y: 0, r: 0, size: 1, value: 0, label: "A" }), true);

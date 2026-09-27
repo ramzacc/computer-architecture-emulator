@@ -420,6 +420,7 @@ function rotateDir(dir, r) {
 export function dimsFor(type, r = 0) {
   const component = spec(type);
   if (!component) return null;
+  if (component.tag) return { w: component.w, h: component.h };
   return normalizeRotation(r) % 2
     ? { w: component.h, h: component.w }
     : { w: component.w, h: component.h };
@@ -465,6 +466,11 @@ export function pinsFor(component) {
   if (!entry) return [];
   const r = normalizeRotation(component.r);
   const width = bitWidth(component);
+  if (entry.tag) {
+    const [x, y, dir] = [[0, 1, "W"], [2, 0, "N"], [4, 1, "E"], [2, 2, "S"]][r];
+    const px = component.x + x, py = component.y + y;
+    return [{ px, py, dir, role: "in", size: width, edge: outwardEdge(px, py, dir) }];
+  }
   const plexer = component.t === "mux" || component.t === "demux";
   if (entry.module) {
     const ports = modulePorts(component);

@@ -155,12 +155,12 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
 
   function tagArt(c, s) {
     const w = 160, h = 80;
+    const stem = ["M10 40 H28", "M80 10 V28", "M150 40 H132", "M80 70 V52"][((c.r ?? 0) % 4 + 4) % 4];
     const inner = frame(w, h, partAccent(s)) +
-      `<path d="M10 40 H28" fill="none" stroke="${partAccent(s)}" stroke-width="2"/>` +
-      ports(localPins(c, s), w, h, partAccent(s));
-    const d = dimsOf(c);
-    return svgWrap(inner, s, c.r,
-      textAt(d.w * U / 2, d.h * U / 2, displayName(c, "TAG", 20), 13, ink, 700));
+      `<path d="${stem}" fill="none" stroke="${partAccent(s)}" stroke-width="2"/>` +
+      ports(actualPins(c), w, h, partAccent(s)) +
+      textAt(w / 2, h / 2, displayName(c, "TAG", 20), 13, ink, 700);
+    return svgWrap(inner, s, 0);
   }
 
   function ledArt(c, s) {
