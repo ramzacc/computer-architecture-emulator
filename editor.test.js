@@ -983,19 +983,33 @@ test('copy and paste preserve component properties and relative positions', () =
   const saves = ctx.saves;
   const first = editor.pasteComponents(copies);
   assert.equal(first.length, 2);
-  assert.deepEqual(first.map(({ x, y }) => [x, y]), [[4, 4], [9, 5]]);
+  assert.deepEqual(first.map(({ x, y }) => [x, y]), [[1, 2], [6, 3]]);
   assert.equal(first[0].size, 3);
   assert.equal(first[0].value, 5);
   assert.equal(new Set(first.map((c) => c.id)).size, 2);
   assert.equal(ctx.saves, saves + 1);
   const second = editor.pasteComponents(copies);
-  assert.deepEqual(second.map(({ x, y }) => [x, y]), [[8, 8], [13, 9]]);
+  assert.deepEqual(second.map(({ x, y }) => [x, y]), [[2, 4], [7, 5]]);
   assert.equal(ctx.saves, saves + 2);
   assert.equal(editor.deleteComponents(first.map((c) => c.id)), true);
   assert.equal(ctx.saves, saves + 3);
   assert.equal(editor.board.components.length, 4);
   assert.equal(editor.deleteComponents(first.map((c) => c.id)), false);
   assert.equal(ctx.saves, saves + 3);
+});
+
+test('paste searches around the requested viewport center and uses open space above', () => {
+  const { editor } = setup();
+  const source = editor.place('led', -20, -20);
+  const copies = editor.copySelection([source.id], []);
+  for (let x = 0; x <= 20; x += 2) {
+    for (let y = 10; y <= 20; y += 2) assert.ok(editor.place('led', x, y));
+  }
+  const pasted = editor.pasteSelection(copies, { x: 11, y: 12 });
+  assert.ok(pasted);
+  assert.equal(pasted.components.length, 1);
+  assert.ok(pasted.components[0].y < 10);
+  assert.ok(Math.abs(pasted.components[0].x + 1 - 11) <= 2);
 });
 
 test('copy and paste preserve selected complete wire nets with components', () => {
@@ -1018,7 +1032,7 @@ test('copy and paste preserve selected complete wire nets with components', () =
   assert.equal(ctx.saves, saves + 1);
   const second = editor.pasteSelection(copies);
   assert.ok(second);
-  assert.deepEqual(second.wires.map(edgeKey), ['H:4,9', 'H:5,9']);
+  assert.deepEqual(second.wires.map(edgeKey), ['H:2,5', 'H:3,5']);
   assert.equal(ctx.saves, saves + 2);
   assert.equal(editor.board.wires.has('V:8,5'), true);
 });

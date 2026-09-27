@@ -646,46 +646,82 @@ export class BoardEditor {
     return { components, wires: [...wires.values()], wireKeys: netKeys, junctions };
   }
 
-  pasteSelection(copies) {
+  pasteSelection(copies, target = null) {
     if (!copies || (!copies.components?.length && !copies.wires?.length)) return null;
-    // Search outward while keeping the copied layout together. Validate the
-    // complete group on a trial board so a failed paste changes nothing.
-    for (let offset = 2; offset <= 200; offset += 2) {
-      const trial = { ...this.board, components: [...this.board.components], wires: new Map(this.board.wires),
-        junctions: new Set(this.board.junctions) };
-      const components = [];
-      const wires = [];
-      let nextId = this.nextComponentId;
-      let valid = true;
-      for (const copy of copies.components ?? []) {
-        let id;
-        do { id = `c${nextId++}`; } while (trial.components.some((c) => c.id === id));
-        const component = { ...copy, id, x: copy.x + offset, y: copy.y + offset };
-        if (!addComponent(trial, component)) { valid = false; break; }
-        components.push(component);
+    const copiedBoard = createBoard();
+    for (const [index, copy] of (copies.components ?? []).entries()) {
+      if (!addComponent(copiedBoard, { ...copy, id: `paste${index}` })) return null;
+    }
+    for (const wire of copies.wires ?? []) {
+      if (copiedBoard.wires.has(edgeKey(wire))) return null;
+      copiedBoard.wires.set(edgeKey(wire), wire);
+    }
+    for (const key of copies.junctions ?? []) copiedBoard.junctions.add(key);
+    if (wireLayoutError(copiedBoard)) return null;
+    const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    for (const component of copies.components ?? []) {
+      const { w, h } = dimsOf(component);
+      bounds.minX = Math.min(bounds.minX, component.x);
+      bounds.minY = Math.min(bounds.minY, component.y);
+      bounds.maxX = Math.max(bounds.maxX, component.x + w);
+      bounds.maxY = Math.max(bounds.maxY, component.y + h);
+    }
+    for (const wire of copies.wires ?? []) {
+      bounds.minX = Math.min(bounds.minX, wire.x);
+      bounds.minY = Math.min(bounds.minY, wire.y);
+      bounds.maxX = Math.max(bounds.maxX, wire.x + (wire.o === "H" ? 1 : 0));
+      bounds.maxY = Math.max(bounds.maxY, wire.y + (wire.o === "V" ? 1 : 0));
+    }
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerY = (bounds.minY + bounds.maxY) / 2;
+    const baseX = Math.round((target?.x ?? centerX + 2) - centerX);
+    const baseY = Math.round((target?.y ?? centerY + 2) - centerY);
+    // Expand around the requested center, trying the nearest lattice cells first.
+    // Validate the complete group on a trial board so failed candidates change nothing.
+    for (let radius = 0; radius <= 100; radius++) {
+      const offsets = [];
+      for (let dx = -radius; dx <= radius; dx++) for (let dy = -radius; dy <= radius; dy++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) === radius) offsets.push({ dx, dy });
       }
-      if (!valid) continue;
-      for (const copy of copies.wires ?? []) {
-        const wire = { ...copy, x: copy.x + offset, y: copy.y + offset };
-        if (trial.wires.has(edgeKey(wire))) { valid = false; break; }
-        trial.wires.set(edgeKey(wire), wire);
-        wires.push(wire);
+      offsets.sort((a, b) => a.dx ** 2 + a.dy ** 2 - b.dx ** 2 - b.dy ** 2 || a.dy - b.dy || a.dx - b.dx);
+      for (const { dx, dy } of offsets) {
+        const offsetX = baseX + dx, offsetY = baseY + dy;
+        const trial = { ...this.board, components: [...this.board.components], wires: new Map(this.board.wires),
+          junctions: new Set(this.board.junctions) };
+        const components = [];
+        const wires = [];
+        let nextId = this.nextComponentId;
+        let valid = true;
+        for (const copy of copies.components ?? []) {
+          let id;
+          do { id = `c${nextId++}`; } while (trial.components.some((c) => c.id === id));
+          const component = { ...copy, id, x: copy.x + offsetX, y: copy.y + offsetY };
+          if (!addComponent(trial, component)) { valid = false; break; }
+          components.push(component);
+        }
+        if (!valid) continue;
+        for (const copy of copies.wires ?? []) {
+          const wire = { ...copy, x: copy.x + offsetX, y: copy.y + offsetY };
+          if (trial.wires.has(edgeKey(wire))) { valid = false; break; }
+          trial.wires.set(edgeKey(wire), wire);
+          wires.push(wire);
+        }
+        if (!valid) continue;
+        for (const key of copies.junctions ?? []) {
+          const [x, y] = key.split(",").map(Number);
+          trial.junctions.add(`${x + offsetX},${y + offsetY}`);
+        }
+        if (wireLayoutError(trial)) continue;
+        this.nextComponentId = nextId;
+        this.board.components = trial.components;
+        this.board.wires = trial.wires;
+        this.board.junctions = trial.junctions;
+        this.commit();
+        return { components, wires, wireKeys: (copies.wireKeys ?? []).map((key) => {
+          const source = copies.wires.find((wire) => edgeKey(wire) === key);
+          return source ? edgeKey({ ...source, x: source.x + offsetX, y: source.y + offsetY }) : null;
+        }).filter(Boolean) };
       }
-      if (!valid) continue;
-      for (const key of copies.junctions ?? []) {
-        const [x, y] = key.split(",").map(Number);
-        trial.junctions.add(`${x + offset},${y + offset}`);
-      }
-      if (wireLayoutError(trial)) continue;
-      this.nextComponentId = nextId;
-      this.board.components = trial.components;
-      this.board.wires = trial.wires;
-      this.board.junctions = trial.junctions;
-      this.commit();
-      return { components, wires, wireKeys: (copies.wireKeys ?? []).map((key) => {
-        const source = copies.wires.find((wire) => edgeKey(wire) === key);
-        return source ? edgeKey({ ...source, x: source.x + offset, y: source.y + offset }) : null;
-      }).filter(Boolean) };
     }
     return null;
   }

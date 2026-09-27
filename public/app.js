@@ -1579,7 +1579,9 @@ function copySelected() {
 }
 
 function pasteCopied() {
-  const added = editor.pasteSelection(copiedSelection);
+  const rect = canvasWrapEl.getBoundingClientRect();
+  const center = worldFromViewport({ x: rect.width / 2, y: rect.height / 2 });
+  const added = editor.pasteSelection(copiedSelection, { x: center.x / CELL, y: center.y / CELL });
   if (!added) {
     busStatus("Cannot paste selection nearby. Check overlaps, bus sizes, and short circuits.", true);
     return;
