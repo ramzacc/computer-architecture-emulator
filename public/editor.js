@@ -1,5 +1,5 @@
 import { bitWidth, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePinLayout, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
-import { addComponent, addWireEdge, createBoard, crossingAt, edgeKey, isValidComponent,
+import { addComponent, addWireEdge, createBoard, crossingAt, edgeKey, isValidComponent, labelAvailable, nextLabel,
   evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, wireLayoutError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
 
@@ -19,23 +19,18 @@ function movesConnectedPin(board, component, next) {
 }
 
 function newComponent(type, id, x, y, board) {
-  const base = { id, t: type, x, y, r: 0, label: "" };
+  const base = { id, t: type, x, y, r: 0, label: nextLabel(board, type) };
   switch (type) {
     case "splitter": return { ...base, size: 4, order: "ascendant" };
     case "constant": return { ...base, size: 1, value: 0 };
     case "input": return { ...base, size: 1, value: 0 };
     case "output":
     case "portal": return { ...base, size: 1 };
-    case "rom": {
-      const labels = new Set(board.components.filter((item) => item.t === "rom").map((item) => item.label));
-      let number = 1;
-      while (labels.has(`ROM ${number}`)) number++;
-      return { ...base, size: 8, addressSize: 8, data: [], label: `ROM ${number}` };
-    }
+    case "rom": return { ...base, size: 8, addressSize: 8, data: [] };
     case "ram": return { ...base, size: 8, addressSize: 8 };
     case "switch": return { ...base, value: 0 };
     case "clock": return { ...base, frequency: DEFAULT_CLOCK_FREQUENCY, enable: false };
-    case "module": return { ...base, label: "Module", module: JSON.parse(serialize(createBoard())) };
+    case "module": return { ...base, module: JSON.parse(serialize(createBoard())) };
     case "mux":
     case "demux": return { ...base, size: 4, channels: 2 };
     case "adder":
@@ -275,7 +270,7 @@ export class BoardEditor {
   editComponent(component, changes, { validate = isValidComponent, sanitize = false, captureEdges = false } = {}) {
     const previous = { ...component };
     Object.assign(component, changes);
-    if (!validate(this.board, component)) {
+    if (!labelAvailable(this.board, component) || !validate(this.board, component)) {
       for (const key of Object.keys(changes)) {
         if (!Object.hasOwn(previous, key)) delete component[key];
         else component[key] = previous[key];
@@ -660,7 +655,8 @@ export class BoardEditor {
       for (const copy of copies.components ?? []) {
         let id;
         do { id = `c${nextId++}`; } while (trial.components.some((c) => c.id === id));
-        const component = { ...copy, id, x: copy.x + offset, y: copy.y + offset };
+        const component = { ...copy, id, x: copy.x + offset, y: copy.y + offset,
+          label: nextLabel(trial, copy.t, copy.label || undefined) };
         if (!addComponent(trial, component)) { valid = false; break; }
         components.push(component);
       }

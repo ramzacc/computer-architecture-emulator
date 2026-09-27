@@ -547,8 +547,8 @@ constantValueEl.addEventListener("change", () => {
 componentLabelEl.addEventListener("change", () => {
   const component = editor.component(selectedId);
   if (!editor.setLabel(selectedId, componentLabelEl.value)) {
-    if (component?.t === "portal" && component.label !== componentLabelEl.value)
-      busStatus("Matching portals must have the same width and cannot short outputs.", true);
+    if (component && component.label !== componentLabelEl.value)
+      busStatus(`Each ${spec(component.t).label} needs a unique label of at most 80 characters.`, true);
     renderProperties();
   }
 });
