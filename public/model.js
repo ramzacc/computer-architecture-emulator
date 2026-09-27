@@ -1,5 +1,5 @@
-import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePorts, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRam, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
-import { validValueFormat } from "./value-format.js";
+import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, documentFields, modulePorts, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRam, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
+import { VALUE_FORMATS, validValueFormat } from "./value-format.js";
 
 export function createBoard() {
   return { components: [], wires: new Map(), junctions: new Set() };
@@ -14,8 +14,7 @@ export function edgePoints(edge) {
   return o === "H" ? [[x, y], [x + 1, y]] : [[x, y], [x, y + 1]];
 }
 
-export function edgeInBounds(board, edge) {
-  // Board coordinates are unbounded; only the orientation must be valid.
+function validEdgeOrientation(edge) {
   return edge.o === "H" || edge.o === "V";
 }
 
@@ -30,6 +29,7 @@ export function componentAt(board, x, y, ignoreId) {
 function validComponentProperties(component, depth = 0) {
   const size = dimsOf(component);
   if (!size || !Number.isSafeInteger(component.x) || !Number.isSafeInteger(component.y) ||
+      (component.r !== undefined && (!Number.isInteger(component.r) || component.r < 0 || component.r > 3)) ||
       !validBitWidth(bitWidth(component)) ||
       (["constant", "input", "output"].includes(component.t) && ![0, 2].includes(component.r ?? 0)) ||
       ((component.t === "mux" || component.t === "demux") && !validChannelCount(channelCount(component))) ||
@@ -40,6 +40,8 @@ function validComponentProperties(component, depth = 0) {
       (["input", "output", "portal", "rom"].includes(component.t) && (typeof (component.label ?? "") !== "string" || (component.label ?? "").length > 80)) ||
       (component.t === "rom" && !validRom(component)) ||
       (component.t === "ram" && !validRam(component)) ||
+      (component.format !== undefined && (!["constant", "input", "output"].includes(component.t) ||
+        !validValueFormat(component.format))) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
   if (component.t === "module") {
     if (typeof component.label !== "string" || component.label.length > 80 || !component.module ||
@@ -135,7 +137,7 @@ function pinsAtPoint(board, x, y) {
 }
 
 export function edgePlacementError(board, edge) {
-  if (!edgeInBounds(board, edge) || !Number.isSafeInteger(edge.x) || !Number.isSafeInteger(edge.y) ||
+  if (!validEdgeOrientation(edge) || !Number.isSafeInteger(edge.x) || !Number.isSafeInteger(edge.y) ||
       !validBitWidth(wireSize(edge))) return "Wire size must be 1–32 bits.";
   if (edgeBlocked(board, edge)) return "Wire is blocked by a component.";
   if (board.wires.has(edgeKey(edge))) return "Wire already exists here.";
@@ -174,7 +176,7 @@ export function wireLayoutError(board, blocked = blockedEdgeKeys(board)) {
   for (const component of board.components)
     for (const pin of pinsFor(component)) add(pins, pin.px, pin.py, pin.size);
   for (const edge of board.wires.values()) {
-    if (!edgeInBounds(board, edge) || !Number.isSafeInteger(edge.x) || !Number.isSafeInteger(edge.y) ||
+    if (!validEdgeOrientation(edge) || !Number.isSafeInteger(edge.x) || !Number.isSafeInteger(edge.y) ||
         !validBitWidth(wireSize(edge))) return "Invalid wire route.";
     if (blocked.has(edgeKey(edge))) return "Wire is blocked by a component.";
     for (const [x, y] of edgePoints(edge)) {
@@ -240,7 +242,7 @@ export function wireRoute(board, start, end, size) {
 
 export function sanitizeWires(board) {
   for (const [key, edge] of board.wires) {
-    if (!edgeInBounds(board, edge) || !validBitWidth(wireSize(edge)) ||
+    if (!validEdgeOrientation(edge) || !validBitWidth(wireSize(edge)) ||
         edgeBlocked(board, edge) ||
         edgePoints(edge).some(([x, y]) => pinsAtPoint(board, x, y).some((size) => size !== wireSize(edge)))) {
       board.wires.delete(key);
@@ -589,29 +591,6 @@ export function netInfoByEdgeKey(board) {
   return info;
 }
 
-// Numeric values are stored in component tuples; keep this order stable.
-const DOCUMENT_FORMATS = ["decimal", "binary", "hex"];
-const DOCUMENT_FIELD_CACHE = new Map();
-
-// Every component starts with [type, x, y, rotation]. The remaining fields
-// follow this shared layout so adding a component property changes one place.
-function documentFields(t) {
-  if (DOCUMENT_FIELD_CACHE.has(t)) return DOCUMENT_FIELD_CACHE.get(t);
-  const fields = [
-    ...(isSizable({ t }) ? ["size"] : []),
-    ...(t === "constant" || t === "input" || t === "switch" ? ["value"] : []),
-    ...(t === "rom" ? ["addressSize", "data"] : t === "ram" ? ["addressSize"] : []),
-    ...(t === "clock" ? ["frequency", "enable"] : []),
-    ...(t === "splitter" ? ["order"] : []),
-    ...(t === "mux" || t === "demux" ? ["channels"] : []),
-    ...(["constant", "input", "output"].includes(t) ? ["format"] : []),
-    ...(["input", "output", "portal", "rom"].includes(t) ? ["label"] : []),
-    ...(t === "module" ? ["label", "module", "pinLayout", "faceLayout", "moduleWidth", "moduleHeight"] : []),
-  ];
-  DOCUMENT_FIELD_CACHE.set(t, fields);
-  return fields;
-}
-
 function documentValue(component, field) {
   switch (field) {
     case "size": return component.size ?? 1;
@@ -622,7 +601,7 @@ function documentValue(component, field) {
     case "enable": return component.enable !== false;
     case "order": return component.order === "descendant" ? 1 : 0;
     case "channels": return component.channels ?? 2;
-    case "format": return DOCUMENT_FORMATS.indexOf(component.format ?? "decimal");
+    case "format": return VALUE_FORMATS.indexOf(component.format ?? "decimal");
     case "label": return component.label ?? "";
     case "module": return component.module;
     case "pinLayout": return component.pinLayout ?? null;
@@ -635,27 +614,13 @@ function documentValue(component, field) {
 export function serialize(board) {
   return JSON.stringify({
     components: board.components.map((component) => {
-      const { t, x, y, r, size, value, data, addressSize, format, order, channels, frequency, enable, label, module } = component;
-      if (!spec(t) || !Number.isSafeInteger(x) || !Number.isSafeInteger(y) ||
-          (r !== undefined && (!Number.isInteger(r) || r < 0 || r > 3)) ||
-          (["constant", "input", "output"].includes(t) && ![0, 2].includes(r ?? 0)) ||
-          (isSizable({ t }) && !validBitWidth(size ?? 1)) ||
-          (["constant", "input"].includes(t) && !validConstant({ t, size, value })) ||
-          (["input", "output", "portal", "rom"].includes(t) && (typeof (label ?? "") !== "string" || (label ?? "").length > 80)) ||
-          (t === "rom" && !validRom({ t, size, addressSize, data })) ||
-          (t === "ram" && !validRam({ t, size, addressSize })) ||
-          (t === "switch" && ![0, 1].includes(value ?? 0)) ||
-          (t === "clock" && !validClockFrequency(frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
-          (t === "clock" && enable !== undefined && typeof enable !== "boolean") ||
-          (t === "splitter" && !validSplitterOrder(order ?? "ascendant")) ||
-          ((t === "mux" || t === "demux") && !validChannelCount(channels ?? 2)) ||
-          (t === "module" && !validComponentProperties(component)) ||
-          (format !== undefined && (!["constant", "input", "output"].includes(t) || !validValueFormat(format))))
-        throw new Error(`Cannot serialize invalid ${String(t)} component.`);
-      return [t, x, y, r ?? 0, ...documentFields(t).map((field) => documentValue(component, field))];
+      if (!validComponentProperties(component))
+        throw new Error(`Cannot serialize invalid ${String(component.t)} component.`);
+      return [component.t, component.x, component.y, component.r ?? 0,
+        ...documentFields(component.t).map((field) => documentValue(component, field))];
     }),
     wires: compactWireRuns(board),
-    junctions: [...(board.junctions ?? [])].map((key) => {
+    junctions: [...board.junctions].map((key) => {
       const [x, y] = key.split(",").map(Number);
       if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y) || !crossingAt(board, x, y))
         throw new Error("Cannot serialize invalid junction.");
@@ -664,8 +629,6 @@ export function serialize(board) {
   });
 }
 
-// A five-item tuple stores a straight run. Four-item legacy tuples remain valid.
-// Keep edges in memory so routing, rendering and evaluation pay no decode cost.
 function compactWireRuns(board) {
   const unvisited = new Map(board.wires);
   const runs = [];
@@ -711,7 +674,7 @@ export function parseDocument(text, depth = 0) {
   object(data, "Document", ["components", "wires", "junctions"]);
   if (!Array.isArray(data.components)) throw new Error("Document.components must be an array.");
   if (!Array.isArray(data.wires)) throw new Error("Document.wires must be an array.");
-  if (data.junctions !== undefined && !Array.isArray(data.junctions))
+  if (!Array.isArray(data.junctions))
     throw new Error("Document.junctions must be an array.");
   const board = createBoard();
   const occupied = new Set();
@@ -721,18 +684,12 @@ export function parseDocument(text, depth = 0) {
     const [t, x, y, r] = raw;
     if (typeof t !== "string" || !spec(t)) throw new Error(`${path}.t is unknown.`);
     const fields = documentFields(t);
-    const legacyClock = t === "clock" && raw.length === 5;
-    const legacyOutput = t === "output" && raw.length === 4 + fields.length - 1;
-    const legacyModule = t === "module" && [6, 7, 8].includes(raw.length);
-    const legacyRom = t === "rom" && raw.length === 4 + fields.length - 1;
-    if (raw.length !== 4 + fields.length && !legacyClock && !legacyOutput && !legacyModule && !legacyRom)
+    if (raw.length !== 4 + fields.length)
       throw new Error(`${path} must have ${4 + fields.length} entries.`);
     coordinate(x, `${path}[1]`);
     coordinate(y, `${path}[2]`);
     if (!Number.isInteger(r) || r < 0 || r > 3) throw new Error(`${path}[3] must be 0–3.`);
-    const sideRotation = ["constant", "input", "output"].includes(t) && (r === 1 || r === 3)
-      ? (t === "output" ? (r === 1 ? 2 : 0) : (r === 1 ? 0 : 2)) : r;
-    const component = { id: `c${index + 1}`, t, x, y, r: sideRotation };
+    const component = { id: `c${index + 1}`, t, x, y, r };
     for (const [offset, field] of fields.entries()) {
       const value = raw[4 + offset];
       const fieldPath = `${path}[${4 + offset}]`;
@@ -744,34 +701,30 @@ export function parseDocument(text, depth = 0) {
       if (field === "data" && !validRom({ t, size: component.size, addressSize: component.addressSize, data: value }))
         throw new Error(`${fieldPath} must contain unique addresses fitting the address width and values fitting the ROM width.`);
       if (field === "frequency" && !validClockFrequency(value)) throw new Error(`${fieldPath} is an invalid frequency.`);
-      if (field === "enable" && typeof value !== "boolean" && !legacyClock)
+      if (field === "enable" && typeof value !== "boolean")
         throw new Error(`${fieldPath} must be a boolean.`);
       if (field === "order" && value !== 0 && value !== 1) throw new Error(`${fieldPath} is an invalid order.`);
       if (field === "channels" && !validChannelCount(value)) throw new Error(`${fieldPath} is an invalid channel count.`);
-      if (field === "format" && (!Number.isInteger(value) || value < 0 || value >= DOCUMENT_FORMATS.length))
+      if (field === "format" && (!Number.isInteger(value) || value < 0 || value >= VALUE_FORMATS.length))
         throw new Error(`${fieldPath} is an invalid value format.`);
-      if (field === "label" && !legacyOutput && !legacyRom && (typeof value !== "string" || value.length > 80))
+      if (field === "label" && (typeof value !== "string" || value.length > 80))
         throw new Error(`${fieldPath} must be a string of at most 80 characters.`);
       if (field === "module" && (!value || typeof value !== "object" || Array.isArray(value)))
         throw new Error(`${fieldPath} must be a module document.`);
-      if (field === "pinLayout" && !legacyModule && value !== null && !Array.isArray(value))
+      if (field === "pinLayout" && value !== null && !Array.isArray(value))
         throw new Error(`${fieldPath} must be a pin layout array or null.`);
-      if (field === "faceLayout" && value !== undefined && value !== null && !Array.isArray(value))
+      if (field === "faceLayout" && value !== null && !Array.isArray(value))
         throw new Error(`${fieldPath} must be a face layout array or null.`);
-      if (field === "moduleWidth" && value !== undefined && (!Number.isInteger(value) || value < 4 || value > 20))
+      if (field === "moduleWidth" && (!Number.isInteger(value) || value < 4 || value > 20))
         throw new Error(`${fieldPath} must be 4–20.`);
-      if (field === "moduleHeight" && value !== undefined && (!Number.isInteger(value) || value < 3 || value > 32))
+      if (field === "moduleHeight" && (!Number.isInteger(value) || value < 3 || value > 32))
         throw new Error(`${fieldPath} must be 3–32.`);
       if (field === "order") component.order = value ? "descendant" : "ascendant";
       else if (field === "format") {
-        if (value) component.format = DOCUMENT_FORMATS[value];
-      } else if (field === "enable" && legacyClock) component.enable = true;
-      else if (field === "label" && (legacyOutput || legacyRom)) component.label = "";
-      else if (value !== undefined && (!["pinLayout", "faceLayout"].includes(field) || value !== null))
+        if (value) component.format = VALUE_FORMATS[value];
+      } else if (!(["pinLayout", "faceLayout"].includes(field) && value === null))
         component[field] = value;
     }
-    if (t === "module" && raw.length === 8 && component.faceLayout)
-      component.faceLayout = component.faceLayout.map(([index, column, row]) => [index, 1 + 2 * column, 2 + 2 * row]);
     if (!validComponentProperties(component, depth)) throw new Error(`${path} is invalid.`);
     const { w, h } = dimsOf(component);
     for (let y = component.y; y < component.y + h; y++) for (let x = component.x; x < component.x + w; x++) {
@@ -816,11 +769,7 @@ export function parseDocument(text, depth = 0) {
       wireIndexes.set(key, index);
     }
   }
-  if (data.junctions === undefined) {
-    // Documents saved before crossings were supported joined all touching wires.
-    for (const edge of board.wires.values()) for (const [x, y] of edgePoints(edge))
-      if (crossingAt(board, x, y)) board.junctions.add(`${x},${y}`);
-  } else for (const [index, raw] of data.junctions.entries()) {
+  for (const [index, raw] of data.junctions.entries()) {
     const path = `junctions[${index}]`;
     if (!Array.isArray(raw) || raw.length !== 2) throw new Error(`${path} must be [x, y].`);
     const [x, y] = raw;

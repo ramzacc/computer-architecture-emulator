@@ -540,7 +540,7 @@ romDataSizeEl.addEventListener("change", () => {
 romAddressSizeEl.addEventListener("change", () => {
   const size = Number(romAddressSizeEl.value);
   const kind = editor.component(selectedId)?.t;
-  const changed = kind === "ram" ? editor.resizeRamAddress(selectedId, size) : editor.resizeRomAddress(selectedId, size);
+  const changed = editor.resizeMemoryAddress(selectedId, size);
   if (changed) busStatus(`${kind.toUpperCase()} address size set to ${size} bits.`);
   else busStatus(`${kind?.toUpperCase() ?? "Memory"} address width must be 1, 2, 4, 8, or 16 bits and fit connected wires${kind === "rom" ? ", and include every stored address" : ""}.`, true);
   renderProperties();

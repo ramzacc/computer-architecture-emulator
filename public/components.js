@@ -247,13 +247,36 @@ export function isSizable(component) {
   return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output || entry?.portal);
 }
 
+const DOCUMENT_FIELDS = {
+  constant: ["size", "value", "format"],
+  input: ["size", "value", "format", "label"],
+  output: ["size", "format", "label"],
+  portal: ["size", "label"],
+  rom: ["size", "addressSize", "data", "label"],
+  ram: ["size", "addressSize"],
+  clock: ["frequency", "enable"],
+  switch: ["value"],
+  splitter: ["size", "order"],
+  mux: ["size", "channels"],
+  demux: ["size", "channels"],
+  module: ["label", "module", "pinLayout", "faceLayout", "moduleWidth", "moduleHeight"],
+};
+
+export function documentFields(type) {
+  return DOCUMENT_FIELDS[type] ?? (isSizable({ t: type }) ? ["size"] : []);
+}
+
+function tupleField(tuple, field) {
+  const index = documentFields(tuple[0]).indexOf(field);
+  return index < 0 ? undefined : tuple[4 + index];
+}
+
 // A module's interface follows the order of its Input and Output parts.
-// Tuple indexes match the document format used by model.js.
 export function modulePorts(component) {
   return (component.module?.components ?? []).flatMap((part, index) => {
     if (!Array.isArray(part) || !["input", "output"].includes(part[0])) return [];
     return [{ id: `c${index + 1}`, role: part[0] === "input" ? "in" : "out",
-      size: part[4], name: part[0] === "input" ? part[7] : part[6] }];
+      size: tupleField(part, "size"), name: tupleField(part, "label") }];
   });
 }
 
@@ -262,7 +285,7 @@ export const MODULE_FACE_TYPES = new Set(["led", "sevenseg", "debugdisplay", "ou
 export function moduleFaceParts(component) {
   return (component.module?.components ?? []).flatMap((part, index) =>
     Array.isArray(part) && MODULE_FACE_TYPES.has(part[0])
-      ? [{ id: `c${index + 1}`, index, type: part[0], label: part[0] === "output" ? part[6] : "" }]
+      ? [{ id: `c${index + 1}`, index, type: part[0], label: part[0] === "output" ? tupleField(part, "label") : "" }]
       : []);
 }
 

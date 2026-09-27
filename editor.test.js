@@ -176,7 +176,7 @@ test('ROM reads an eight-bit address, drives a sized word, and persists its cont
   assert.equal(editor.resizeComponent(rom.id, 32), false); // output bus is connected
 });
 
-test('ROM labels can be edited, saved, and loaded from older circuits', () => {
+test('ROM labels can be edited and saved', () => {
   const { editor } = setup();
   const first = editor.place('rom', 0, 0);
   const second = editor.place('rom', 5, 0);
@@ -187,23 +187,18 @@ test('ROM labels can be edited, saved, and loaded from older circuits', () => {
   assert.equal(parseDocument(serialize(editor.board)).board.components[1].label, 'Boot program');
   assert.equal(editor.undo(), true);
   assert.equal(editor.component(second.id).label, 'ROM 2');
-
-  const legacy = JSON.stringify({ components: [['rom', 0, 0, 0, 8, 8, []]], wires: [] });
-  const restored = parseDocument(legacy).board;
-  assert.equal(restored.components[0].label, '');
-  assert.equal(parseDocument(serialize(restored)).board.components[0].label, '');
 });
 
 test('ROM address and data sizes edit independently and preserve valid contents', () => {
   const { editor } = setup();
   const rom = editor.place('rom', 0, 0);
-  assert.equal(editor.resizeRomAddress(rom.id, 16), true);
+  assert.equal(editor.resizeMemoryAddress(rom.id, 16), true);
   assert.equal(editor.resizeComponent(rom.id, 32), true);
   assert.equal(editor.setRomData(rom.id, [[0, 0xFFFFFFFF], [0xFFFF, 0x12345678]]), true);
   assert.deepEqual(pinsFor(rom).map((pin) => pin.size), [16, 32]);
-  assert.equal(editor.resizeRomAddress(rom.id, 8), false);
+  assert.equal(editor.resizeMemoryAddress(rom.id, 8), false);
   assert.equal(editor.setRomData(rom.id, [[0, 0xFFFFFFFF]]), true);
-  assert.equal(editor.resizeRomAddress(rom.id, 8), true);
+  assert.equal(editor.resizeMemoryAddress(rom.id, 8), true);
   assert.equal(editor.evaluation.states.get(rom.id).value, 0xFFFFFFFF);
   assert.deepEqual(pinsFor(rom).map((pin) => pin.size), [8, 32]);
   assert.equal(editor.resizeComponent(rom.id, 4), true);
@@ -215,23 +210,23 @@ test('ROM address and data sizes edit independently and preserve valid contents'
 });
 
 test('ROM imports reject malformed memory entries', () => {
-  const document = (data) => JSON.stringify({ components: [['rom', 0, 0, 0, 8, 8, data]], wires: [] });
+  const document = (data) => JSON.stringify({ components: [['rom', 0, 0, 0, 8, 8, data, '']], wires: [], junctions: [] });
   for (const data of [null, [[256, 1]], [[0, 256]], [[1, 1], [1, 2]], [[0, -1]]])
     assert.throws(() => parseDocument(document(data)), /ROM width/);
 });
 
-test('ROM imports reject the old tuple without an address width', () => {
-  const old = JSON.stringify({ components: [['rom', 0, 0, 0, 8, [[255, 42]]]], wires: [] });
-  assert.throws(() => parseDocument(old), /8 entries/);
+test('ROM imports require every tuple field', () => {
+  const incomplete = JSON.stringify({ components: [['rom', 0, 0, 0, 8, [[255, 42]]]], wires: [], junctions: [] });
+  assert.throws(() => parseDocument(incomplete), /8 entries/);
 });
 
 test('ROM address size must match its connected bus', () => {
   const { editor } = setup();
   const rom = editor.place('rom', 0, 0);
   assert.equal(editor.addWire({ o: 'V', x: 2, y: -1, size: 8 }), true);
-  assert.equal(editor.resizeRomAddress(rom.id, 16), false);
+  assert.equal(editor.resizeMemoryAddress(rom.id, 16), false);
   assert.equal(editor.removeWire('V:2,-1'), true);
-  assert.equal(editor.resizeRomAddress(rom.id, 16), true);
+  assert.equal(editor.resizeMemoryAddress(rom.id, 16), true);
   assert.equal(editor.addWire({ o: 'V', x: 2, y: -1, size: 8 }), false);
   assert.equal(editor.addWire({ o: 'V', x: 2, y: -1, size: 16 }), true);
 });
@@ -241,7 +236,7 @@ test('ROM uses address bits beyond the original byte', () => {
   const address = editor.place('register', 0, 0);
   const rom = editor.place('rom', 0, 4);
   assert.equal(editor.resizeComponent(address.id, 16), true);
-  assert.equal(editor.resizeRomAddress(rom.id, 16), true);
+  assert.equal(editor.resizeMemoryAddress(rom.id, 16), true);
   assert.equal(editor.setRomData(rom.id, [[0x1234, 0xA5]]), true);
   assert.equal(editor.addWire({ o: 'V', x: 2, y: 3, size: 16 }), true);
   editor.registerValues.set(address.id, 0x1234);
@@ -280,19 +275,19 @@ test('RAM width rules match ROM and resizing trims simulation contents', () => {
   const { editor } = setup();
   const ram = editor.place('ram', 0, 0);
   assert.equal(editor.resizeComponent(ram.id, 3), false);
-  assert.equal(editor.resizeRamAddress(ram.id, 3), false);
-  assert.equal(editor.resizeRamAddress(ram.id, 16), true);
+  assert.equal(editor.resizeMemoryAddress(ram.id, 3), false);
+  assert.equal(editor.resizeMemoryAddress(ram.id, 16), true);
   assert.equal(editor.resizeComponent(ram.id, 32), true);
   editor.ramValues.get(ram.id).set(0x1234, 0xFFFFFFFF);
   editor.evaluate();
   assert.equal(editor.evaluation.states.get(ram.id).value, 0);
-  assert.equal(editor.resizeRamAddress(ram.id, 8), true);
+  assert.equal(editor.resizeMemoryAddress(ram.id, 8), true);
   assert.equal(editor.ramValues.get(ram.id).has(0x1234), false);
   editor.ramValues.get(ram.id).set(0, 0xFFFFFFFF);
   assert.equal(editor.resizeComponent(ram.id, 8), true);
   assert.equal(editor.evaluation.states.get(ram.id).value, 0xFF);
   assert.deepEqual(pinsFor(ram).map((pin) => pin.size), [8, 8, 1, 8]);
-  assert.throws(() => parseDocument(JSON.stringify({ components: [['ram', 0, 0, 0, 3, 8]], wires: [] })), /power of two/);
+  assert.throws(() => parseDocument(JSON.stringify({ components: [['ram', 0, 0, 0, 3, 8]], wires: [], junctions: [] })), /power of two/);
 });
 
 test('moving a selection translates components and complete wire nets in one edit', () => {
@@ -544,7 +539,7 @@ test('constant and output canvas art uses the selected value format', () => {
 
 test('imports save only after a complete valid document is parsed', () => {
   const ctx = setup();
-  const document = JSON.stringify({ components: [['constant', 0, 0, 0, 1, 1, 0]], wires: [['V', 1, 2, 1]] });
+  const document = JSON.stringify({ components: [['constant', 0, 0, 0, 1, 1, 0]], wires: [['V', 1, 2, 1]], junctions: [] });
   const result = ctx.editor.importText(document);
   assert.equal(result.board.components[0].y, 0);
   assert.equal(result.board.components[0].t, 'constant');
