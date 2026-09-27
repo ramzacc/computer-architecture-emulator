@@ -19,7 +19,7 @@
     <div class="view-tabs" role="tablist" aria-label="Views">
       <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
       <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
-      <button id="tab-module-layout" type="button" role="tab" aria-controls="module-layout-view" aria-selected="false" tabindex="-1" hidden>Module Layout</button>
+      <button id="tab-module-layout" type="button" role="tab" aria-controls="module-layout-view" aria-selected="false" tabindex="-1">Module Layout</button>
     </div>
     <div id="module-navigation" class="module-navigation" hidden>
       <button id="module-back" type="button">← Save &amp; back</button>
@@ -156,18 +156,25 @@
       </section>
     </section>
     <section id="module-layout-view" class="module-layout-view" role="tabpanel" aria-labelledby="tab-module-layout" hidden>
-      <div id="module-layout" class="module-layout" hidden>
+      <div id="module-layout" class="module-layout">
         <section class="module-layout-sidebar">
-          <h2 id="module-layout-title">Module layout</h2>
+          <h2>Module layout</h2>
           <button id="module-layout-canvas" type="button">← Canvas</button>
+          <div class="module-layout-module-picker">
+            <h3>Modules</h3>
+            <button id="module-layout-all" class="module-layout-all" type="button" hidden>← All modules</button>
+            <div id="module-layout-list" class="module-layout-list"></div>
+          </div>
           <div id="module-layout-tray" class="module-layout-tray" hidden>
-            <h3>Displays</h3>
+            <h3>Face components</h3>
             <div id="module-layout-items" class="module-layout-items"></div>
           </div>
           <p id="module-layout-status" class="hint" role="status" aria-live="polite" hidden></p>
         </section>
         <section class="module-layout-workspace" aria-label="Module face">
-          <div class="module-layout-scroll">
+          <div id="module-layout-empty" class="module-layout-empty">Choose a module</div>
+          <div id="module-layout-scroll" class="module-layout-scroll" hidden>
+            <h2 id="module-layout-title" class="module-layout-title"></h2>
             <div id="module-layout-stage" class="module-layout-stage">
               <div id="module-layout-board" class="module-layout-board"></div>
               <div id="module-layout-next" class="module-layout-next"></div>
