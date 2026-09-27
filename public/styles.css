@@ -141,10 +141,6 @@ body {
   border-bottom: 1px solid var(--line);
   background: var(--header);
 }
-.tabs { display: flex; gap: 8px; }
-.tabs button.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.toolbar[hidden] { display: none; }
-
 .view-tabs { display: flex; align-items: center; gap: 4px; }
 .view-tabs button { border-radius: 7px 7px 0 0; border-bottom: 0; }
 .view-tabs button[hidden] { display: none; }
@@ -182,10 +178,9 @@ main {
 }
 main[hidden] { display: none; }
 
-.canvas-view { display: flex; align-items: stretch; height: 100%; }
-.canvas-view[hidden], .rom-view[hidden], .module-layout-view[hidden] { display: none; }
-.rom-view { display: flex; align-items: stretch; height: 100%; }
-.module-layout-view { height: 100%; }
+main > [role="tabpanel"] { height: 100%; }
+main > [role="tabpanel"][hidden] { display: none; }
+.canvas-view, .rom-view { display: flex; align-items: stretch; }
 
 .panel {
   display: flex;
