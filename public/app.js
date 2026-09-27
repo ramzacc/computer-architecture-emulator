@@ -25,6 +25,7 @@ let selectedId = null;
 let selectedIds = new Set();
 let selectedWire = null;
 let selectedWires = new Set();
+let inspectorSelectionKey = null;
 let placingType = null;
 let drag = null;
 let pressedButton = null;
@@ -162,6 +163,11 @@ function busStatus(message, error = false) {
 function renderProperties() {
   const component = state.components.find((c) => c.id === selectedId);
   const net = selectedWire ? netContaining(state, selectedWire, editor.evaluation) : null;
+  const selectionKey = component ? `component:${component.id}` : net ? `wire:${selectedWire}` : null;
+  const preserveDraft = selectionKey !== null && selectionKey === inspectorSelectionKey;
+  const setFieldValue = (field, value) => {
+    if (!preserveDraft || document.activeElement !== field) field.value = value;
+  };
   const selectionCount = selectedIds.size + selectedWires.size;
   selectedPropertiesHeadingEl.textContent = selectionCount > 1 ? `${selectionCount} items selected` : component ? spec(component.t).label : net ? "Wire" : mode === MODE.WIRE ? "Wire tool" : "Inspector";
   newWireRowEl.hidden = mode !== MODE.WIRE;
@@ -172,43 +178,43 @@ function renderProperties() {
   selectedSizeRowEl.hidden = size === undefined || memory;
   selectedSizeLabelEl.textContent = memory || component?.t === "mux" || component?.t === "demux" ? "Data size (bits)" : "Selected size (bits)";
   selectedSizeEl.disabled = size === undefined || component?.t === "debugdisplay";
-  selectedSizeEl.value = size === undefined ? "" : String(size);
+  setFieldValue(selectedSizeEl, size === undefined ? "" : String(size));
   selectedSizeEl.max = ["constant", "input"].includes(component?.t) ? "8" : "32";
   romDataSizeRowEl.hidden = !memory;
   romDataSizeEl.disabled = !memory;
-  romDataSizeEl.value = memory ? String(bitWidth(component)) : "8";
+  setFieldValue(romDataSizeEl, memory ? String(bitWidth(component)) : "8");
   const plexer = component?.t === "mux" || component?.t === "demux";
   channelsRowEl.hidden = !plexer;
   channelsEl.disabled = !plexer;
-  channelsEl.value = plexer ? String(channelCount(component)) : "";
+  setFieldValue(channelsEl, plexer ? String(channelCount(component)) : "");
   const splitter = component?.t === "splitter";
   splitterOrderRowEl.hidden = !splitter;
   splitterOrderEl.disabled = !splitter;
-  splitterOrderEl.value = splitter ? component.order ?? "ascendant" : "ascendant";
+  setFieldValue(splitterOrderEl, splitter ? component.order ?? "ascendant" : "ascendant");
   const source = component?.t === "constant" || component?.t === "input";
   constantValueRowEl.hidden = !source;
   constantValueEl.disabled = !source;
   sourceValueLabelEl.textContent = component?.t === "input" ? "Input value" : "Constant value";
-  constantValueEl.value = source ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "";
+  setFieldValue(constantValueEl, source ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "");
   const named = component?.t === "input" || component?.t === "output" || component?.t === "portal" || component?.t === "module";
   componentLabelRowEl.hidden = !named;
   componentLabelEl.disabled = !named;
-  componentLabelEl.value = named ? component.label ?? "" : "";
+  setFieldValue(componentLabelEl, named ? component.label ?? "" : "");
   moduleOpenEl.hidden = component?.t !== "module";
   moduleHelpEl.hidden = component?.t !== "module";
   const rom = component?.t === "rom";
   romAddressSizeRowEl.hidden = !memory;
   romAddressSizeEl.disabled = !memory;
-  romAddressSizeEl.value = memory ? String(addressWidth(component)) : "";
+  setFieldValue(romAddressSizeEl, memory ? String(addressWidth(component)) : "");
   romOpenEl.hidden = !rom;
   const valueFormat = source || component?.t === "output";
   valueFormatRowEl.hidden = !valueFormat;
   valueFormatEl.disabled = !valueFormat;
-  valueFormatEl.value = valueFormat ? component.format ?? "decimal" : "decimal";
+  setFieldValue(valueFormatEl, valueFormat ? component.format ?? "decimal" : "decimal");
   const clock = component?.t === "clock";
   clockFrequencyRowEl.hidden = !clock;
   clockFrequencyEl.disabled = !clock;
-  clockFrequencyEl.value = clock ? String(component.frequency ?? DEFAULT_CLOCK_FREQUENCY) : "";
+  setFieldValue(clockFrequencyEl, clock ? String(component.frequency ?? DEFAULT_CLOCK_FREQUENCY) : "");
   clockEnableRowEl.hidden = !clock;
   clockEnableEl.disabled = !clock;
   clockEnableEl.checked = clock && component.enable !== false;
@@ -233,7 +239,13 @@ function renderProperties() {
     const value = editor.evaluation.states.get(component.id)?.value ?? 0;
     busStatus(`${component.t.toUpperCase()} address ${(inputs[0] ?? 0).toString(16).toUpperCase().padStart(Math.ceil(addressWidth(component) / 4), "0")}: ${value.toString(16).toUpperCase()}.`);
   }
+  inspectorSelectionKey = selectionKey;
   syncActionButtons();
+}
+
+for (const field of [selectedSizeEl, romDataSizeEl, channelsEl, splitterOrderEl,
+  constantValueEl, componentLabelEl, romAddressSizeEl, valueFormatEl, clockFrequencyEl]) {
+  field.addEventListener("blur", () => renderProperties());
 }
 
 newWireSizeEl.addEventListener("change", () => {
