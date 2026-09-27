@@ -14,6 +14,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   const componentEls = new Map();
   const wireEls = new Map();
   const junctionEls = new Map();
+  const pinEls = new Map();
   // Face states are Maps, so they need a Map-aware serialization to participate
   // in the render-caching signature.
   function stateSignature(st) {
@@ -341,16 +342,29 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
 
   function renderPins() {
     const state = getBoard();
-    gridEl.querySelectorAll(".pin").forEach((el) => el.remove());
+    const present = new Set();
     for (const c of state.components) {
-      for (const p of pinsFor(c)) {
-        const el = document.createElement("div");
-        el.className = "pin " + p.role;
-        el.style.left = p.px * CELL + "px";
-        el.style.top = p.py * CELL + "px";
-        if (p.name) el.title = `${p.name}: ${p.size} bit${p.size === 1 ? "" : "s"} (${p.role})`;
-        gridEl.appendChild(el);
+      for (const [index, p] of pinsFor(c).entries()) {
+        const key = `${c.id}:${index}`;
+        present.add(key);
+        let el = pinEls.get(key);
+        if (!el) {
+          el = document.createElement("div");
+          gridEl.appendChild(el);
+          pinEls.set(key, el);
+        }
+        const className = "pin " + p.role;
+        if (el.className !== className) el.className = className;
+        const left = p.px * CELL + "px", top = p.py * CELL + "px";
+        if (el.style.left !== left) el.style.left = left;
+        if (el.style.top !== top) el.style.top = top;
+        const title = p.name ? `${p.name}: ${p.size} bit${p.size === 1 ? "" : "s"} (${p.role})` : "";
+        if (el.title !== title) el.title = title;
       }
+    }
+    for (const [key, el] of pinEls) if (!present.has(key)) {
+      el.remove();
+      pinEls.delete(key);
     }
   }
 
