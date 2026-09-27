@@ -261,6 +261,24 @@ test('output width is configurable and must match its connected net', () => {
   assert.equal(editor.resizeComponent(output.id, 8), true);
 });
 
+test('portal names and widths edit together and survive undo', () => {
+  const { editor } = setup();
+  const first = editor.place('portal', 0, 0);
+  const second = editor.place('portal', 5, 0);
+  assert.ok(first && second);
+  assert.equal(editor.setLabel(first.id, 'DATA'), true);
+  assert.equal(editor.setLabel(second.id, 'DATA'), true);
+  assert.equal(editor.resizeComponent(first.id, 8), false);
+  assert.equal(editor.component(first.id).size, 1);
+  assert.equal(editor.setLabel(second.id, 'OTHER'), true);
+  assert.equal(editor.resizeComponent(first.id, 8), true);
+  assert.equal(editor.setLabel(second.id, 'DATA'), false);
+  assert.equal(editor.component(second.id).label, 'OTHER');
+  assert.equal(editor.undo(), true);
+  assert.equal(editor.component(first.id).size, 1);
+  assert.equal(parseDocument(serialize(editor.board)).board.components[0].label, 'DATA');
+});
+
 test('toggle switch drives a persistent one-bit value and rejects conflicting toggles', () => {
   const ctx = setup();
   const { editor } = ctx;

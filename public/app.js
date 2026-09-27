@@ -190,7 +190,7 @@ function renderProperties() {
   constantValueEl.disabled = !source;
   sourceValueLabelEl.textContent = component?.t === "input" ? "Input value" : "Constant value";
   setFieldValue(constantValueEl, source ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "");
-  const named = component?.t === "input" || component?.t === "output";
+  const named = component?.t === "input" || component?.t === "output" || component?.t === "portal";
   componentLabelRowEl.hidden = !named;
   componentLabelEl.disabled = !named;
   setFieldValue(componentLabelEl, named ? component.label ?? "" : "");
@@ -311,7 +311,12 @@ constantValueEl.addEventListener("change", () => {
 });
 
 componentLabelEl.addEventListener("change", () => {
-  if (!editor.setLabel(selectedId, componentLabelEl.value)) renderProperties();
+  const component = editor.component(selectedId);
+  if (!editor.setLabel(selectedId, componentLabelEl.value)) {
+    if (component?.t === "portal" && component.label !== componentLabelEl.value)
+      busStatus("Matching portals must have the same width and cannot short outputs.", true);
+    renderProperties();
+  }
 });
 
 function romTarget() {

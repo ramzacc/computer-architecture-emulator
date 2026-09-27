@@ -228,8 +228,8 @@ export class BoardEditor {
       ...(type === "ram" ? { size: 8, addressSize: 8 } : {}),
       ...(type === "switch" ? { value: 0 } : {}),
       ...(type === "clock" ? { frequency: DEFAULT_CLOCK_FREQUENCY, enable: false } : {}),
-      ...(type === "output" ? { size: 1 } : {}),
-      ...(["input", "output"].includes(type) ? { label: "" } : {}),
+      ...(["output", "portal"].includes(type) ? { size: 1 } : {}),
+      ...(["input", "output", "portal"].includes(type) ? { label: "" } : {}),
       ...(["mux", "demux"].includes(type) ? { channels: 2 } : {}) };
     if (["mux", "demux", "adder", "twos", "comparator", "shl", "shr", "register", "counter"].includes(type)) component.size = 4;
     if (!addComponent(this.board, component)) return null;
@@ -424,7 +424,7 @@ export class BoardEditor {
 
   setLabel(id, label) {
     const component = this.component(id);
-    if (!component || !["input", "output"].includes(component.t) || typeof label !== "string" || label.length > 80 || component.label === label) return false;
+    if (!component || !["input", "output", "portal"].includes(component.t) || typeof label !== "string" || label.length > 80 || component.label === label) return false;
     return this.editComponent(component, { label });
   }
 
