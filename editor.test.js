@@ -285,6 +285,43 @@ test('a blocked connection extension rejects the move without changing the board
   assert.equal(ctx.saves, saves);
 });
 
+test('moving a component closer along a straight wire removes the covered edges', () => {
+  const ctx = setup();
+  const output = ctx.editor.place('output', -8, 0);
+  assert.equal(ctx.editor.rotate(output.id), true);
+  const source = ctx.editor.place('constant', 0, 0);
+  assert.equal(ctx.editor.setConstantValue(source.id, 1), true);
+  assert.equal(ctx.editor.addWireRoute({ x: -6, y: 1 }, { x: 0, y: 1 }, 1).error, null);
+  const before = serialize(ctx.editor.board);
+  const saves = ctx.saves;
+  const preview = ctx.editor.previewMove(source.id, -3, 0);
+  assert.deepEqual([...preview.wires.keys()], ['H:-6,1', 'H:-5,1', 'H:-4,1']);
+  assert.equal(ctx.editor.move(source.id, -3, 0), true);
+  assert.equal(ctx.saves, saves + 1);
+  assert.deepEqual([...ctx.editor.board.wires.keys()], [...preview.wires.keys()]);
+  assert.equal(ctx.editor.evaluation.states.get(output.id).value, 1);
+  assert.equal(ctx.editor.undo(), true);
+  assert.equal(serialize(ctx.editor.board), before);
+});
+
+test('selection moves shorten the same straight connection', () => {
+  const { editor } = setup();
+  const source = editor.place('constant', 0, 0);
+  assert.equal(editor.addWireRoute({ x: -5, y: 1 }, { x: 0, y: 1 }, 1).error, null);
+  assert.equal(editor.moveSelection([source.id], [], -2, 0), true);
+  assert.deepEqual([...editor.board.wires.keys()], ['H:-5,1', 'H:-4,1', 'H:-3,1']);
+});
+
+test('a branch on the covered span prevents automatic shortening', () => {
+  const ctx = setup();
+  const source = ctx.editor.place('constant', 0, 0);
+  assert.equal(ctx.editor.addWireRoute({ x: -5, y: 1 }, { x: 0, y: 1 }, 1).error, null);
+  assert.equal(ctx.editor.addWire({ o: 'V', x: -1, y: 1 }), true);
+  const before = serialize(ctx.editor.board);
+  assert.equal(ctx.editor.move(source.id, -2, 0), false);
+  assert.equal(serialize(ctx.editor.board), before);
+});
+
 test('a rejected selection move preserves the entire board and does not save', () => {
   const ctx = setup();
   const moving = ctx.editor.place('led', 0, 0);
