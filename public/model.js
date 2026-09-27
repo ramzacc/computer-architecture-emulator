@@ -87,6 +87,20 @@ function edgeBlocked(board, edge) {
   });
 }
 
+function blockedEdgeKeys(board) {
+  const blocked = new Set();
+  for (const component of board.components) {
+    const { w, h } = dimsOf(component);
+    for (let y = component.y + 1; y < component.y + h; y++)
+      for (let x = component.x; x < component.x + w; x++)
+        blocked.add(edgeKey({ o: "H", x, y }));
+    for (let x = component.x + 1; x < component.x + w; x++)
+      for (let y = component.y; y < component.y + h; y++)
+        blocked.add(edgeKey({ o: "V", x, y }));
+  }
+  return blocked;
+}
+
 export function wireSize(wire) { return wire.size ?? 1; }
 
 function wiresAtPoint(board, x, y) {
@@ -146,14 +160,29 @@ export function addWireEdge(board, edge) {
   return true;
 }
 
-export function wireLayoutError(board) {
+export function wireLayoutError(board, blocked = blockedEdgeKeys(board)) {
+  const atPoint = new Map();
+  const pins = new Map();
+  const add = (map, x, y, value) => {
+    const key = `${x},${y}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(value);
+  };
+  for (const edge of board.wires.values())
+    for (const [x, y] of edgePoints(edge)) add(atPoint, x, y, edge);
+  for (const component of board.components)
+    for (const pin of pinsFor(component)) add(pins, pin.px, pin.py, pin.size);
   for (const edge of board.wires.values()) {
     if (!edgeInBounds(board, edge) || !Number.isSafeInteger(edge.x) || !Number.isSafeInteger(edge.y) ||
         !validBitWidth(wireSize(edge))) return "Invalid wire route.";
-    if (edgeBlocked(board, edge)) return "Wire is blocked by a component.";
+    if (blocked.has(edgeKey(edge))) return "Wire is blocked by a component.";
     for (const [x, y] of edgePoints(edge)) {
-      if (connectedAtPoint(board, edge, x, y).some((wire) => wireSize(wire) !== wireSize(edge)) ||
-          pinsAtPoint(board, x, y).some((size) => size !== wireSize(edge))) return "Bus size mismatch.";
+      const key = `${x},${y}`;
+      const touching = atPoint.get(key) ?? [];
+      const connected = touching.length === 4 && !board.junctions?.has(key) && !pins.has(key)
+        ? touching.filter((wire) => wire.o === edge.o) : touching;
+      if (connected.some((wire) => wireSize(wire) !== wireSize(edge)) ||
+          pins.get(key)?.some((size) => size !== wireSize(edge))) return "Bus size mismatch.";
     }
   }
   return shortCircuitError(board);
@@ -187,6 +216,7 @@ export function wireRoute(board, start, end, size) {
   };
 
   let firstError = null;
+  const blocked = blockedEdgeKeys(board);
   for (const horizontalFirst of [true, false]) {
     const edges = build(horizontalFirst);
     const trial = { ...board, wires: new Map(board.wires) };
@@ -196,11 +226,11 @@ export function wireRoute(board, start, end, size) {
       if (existing) {
         if (wireSize(existing) !== size) { error = "Bus size mismatch."; break; }
       } else {
-        if (edgeBlocked(trial, edge)) { error = "Wire is blocked by a component."; break; }
+        if (blocked.has(edgeKey(edge))) { error = "Wire is blocked by a component."; break; }
         trial.wires.set(edgeKey(edge), edge);
       }
     }
-    if (!error) error = wireLayoutError(trial);
+    if (!error) error = wireLayoutError(trial, blocked);
     if (!error) return { edges, error: null };
     firstError ??= error;
   }
