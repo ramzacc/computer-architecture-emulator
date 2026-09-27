@@ -1,7 +1,7 @@
 import { bitWidth } from "./components.js";
 import { formatValue, validValueFormat } from "./value-format.js";
 
-export function createMonitor({ getEditor, signalsEl, noSignalsEl, gridEl, emptyEl, countEl }) {
+export function createMonitor({ getEditor, signalsEl, noSignalsEl, gridEl, emptyEl }) {
   const layouts = new WeakMap();
   let draggingId = null;
   let renderedScope = null;
@@ -36,13 +36,8 @@ export function createMonitor({ getEditor, signalsEl, noSignalsEl, gridEl, empty
       button.className = "monitor-signal";
       button.draggable = true;
       button.dataset.id = tag.id;
-      const name = document.createElement("span");
-      name.className = "monitor-signal-name";
-      name.textContent = tag.label || "Tag";
-      const width = document.createElement("span");
-      width.className = "monitor-signal-width";
-      width.textContent = `${bitWidth(tag)} bit${bitWidth(tag) === 1 ? "" : "s"}`;
-      button.append(name, width);
+      button.textContent = tag.label || "Tag";
+      button.title = `${bitWidth(tag)} bit${bitWidth(tag) === 1 ? "" : "s"} · Click or drag to monitor`;
       signalsEl.append(button);
     }
   }
@@ -56,7 +51,8 @@ export function createMonitor({ getEditor, signalsEl, noSignalsEl, gridEl, empty
     }
     gridEl.replaceChildren();
     emptyEl.hidden = ids.length > 0;
-    countEl.textContent = `${ids.length} signal${ids.length === 1 ? "" : "s"}`;
+    gridEl.classList.toggle("is-empty", ids.length === 0);
+    if (!ids.length) gridEl.append(emptyEl);
     for (const id of ids) {
       const tag = available.get(id);
       const card = document.createElement("article");

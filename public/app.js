@@ -133,7 +133,6 @@ const monitor = createMonitor({
   noSignalsEl: document.getElementById("monitor-no-signals"),
   gridEl: document.getElementById("monitor-grid"),
   emptyEl: document.getElementById("monitor-empty"),
-  countEl: document.getElementById("monitor-count"),
 });
 
 const viewRenderers = {

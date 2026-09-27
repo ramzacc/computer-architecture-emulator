@@ -127,18 +127,15 @@
     </div>
     <section id="monitor-view" class="monitor-view" role="tabpanel" aria-labelledby="tab-monitor" hidden>
       <section class="panel monitor-sidebar" aria-labelledby="monitor-signals-heading">
-        <h2 id="monitor-signals-heading">Tagged signals</h2>
-        <p class="hint">Drag a tag into the workspace, or click it to add it.</p>
+        <h2 id="monitor-signals-heading">Tags</h2>
         <div id="monitor-signals" class="monitor-signals"></div>
-        <p id="monitor-no-signals" class="hint" hidden>Add Tag components on the canvas to observe signals here.</p>
+        <p id="monitor-no-signals" class="hint" hidden>No tags</p>
       </section>
       <section class="monitor-workspace" aria-label="Signal monitor">
-        <div class="monitor-heading">
-          <div><h2>Signal monitor</h2><p class="hint">Live values while the circuit runs</p></div>
-          <span id="monitor-count" class="hint"></span>
+        <h2>Signals</h2>
+        <div id="monitor-grid" class="monitor-grid" aria-label="Observed signals">
+          <p id="monitor-empty" class="monitor-empty">Drag tags here</p>
         </div>
-        <div id="monitor-grid" class="monitor-grid" aria-label="Observed signals"></div>
-        <p id="monitor-empty" class="monitor-empty">Drag tagged signals here to watch their values.</p>
       </section>
     </section>
     <section id="rom-view" class="rom-view" role="tabpanel" aria-labelledby="tab-rom" hidden>
