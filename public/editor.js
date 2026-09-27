@@ -1,5 +1,5 @@
 import { bitWidth, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePinLayout, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
-import { addComponent, addWireEdge, createBoard, crossingAt, edgeKey, isValidComponent, labelAvailable, nextLabel,
+import { addComponent, addWireEdge, clocksInBoard, createBoard, crossingAt, edgeKey, isValidComponent, labelAvailable, nextLabel,
   evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, wireLayoutError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
 
@@ -173,8 +173,8 @@ export class BoardEditor {
     const buttonIds = new Set(this.board.components.filter((component) => component.t === "button")
       .map((component) => component.id));
     for (const id of this.pressedButtons) if (!buttonIds.has(id)) this.pressedButtons.delete(id);
-    const clockIds = new Set(this.board.components.filter((component) => component.t === "clock" && component.enable !== false)
-      .map((component) => component.id));
+    const clockIds = new Set([...clocksInBoard(this.board)].filter(([, clock]) => clock.enable !== false)
+      .map(([id]) => id));
     for (const id of this.highClocks) if (!clockIds.has(id)) this.highClocks.delete(id);
     const stored = this.board.components.filter((component) => component.t === "register" || component.t === "counter");
     const storedIds = new Set(stored.map((component) => component.id));
@@ -230,17 +230,23 @@ export class BoardEditor {
 
   setButtonPressed(id, pressed) {
     if (this.component(id)?.t !== "button" || this.pressedButtons.has(id) === pressed) return false;
-    if (pressed) this.pressedButtons.add(id);
-    else this.pressedButtons.delete(id);
+    const next = new Set(this.pressedButtons);
+    if (pressed) next.add(id);
+    else next.delete(id);
+    if (shortCircuitError(this.board, next, this.highClocks, this.registerValues, this.ramValues)) return false;
+    this.pressedButtons = next;
     this.evaluate(true);
     return true;
   }
 
   tickClock(id) {
-    const component = this.component(id);
-    if (component?.t !== "clock" || component.enable === false) return false;
-    if (this.highClocks.has(id)) this.highClocks.delete(id);
-    else this.highClocks.add(id);
+    const component = clocksInBoard(this.board).get(id);
+    if (!component || component.enable === false) return false;
+    const next = new Set(this.highClocks);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    if (shortCircuitError(this.board, this.pressedButtons, next, this.registerValues, this.ramValues)) return false;
+    this.highClocks = next;
     this.evaluate(true);
     return true;
   }

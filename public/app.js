@@ -1,5 +1,5 @@
 import { COMPONENT_TYPES, DEFAULT_CLOCK_FREQUENCY, addressWidth, bitWidth, channelCount, dimsOf, isSizable, moduleFaceParts, modulePinLayout, modulePorts, pinsFor, selectWidth, spec, validBitWidth } from "./components.js";
-import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, evaluateBoard, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
+import { addComponent, addWireEdge, clocksInBoard, createBoard, edgeKey, edgePlacementError, evaluateBoard, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
 import { BoardEditor } from "./editor.js";
 import { createRenderer } from "./renderer.js";
 import { formatValue, parseValue } from "./value-format.js";
@@ -1697,8 +1697,9 @@ function syncClockTimers() {
     clockTimers.clear();
     timerBoard = state;
   }
-  const clocks = new Map(state.components.filter((component) => component.t === "clock" && component.enable !== false)
-    .map((component) => [component.id, component.frequency ?? DEFAULT_CLOCK_FREQUENCY]));
+  const clocks = new Map([...clocksInBoard(state)]
+    .filter(([, component]) => component.enable !== false)
+    .map(([id, component]) => [id, component.frequency ?? DEFAULT_CLOCK_FREQUENCY]));
   for (const [id, timer] of clockTimers) {
     if (clocks.get(id) === timer.frequency) continue;
     clearInterval(timer.interval);
