@@ -215,7 +215,9 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const glyphY = isCompact ? 52 : labelCenter + 18;
     const symbolSize = rw === 80 ? 20 : isCompact ? 22 : 25;
     const smallLabel = rw <= 120 && title.length >= 11 ? 8 : title.length > 11 ? 9 : 10;
-    const glyph = textAt(rw / 2, glyphY, glyphs[s.shape], symbolSize, ink, 650);
+    const romName = c.t === "rom" && c.label?.trim() ? c.label.trim() : null;
+    const glyphText = romName && romName.length > 16 ? `${romName.slice(0, 15)}…` : romName;
+    const glyph = textAt(rw / 2, glyphY, glyphText ? escapeText(glyphText) : glyphs[s.shape], glyphText ? 14 : symbolSize, ink, 650);
     const negation = ["nand", "nor", "xnor"].includes(s.shape)
       ? `<circle cx="${rw / 2 + (rw === 80 ? 19 : 31)}" cy="${glyphY - 1}" r="3" fill="${partAccent(s)}"/>` : "";
     const channel = ["mux", "demux"].includes(s.shape)

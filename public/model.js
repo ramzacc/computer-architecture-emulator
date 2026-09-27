@@ -37,7 +37,7 @@ function validComponentProperties(component, depth = 0) {
       (component.t === "clock" && !validClockFrequency(component.frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
       (component.t === "clock" && component.enable !== undefined && typeof component.enable !== "boolean") ||
       (["constant", "input"].includes(component.t) && !validConstant(component)) ||
-      (["input", "output", "portal"].includes(component.t) && (typeof (component.label ?? "") !== "string" || (component.label ?? "").length > 80)) ||
+      (["input", "output", "portal", "rom"].includes(component.t) && (typeof (component.label ?? "") !== "string" || (component.label ?? "").length > 80)) ||
       (component.t === "rom" && !validRom(component)) ||
       (component.t === "ram" && !validRam(component)) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
@@ -601,7 +601,7 @@ function documentFields(t) {
     ...(t === "splitter" ? ["order"] : []),
     ...(t === "mux" || t === "demux" ? ["channels"] : []),
     ...(["constant", "input", "output"].includes(t) ? ["format"] : []),
-    ...(["input", "output", "portal"].includes(t) ? ["label"] : []),
+    ...(["input", "output", "portal", "rom"].includes(t) ? ["label"] : []),
     ...(t === "module" ? ["label", "module"] : []),
   ];
   DOCUMENT_FIELD_CACHE.set(t, fields);
@@ -633,7 +633,7 @@ export function serialize(board) {
           (["constant", "input", "output"].includes(t) && ![0, 2].includes(r ?? 0)) ||
           (isSizable({ t }) && !validBitWidth(size ?? 1)) ||
           (["constant", "input"].includes(t) && !validConstant({ t, size, value })) ||
-          (["input", "output", "portal"].includes(t) && (typeof (label ?? "") !== "string" || (label ?? "").length > 80)) ||
+          (["input", "output", "portal", "rom"].includes(t) && (typeof (label ?? "") !== "string" || (label ?? "").length > 80)) ||
           (t === "rom" && !validRom({ t, size, addressSize, data })) ||
           (t === "ram" && !validRam({ t, size, addressSize })) ||
           (t === "switch" && ![0, 1].includes(value ?? 0)) ||
@@ -715,7 +715,8 @@ export function parseDocument(text, depth = 0) {
     const fields = documentFields(t);
     const legacyClock = t === "clock" && raw.length === 5;
     const legacyOutput = t === "output" && raw.length === 4 + fields.length - 1;
-    if (raw.length !== 4 + fields.length && !legacyClock && !legacyOutput)
+    const legacyRom = t === "rom" && raw.length === 4 + fields.length - 1;
+    if (raw.length !== 4 + fields.length && !legacyClock && !legacyOutput && !legacyRom)
       throw new Error(`${path} must have ${4 + fields.length} entries.`);
     coordinate(x, `${path}[1]`);
     coordinate(y, `${path}[2]`);
@@ -740,14 +741,14 @@ export function parseDocument(text, depth = 0) {
       if (field === "channels" && !validChannelCount(value)) throw new Error(`${fieldPath} is an invalid channel count.`);
       if (field === "format" && (!Number.isInteger(value) || value < 0 || value >= DOCUMENT_FORMATS.length))
         throw new Error(`${fieldPath} is an invalid value format.`);
-      if (field === "label" && !legacyOutput && (typeof value !== "string" || value.length > 80))
+      if (field === "label" && !legacyOutput && !legacyRom && (typeof value !== "string" || value.length > 80))
         throw new Error(`${fieldPath} must be a string of at most 80 characters.`);
       if (field === "module" && (!value || typeof value !== "object" || Array.isArray(value)))
         throw new Error(`${fieldPath} must be a module document.`);
       if (field === "order") component.order = value ? "descendant" : "ascendant";
       else if (field === "format") {
         if (value) component.format = DOCUMENT_FORMATS[value];
-      } else component[field] = field === "enable" && legacyClock ? true : field === "label" && legacyOutput ? "" : value;
+      } else component[field] = field === "enable" && legacyClock ? true : field === "label" && (legacyOutput || legacyRom) ? "" : value;
     }
     if (!validComponentProperties(component, depth)) throw new Error(`${path} is invalid.`);
     const { w, h } = dimsOf(component);

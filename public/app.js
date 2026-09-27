@@ -98,6 +98,7 @@ const romImportEl = document.getElementById("rom-file-input");
 const romExportEl = document.getElementById("rom-export");
 const romTargetEl = document.getElementById("rom-target");
 const romSelectEl = document.getElementById("rom-select");
+const romNameEl = document.getElementById("rom-name");
 const romWidthsEl = document.getElementById("rom-widths");
 const romStatusEl = document.getElementById("rom-status");
 const valueFormatRowEl = document.getElementById("value-format-row");
@@ -201,7 +202,7 @@ function renderProperties() {
   constantValueEl.disabled = !source;
   sourceValueLabelEl.textContent = component?.t === "input" ? "Input value" : "Constant value";
   setFieldValue(constantValueEl, source ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "");
-  const named = component?.t === "input" || component?.t === "output" || component?.t === "portal" || component?.t === "module";
+  const named = component?.t === "input" || component?.t === "output" || component?.t === "portal" || component?.t === "module" || component?.t === "rom";
   componentLabelRowEl.hidden = !named;
   componentLabelEl.disabled = !named;
   setFieldValue(componentLabelEl, named ? component.label ?? "" : "");
@@ -469,10 +470,12 @@ function renderRomRows(force = false) {
 
 function renderRomTab() {
   const roms = state.components.filter((item) => item.t === "rom");
-  const listKey = roms.map((item) => item.id).join("\u0000");
+  const listKey = JSON.stringify(roms.map((item) => [item.id, item.label, item.x, item.y]));
   if (listKey !== romListKey) {
     const placeholder = new Option(roms.length ? "Select ROM" : "No ROMs in this circuit", "");
-    const options = roms.map((item) => new Option(`ROM ${item.id}`, item.id));
+    const names = roms.map((item, index) => item.label?.trim() || `ROM ${index + 1}`);
+    const options = roms.map((item, index) => new Option(
+      names.filter((name) => name === names[index]).length > 1 ? `${names[index]} (${item.x}, ${item.y})` : names[index], item.id));
     romSelectEl.replaceChildren(placeholder, ...options);
     romListKey = listKey;
   }
@@ -484,7 +487,9 @@ function renderRomTab() {
   const ready = !!component;
   romSelectEl.value = ready ? component.id : "";
   romSelectEl.disabled = roms.length === 0;
-  romTargetEl.textContent = ready ? `Editing ROM ${component.id}` : roms.length ? "Choose a ROM to edit its contents." : "Add a ROM on the canvas to edit its contents.";
+  romNameEl.disabled = !ready;
+  if (document.activeElement !== romNameEl) romNameEl.value = ready ? component.label ?? "" : "";
+  romTargetEl.textContent = ready ? `Editing ${component.label?.trim() || romSelectEl.selectedOptions[0].textContent}` : roms.length ? "Choose a ROM to edit its contents." : "Add a ROM on the canvas to edit its contents.";
   romWidthsEl.textContent = ready ? `${addressWidth(component)}-bit address · ${bitWidth(component)}-bit data` : "";
   romSaveEl.disabled = !ready;
   romImportEl.disabled = !ready;
@@ -512,6 +517,11 @@ function selectRom(id) {
 }
 
 romSelectEl.addEventListener("change", () => selectRom(romSelectEl.value));
+romNameEl.addEventListener("change", () => {
+  const component = romTarget();
+  if (!component || component.label === romNameEl.value) return;
+  if (!editor.setLabel(component.id, romNameEl.value)) renderRomTab();
+});
 
 romOpenEl.addEventListener("click", () => {
   if (editor.component(selectedId)?.t !== "rom") return;
