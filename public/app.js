@@ -1,5 +1,5 @@
 import { COMPONENT_TYPES, DEFAULT_CLOCK_FREQUENCY, addressWidth, bitWidth, channelCount, dimsOf, isSizable, pinsFor, selectWidth, spec, validBitWidth } from "./components.js";
-import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
+import { addComponent, addWireEdge, createBoard, edgeKey, edgePlacementError, evaluateBoard, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
 import { BoardEditor } from "./editor.js";
 import { createRenderer } from "./renderer.js";
 import { formatValue, parseValue } from "./value-format.js";
@@ -836,6 +836,8 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       id: comp.id,
       originX: comp.x,
       originY: comp.y,
+      x: comp.x,
+      y: comp.y,
       grabbedX: world.x - comp.x * CELL,
       grabbedY: world.y - comp.y * CELL,
       valid: true,
@@ -933,29 +935,23 @@ canvasWrapEl.addEventListener("pointermove", (e) => {
     renderWires(logic);
     return;
   }
-  const comp = state.components.find((c) => c.id === drag.id);
-  if (!comp) return;
-
   const world = worldFromEvent(e);
   const rawX = (world.x - drag.grabbedX) / CELL;
   const rawY = (world.y - drag.grabbedY) / CELL;
   const nx = Math.round(rawX);
   const ny = Math.round(rawY);
-  if (nx === comp.x && ny === comp.y) return;
-
-  comp.x = nx;
-  comp.y = ny;
-
-  const el = gridEl.querySelector(`.comp[data-id="${comp.id}"]`);
-  drag.valid = isValidComponent(state, comp);
-  if (el) {
-    el.style.left = comp.x * CELL + "px";
-    el.style.top = comp.y * CELL + "px";
-    el.classList.toggle("invalid", !drag.valid);
-  }
-  // Pins and wires are derived from component positions, so move them live.
+  if (nx === drag.x && ny === drag.y) return;
+  drag.x = nx;
+  drag.y = ny;
+  const trial = editor.previewMove(drag.id, nx, ny);
+  drag.valid = !!trial;
+  state = trial ?? { ...editor.board, components: editor.board.components.map((item) =>
+    item.id === drag.id ? { ...item, x: nx, y: ny } : item) };
+  const logic = trial && trial !== editor.board ? evaluateBoard(trial) : editor.evaluation;
+  renderComponents(logic);
   renderPins();
-  renderWires();
+  renderWires(logic);
+  if (!trial) gridEl.querySelector(`.comp[data-id="${drag.id}"]`)?.classList.add("invalid");
 });
 
 function endDrag(e) {
@@ -1027,16 +1023,14 @@ function endDrag(e) {
     render();
     return;
   }
-  const comp = editor.component(drag.id);
-  const { id, originX, originY, valid } = drag;
-  const target = comp ? { x: comp.x, y: comp.y } : null;
-  if (comp) { comp.x = originX; comp.y = originY; }
+  const { id, originX, originY, x, y, valid } = drag;
   drag = null;
+  state = editor.board;
   if (canvasWrapEl.hasPointerCapture?.(e.pointerId)) {
     canvasWrapEl.releasePointerCapture(e.pointerId);
   }
-  if (e.type !== "pointercancel" && target && (target.x !== originX || target.y !== originY)) {
-    if (!valid || !editor.move(id, target.x, target.y)) {
+  if (e.type !== "pointercancel" && (x !== originX || y !== originY)) {
+    if (!valid || !editor.move(id, x, y)) {
       busStatus("Cannot move component here. Check overlaps, bus sizes, and short circuits.", true);
       render();
     }
