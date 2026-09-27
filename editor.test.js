@@ -216,6 +216,59 @@ test('moving a selection translates components and complete wire nets in one edi
   assert.equal(ctx.saves, saves + 1);
 });
 
+test('moving a connected component extends its attached wire and undoes as one edit', () => {
+  const ctx = setup();
+  const source = ctx.editor.place('constant', 0, 0);
+  assert.equal(ctx.editor.addWire({ o: 'H', x: -1, y: 1 }), true);
+  const before = serialize(ctx.editor.board);
+  const saves = ctx.saves;
+  const preview = ctx.editor.previewMove(source.id, 3, 0);
+  assert.ok(preview);
+  assert.deepEqual([...preview.wires.keys()], ['H:-1,1', 'H:0,1', 'H:1,1', 'H:2,1']);
+  assert.equal(serialize(ctx.editor.board), before);
+  assert.equal(ctx.editor.move(source.id, 3, 0), true);
+  assert.equal(ctx.saves, saves + 1);
+  assert.deepEqual([...ctx.editor.board.wires.keys()], [...preview.wires.keys()]);
+  assert.equal(ctx.editor.undo(), true);
+  assert.equal(serialize(ctx.editor.board), before);
+});
+
+test('a diagonal component move adds a valid bend to an attached bus', () => {
+  const { editor } = setup();
+  const source = editor.place('constant', 0, 0);
+  assert.equal(editor.resizeComponent(source.id, 2), true);
+  assert.equal(editor.addWire({ o: 'H', x: -1, y: 1, size: 2 }), true);
+  assert.equal(editor.move(source.id, 4, 2), true);
+  const pin = pinsFor(editor.component(source.id))[0];
+  assert.deepEqual([pin.px, pin.py], [4, 3]);
+  assert.equal(editor.board.wires.get('H:3,1').size, 2);
+  assert.equal(editor.board.wires.get('V:4,2').size, 2);
+  assert.deepEqual(new Set(parseDocument(serialize(editor.board)).board.wires.keys()),
+    new Set(editor.board.wires.keys()));
+});
+
+test('selection moves extend stationary attached wires but carry selected nets', () => {
+  const { editor } = setup();
+  const source = editor.place('constant', 0, 0);
+  assert.equal(editor.addWire({ o: 'H', x: -1, y: 1 }), true);
+  assert.equal(editor.moveSelection([source.id], [], 2, 0), true);
+  assert.deepEqual([...editor.board.wires.keys()], ['H:-1,1', 'H:0,1', 'H:1,1']);
+  assert.equal(editor.moveSelection([source.id], ['H:-1,1'], 2, 0), true);
+  assert.deepEqual([...editor.board.wires.keys()], ['H:1,1', 'H:2,1', 'H:3,1']);
+});
+
+test('a blocked connection extension rejects the move without changing the board', () => {
+  const ctx = setup();
+  const source = ctx.editor.place('constant', 0, 0);
+  assert.equal(ctx.editor.addWire({ o: 'H', x: -1, y: 1 }), true);
+  const before = serialize(ctx.editor.board);
+  const saves = ctx.saves;
+  assert.equal(ctx.editor.previewMove(source.id, -1, 0), null);
+  assert.equal(ctx.editor.move(source.id, -1, 0), false);
+  assert.equal(serialize(ctx.editor.board), before);
+  assert.equal(ctx.saves, saves);
+});
+
 test('a rejected selection move preserves the entire board and does not save', () => {
   const ctx = setup();
   const moving = ctx.editor.place('led', 0, 0);
