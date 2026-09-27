@@ -1,4 +1,4 @@
-import { bitWidth, channelCount, dimsOf, modulePorts, pinsFor, spec } from "./components.js";
+import { bitWidth, channelCount, dimsOf, moduleFaceParts, modulePorts, pinsFor, spec } from "./components.js";
 import { edgeKey, edgePoints, wireSize } from "./model.js";
 import { formatValue } from "./value-format.js";
 
@@ -245,19 +245,38 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       { w: 2, h: n + 1 }, c.r, bitLabels, "none");
   }
 
-  function moduleArt(c, s) {
+  function moduleArt(c, s, state) {
     const d = dimsOf(c), w = d.w * U, h = d.h * U;
     const pins = actualPins(c);
     const name = c.label || "Module";
     const shown = name.length > 18 ? `${name.slice(0, 17)}…` : name;
+    const face = moduleFaceParts(c).flatMap((part) => {
+      const placement = c.faceLayout?.find(([index]) => index === part.index);
+      if (!placement) return [];
+      const [, column, row] = placement;
+      const x = 40 + column * 80, y = 78 + row * 80;
+      const status = state?.faceStates?.get(part.id);
+      const base = `<rect x="${x - 34}" y="${y - 31}" width="68" height="62" rx="7" fill="${display}" stroke="${displayBorder}"/>`;
+      if (part.type === "led") return [base + textAt(x, y - 19, "LED", 8, muted, 700) +
+        `<circle cx="${x}" cy="${y + 7}" r="14" fill="${status?.lit ? "var(--lamp-lit)" : "var(--part-lamp-off)"}"/>`];
+      if (part.type === "sevenseg" || part.type === "debugdisplay") {
+        const patterns = ["1111110", "0110000", "1101101", "1111001", "0110011", "1011011", "1011111", "1110000",
+          "1111111", "1111011", "1110111", "0011111", "1001110", "0111101", "1001111", "1000111"];
+        const bits = part.type === "sevenseg" ? status?.inputs ?? [] : [...patterns[(status?.value ?? 0) & 15]].map(Number);
+        return [base + `<g transform="translate(${x - 41} ${y - 34}) scale(.34)">${segments(bits)}</g>`];
+      }
+      const label = part.label || "OUT";
+      return [base + textAt(x, y - 17, escapeText(label.length > 10 ? `${label.slice(0, 9)}…` : label), 8, muted, 700) +
+        textAt(x, y + 8, status?.value ?? 0, 17, ink, 750)];
+    }).join("");
     return svgWrap(frame(w, h, partAccent(s)) + ports(pins, w, h, partAccent(s)) +
-      textAt(w / 2, h / 2 - 8, escapeText(shown), 13, ink, 750) +
-      textAt(w / 2, h / 2 + 12, "MODULE", 8, muted, 700) +
+      textAt(w / 2, face ? 23 : h / 2 - 8, escapeText(shown), 13, ink, 750) +
+      (face ? face : textAt(w / 2, h / 2 + 12, "MODULE", 8, muted, 700)) +
       portLabels(pins, w, h), d, 0);
   }
 
-  function componentArt(c, s, value = 0, inputs = []) {
-    if (s.module) return moduleArt(c, s);
+  function componentArt(c, s, value = 0, inputs = [], state = null) {
+    if (s.module) return moduleArt(c, s, state);
     if (s.splitter) return splitterArt(c, s);
     if (s.portal) return portalArt(c, s);
     if (s.constant || s.input || s.output) return numberArt(c, s, value, !!(s.constant || s.input));
@@ -290,7 +309,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       const st = logic.states.get(c.id);
       if (c.t === "button") el.classList.toggle("pressed", st?.value === 1);
       if (c.t === "led") el.classList.toggle("lit", !!(st && st.lit));
-      el.innerHTML = componentArt(c, s, st?.value ?? 0, st?.inputs ?? []);
+      el.innerHTML = componentArt(c, s, st?.value ?? 0, st?.inputs ?? [], st);
       el.title = `${c.label || s.label}  [${c.t}]  ${d.w}x${d.h}  ${s.module ? `${modulePorts(c).filter((p) => p.role === "in").length} inputs, ${modulePorts(c).filter((p) => p.role === "out").length} outputs` : `${bitWidth(c)} bit(s)`}${c.t === "clock" ? `  ${c.frequency ?? 1} Hz  ${c.enable === false ? "disabled" : "enabled"}` : ""}${c.t === "mux" || c.t === "demux" ? `  ${channelCount(c)} channels` : ""}${c.t === "constant" || c.t === "input" ? "  value: " + formatValue(c.value ?? 0, bitWidth(c), c.format) : st && (["output", "debugdisplay"].includes(c.t) || st.value) ? "  value: " + (["output", "debugdisplay"].includes(c.t) ? formatValue(st.value, bitWidth(c), c.t === "debugdisplay" ? "hex" : c.format) : st.value) : ""}`;
       gridEl.appendChild(el);
     }

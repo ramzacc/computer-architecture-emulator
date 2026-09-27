@@ -1,4 +1,4 @@
-import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
+import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, modulePinLayout, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, createBoard, crossingAt, edgeKey, isValidComponent,
   evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, wireLayoutError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
@@ -512,7 +512,42 @@ export class BoardEditor {
     if (component?.t !== "module") return false;
     const module = JSON.parse(serialize(board));
     if (JSON.stringify(module) === JSON.stringify(component.module)) return true;
-    return this.editComponent(component, { module }, { captureEdges: true });
+    const changes = { module };
+    if (!validModulePinLayout({ ...component, module })) changes.pinLayout = undefined;
+    if (component.faceLayout) changes.faceLayout = component.faceLayout.filter(([index]) =>
+      component.module.components[index]?.[0] === module.components[index]?.[0] &&
+      (component.module.components.length === module.components.length ||
+        JSON.stringify(component.module.components[index]) === JSON.stringify(module.components[index])));
+    return this.editComponent(component, changes, { captureEdges: true });
+  }
+
+  setModuleFacePart(id, index, column, row) {
+    const component = this.component(id);
+    if (component?.t !== "module" || !Number.isInteger(index)) return false;
+    const current = (component.faceLayout ?? []).find(([partIndex]) => partIndex === index);
+    if (column === null ? !current : current?.[1] === column && current?.[2] === row) return true;
+    const layout = (component.faceLayout ?? []).filter(([partIndex]) => partIndex !== index);
+    if (column !== null) layout.push([index, column, row]);
+    const next = { ...component, faceLayout: layout };
+    if (!validModuleFaceLayout(next)) return false;
+    const oldPins = pinsFor(component), nextPins = pinsFor(next);
+    if (oldPins.some((pin, pinIndex) => (pin.px !== nextPins[pinIndex].px || pin.py !== nextPins[pinIndex].py) &&
+        attachedWires(this.board, pin).length)) return false;
+    return this.editComponent(component, { faceLayout: layout }, { captureEdges: true });
+  }
+
+  setModulePin(id, index, side, position) {
+    const component = this.component(id);
+    if (component?.t !== "module" || !Number.isInteger(index) ||
+        index < 0 || index >= modulePinLayout(component).length) return false;
+    const layout = modulePinLayout(component).map((item) => [...item]);
+    if (layout[index][0] === side && layout[index][1] === position) return true;
+    layout[index] = [side, position];
+    const next = { ...component, pinLayout: layout };
+    if (!validModulePinLayout(next)) return false;
+    const oldPin = pinsFor(component)[index], newPin = pinsFor(next)[index];
+    if ((oldPin.px !== newPin.px || oldPin.py !== newPin.py) && attachedWires(this.board, oldPin).length) return false;
+    return this.editComponent(component, { pinLayout: layout }, { captureEdges: true });
   }
 
   setValueFormat(id, format) {

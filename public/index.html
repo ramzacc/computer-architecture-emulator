@@ -71,7 +71,20 @@
         <input id="component-label" type="text" maxlength="80" disabled />
       </label>
       <button id="module-open" type="button" hidden>Open module</button>
-      <p id="module-help" class="hint" hidden>Add Input and Output components inside to create the module's pins.</p>
+      <div id="module-layout" class="module-layout" hidden>
+        <h3>Module layout</h3>
+        <div class="module-layout-scroll">
+          <div id="module-layout-stage" class="module-layout-stage">
+            <div id="module-layout-board" class="module-layout-board"></div>
+            <div id="module-layout-next" class="module-layout-next"></div>
+            <div id="module-layout-target" class="module-layout-target" hidden></div>
+          </div>
+        </div>
+        <div id="module-layout-tray" class="module-layout-tray" hidden>
+          <span class="module-layout-tray-title">Displays</span>
+          <div id="module-layout-items" class="module-layout-items"></div>
+        </div>
+      </div>
       <button id="rom-open" type="button" hidden>Edit ROM contents</button>
       <label id="value-format-row" class="property" hidden>Value format
         <select id="value-format" disabled>

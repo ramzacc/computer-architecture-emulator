@@ -257,6 +257,62 @@ export function modulePorts(component) {
   });
 }
 
+export const MODULE_FACE_TYPES = new Set(["led", "sevenseg", "debugdisplay", "output"]);
+
+export function moduleFaceParts(component) {
+  return (component.module?.components ?? []).flatMap((part, index) =>
+    Array.isArray(part) && MODULE_FACE_TYPES.has(part[0])
+      ? [{ id: `c${index + 1}`, index, type: part[0], label: part[0] === "output" ? part[6] : "" }]
+      : []);
+}
+
+export function validModuleFaceLayout(component) {
+  if (component.faceLayout === undefined) return true;
+  if (!Array.isArray(component.faceLayout)) return false;
+  const parts = new Set(moduleFaceParts(component).map((part) => part.index));
+  const usedParts = new Set(), usedSlots = new Set();
+  return component.faceLayout.every((item) => {
+    if (!Array.isArray(item) || item.length !== 3) return false;
+    const [index, column, row] = item;
+    if (!Number.isInteger(index) || !parts.has(index) || usedParts.has(index) ||
+        !Number.isInteger(column) || column < 0 || column > 1 ||
+        !Number.isInteger(row) || row < 0 || row > 15) return false;
+    const slot = `${column}:${row}`;
+    if (usedSlots.has(slot)) return false;
+    usedParts.add(index);
+    usedSlots.add(slot);
+    return true;
+  });
+}
+
+export function modulePinLayout(component) {
+  let inputs = 0, outputs = 0;
+  return modulePorts(component).map((port, index) => {
+    const incoming = port.role === "in";
+    const defaultPosition = 1 + 2 * (incoming ? inputs++ : outputs++);
+    return component.pinLayout?.[index] ?? [incoming ? "W" : "E", defaultPosition];
+  });
+}
+
+export function validModulePinLayout(component) {
+  if (component.pinLayout === undefined) return true;
+  const ports = modulePorts(component);
+  const layout = component.pinLayout;
+  if (!Array.isArray(layout) || layout.length !== ports.length) return false;
+  const height = dimsOf({ ...component, r: 0 }).h;
+  const used = new Set();
+  return layout.every((item) => {
+    if (!Array.isArray(item) || item.length !== 2) return false;
+    const [side, position] = item;
+    if (!["N", "E", "S", "W"].includes(side) || !Number.isInteger(position) ||
+        position < 1 || position >= (["N", "S"].includes(side) ? 4 : height)) return false;
+    const key = `${side}:${position}`;
+    if (used.has(key)) return false;
+    used.add(key);
+    return true;
+  });
+}
+
 export function bitWidth(component) {
   if (component.t === "debugdisplay") return 4;
   return isSizable(component) ? (component.size ?? 1) : 1;
@@ -339,8 +395,12 @@ export function dimsFor(type, r = 0) {
 export function dimsOf(component) {
   if (component.t === "module") {
     const ports = modulePorts(component);
-    const height = Math.max(3, 2 * Math.max(ports.filter((p) => p.role === "in").length,
-      ports.filter((p) => p.role === "out").length) + 1);
+    const pinHeight = 2 * Math.max(ports.filter((p) => p.role === "in").length,
+      ports.filter((p) => p.role === "out").length) + 1;
+    const faceRows = Array.isArray(component.faceLayout) ? component.faceLayout
+      .map((item) => Array.isArray(item) && Number.isInteger(item[2]) && item[2] >= 0 && item[2] <= 15 ? item[2] : -1) : [];
+    const faceHeight = 1 + 2 * (1 + Math.max(-1, ...faceRows));
+    const height = Math.max(3, pinHeight, faceHeight);
     return normalizeRotation(component.r) % 2 ? { w: height, h: 4 } : { w: 4, h: height };
   }
   if (["constant", "input", "output"].includes(component.t)) {
@@ -375,14 +435,17 @@ export function pinsFor(component) {
   if (entry.module) {
     const ports = modulePorts(component);
     const localH = dimsOf({ ...component, r: 0 }).h;
+    const layout = modulePinLayout(component);
     let inputs = 0, outputs = 0;
-    return ports.map((port) => {
+    return ports.map((port, index) => {
       const incoming = port.role === "in";
-      const x = incoming ? 0 : 4;
-      const y = 1 + 2 * (incoming ? inputs++ : outputs++);
+      const [side, position] = layout[index];
+      const x = side === "W" ? 0 : side === "E" ? 4 : position;
+      const y = side === "N" ? 0 : side === "S" ? localH : position;
       const [lx, ly] = rotatePoint(x, y, 4, localH, r);
       const px = component.x + lx, py = component.y + ly;
-      const dir = rotateDir(incoming ? "W" : "E", r);
+      const dir = rotateDir(side, r);
+      if (incoming) inputs++; else outputs++;
       return { px, py, dir, role: port.role, name: port.name || (incoming ? `IN${inputs}` : `OUT${outputs}`),
         size: port.size, edge: outwardEdge(px, py, dir) };
     });
