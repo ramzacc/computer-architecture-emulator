@@ -262,10 +262,10 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       if (pin.dir === "E") return textAt(20, y, pin.bit, 10, ink, 700);
       return textAt(rw - 20, y, pin.bit, 10, ink, 700);
     }).join("");
-    // The rail reaches lattice points at the SVG edges; stretching it to the
-    // full component footprint keeps those endpoints on the model's pins.
+    // Canvas components have the same proportions as this viewBox. Keeping the
+    // aspect ratio also prevents the tall splitter from being flattened in the palette.
     return svgWrap(spine + branches + ports(pins, 80, h, accent),
-      { w: 2, h: n + 1 }, c.r, bitLabels, "none");
+      { w: 2, h: n + 1 }, c.r, bitLabels);
   }
 
   function moduleArt(c, s, state) {
