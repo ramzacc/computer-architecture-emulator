@@ -225,10 +225,12 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   function splitterArt(c, s) {
     const n = bitWidth(c), h = (n + 1) * U;
     const pins = localPins(c, s);
+    const accent = partAccent(s);
     const branches = pins.filter((pin) => pin.role === "out").map((pin) =>
-      `<path d="M40 ${pin.y * U} H80" stroke="${partAccent(s)}" stroke-width="3" fill="none"/>` +
-      `<circle cx="40" cy="${pin.y * U}" r="3" fill="${partAccent(s)}"/>`).join("");
-    const spine = `<path d="M40 0 V${n * U}" stroke="${partAccent(s)}" stroke-width="4" fill="none" stroke-linecap="round"/>`;
+      `<path d="M40 ${pin.y * U} H80" stroke="${accent}" stroke-width="3" fill="none"/>` +
+      `<circle cx="40" cy="${pin.y * U}" r="3" fill="${accent}"/>`).join("");
+    const spine = `<path d="M40 0 V${n * U}" stroke="${accent}" stroke-width="6" fill="none" stroke-linecap="round"/>` +
+      `<circle cx="40" cy="9" r="8" fill="${surface}" stroke="${accent}" stroke-width="4"/>`;
     const d = dimsOf(c), rw = d.w * U, rh = d.h * U;
     const bitLabels = actualPins(c).filter((pin) => pin.role === "out").map((pin) => {
       const x = pin.x * U, y = pin.y * U;
@@ -239,7 +241,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     }).join("");
     // The rail reaches lattice points at the SVG edges; stretching it to the
     // full component footprint keeps those endpoints on the model's pins.
-    return svgWrap(spine + branches + ports(pins, 80, h, partAccent(s)),
+    return svgWrap(spine + branches + ports(pins, 80, h, accent),
       { w: 2, h: n + 1 }, c.r, bitLabels, "none");
   }
 

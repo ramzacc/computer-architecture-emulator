@@ -330,6 +330,38 @@ test("documents reject coercion, unknown fields, and duplicate wires", () => {
   assert.throws(() => serialize(board), /Cannot serialize invalid wire/);
 });
 
+test("straight wire runs save compactly and restore every edge and junction", () => {
+  const board = createBoard();
+  for (let x = -2; x < 258; x++) {
+    const edge = { o: "H", x, y: 0, size: 2 };
+    board.wires.set(edgeKey(edge), edge);
+  }
+  for (const [o, x, y] of [["V", 0, -1], ["V", 0, 0]]) {
+    const edge = { o, x, y, size: 2 };
+    board.wires.set(edgeKey(edge), edge);
+  }
+  board.junctions.add("0,0");
+  const saved = serialize(board);
+  const runs = JSON.parse(saved).wires;
+  assert.deepEqual(runs, [["H", -2, 0, 2, 256], ["H", 254, 0, 2, 4], ["V", 0, -1, 2, 2]]);
+  assert.equal(saved.length < JSON.stringify({ components: [], wires: [...board.wires.values()].map(({ o, x, y, size }) => [o, x, y, size]), junctions: [[0, 0]] }).length / 10, true);
+  const restored = parseDocument(saved).board;
+  assert.deepEqual(new Set(restored.wires.keys()), new Set(board.wires.keys()));
+  assert.deepEqual(restored.junctions, board.junctions);
+  assert.equal(serialize(restored), saved);
+});
+
+test("compact wire imports reject invalid lengths, overlaps and blocked segments", () => {
+  const document = (wires, components = []) => JSON.stringify({ components, wires, junctions: [] });
+  for (const length of [0, 1, 257, 2.5, "3", null]) {
+    assert.throws(() => parseDocument(document([["H", 0, 0, 1, length]])), /wires\[0\]\[4\]/);
+  }
+  assert.throws(() => parseDocument(document([["H", 0, 0, 1, 3], ["H", 2, 0, 1]])), /duplicates/);
+  assert.throws(() => parseDocument(document([["H", 0, 1, 1, 3]], [["led", 1, 0, 0]])), /blocked/);
+  assert.deepEqual([...parseDocument(document([["V", -2, -2, 1, 3]])).board.wires.keys()],
+    ["V:-2,-2", "V:-2,-1", "V:-2,0"]);
+});
+
 test("wires can follow component borders but cannot cross their interiors", () => {
   const board = createBoard();
   assert.equal(addComponent(board, { id: "p", t: "constant", value: 1, x: 2, y: 2, r: 2 }), true);

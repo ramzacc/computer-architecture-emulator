@@ -305,6 +305,11 @@ main[hidden] { display: none; }
   background: var(--wire-off);
   cursor: pointer;
 }
+.wire::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
 .wire.selected {
   box-shadow: 0 0 0 2px var(--wire-selection);
 }

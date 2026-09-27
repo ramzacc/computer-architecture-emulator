@@ -1,9 +1,33 @@
-import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
+import { bitWidth, DEFAULT_CLOCK_FREQUENCY, isSizable, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, createBoard, crossingAt, edgeKey, isValidComponent,
   evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, wireLayoutError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
 
 export const STORAGE_KEY = "grid-canvas-document";
+
+function attachedWires(board, pin) {
+  const { px: x, py: y } = pin;
+  return [`H:${x - 1},${y}`, `H:${x},${y}`, `V:${x},${y - 1}`, `V:${x},${y}`]
+    .filter((key) => board.wires.has(key));
+}
+
+function extendMovedPins(original, trial, moved, movingWireKeys = new Set()) {
+  for (const component of moved) {
+    const next = trial.components.find((item) => item.id === component.id);
+    const oldPins = pinsFor(component);
+    const newPins = pinsFor(next);
+    for (let index = 0; index < oldPins.length; index++) {
+      const pin = oldPins[index];
+      if (!attachedWires(original, pin).some((key) => !movingWireKeys.has(key))) continue;
+      const destination = newPins[index];
+      const route = wireRoute(trial, { x: pin.px, y: pin.py },
+        { x: destination.px, y: destination.py }, pin.size);
+      if (route.error) return false;
+      for (const edge of route.edges) trial.wires.set(edgeKey(edge), edge);
+    }
+  }
+  return !wireLayoutError(trial);
+}
 
 // Board edits live here so the browser only has to manage gestures and selection.
 export class BoardEditor {
@@ -281,7 +305,28 @@ export class BoardEditor {
   move(id, x, y) {
     const component = this.component(id);
     if (!component || (component.x === x && component.y === y)) return false;
-    return this.editComponent(component, { x, y }, { sanitize: true });
+    const trial = this.previewMove(id, x, y);
+    if (!trial) return false;
+    this.board.components = trial.components;
+    this.board.wires = trial.wires;
+    this.board.junctions = trial.junctions;
+    this.commit();
+    return true;
+  }
+
+  previewMove(id, x, y) {
+    const component = this.component(id);
+    if (!component || !Number.isSafeInteger(x) || !Number.isSafeInteger(y)) return null;
+    if (component.x === x && component.y === y) return this.board;
+    const trial = {
+      ...this.board,
+      components: this.board.components.map((item) => item.id === id ? { ...item, x, y } : item),
+      wires: new Map(this.board.wires),
+      junctions: new Set(this.board.junctions),
+    };
+    const next = trial.components.find((item) => item.id === id);
+    if (!isValidComponent(trial, next) || !extendMovedPins(this.board, trial, [component])) return null;
+    return trial;
   }
 
   translatedSelection(ids, wireKeys, dx, dy) {
@@ -321,7 +366,7 @@ export class BoardEditor {
       if (selected.has(component.id) && !isValidComponent(trial, component)) return null;
     }
     pruneJunctions(trial);
-    if (wireLayoutError(trial)) return null;
+    if (wireLayoutError(trial) || !extendMovedPins(this.board, trial, moving, edges)) return null;
     return trial;
   }
 

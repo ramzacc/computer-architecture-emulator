@@ -616,11 +616,7 @@ export function serialize(board) {
         throw new Error(`Cannot serialize invalid ${String(t)} component.`);
       return [t, x, y, r ?? 0, ...documentFields(t).map((field) => documentValue(component, field))];
     }),
-    wires: [...board.wires.values()].map(({ o, x, y, size }) => {
-      if ((o !== "H" && o !== "V") || !Number.isSafeInteger(x) || !Number.isSafeInteger(y) ||
-          !validBitWidth(size ?? 1)) throw new Error("Cannot serialize invalid wire.");
-      return [o, x, y, size ?? 1];
-    }),
+    wires: compactWireRuns(board),
     junctions: [...(board.junctions ?? [])].map((key) => {
       const [x, y] = key.split(",").map(Number);
       if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y) || !crossingAt(board, x, y))
@@ -628,6 +624,36 @@ export function serialize(board) {
       return [x, y];
     }),
   });
+}
+
+// A five-item tuple stores a straight run. Four-item legacy tuples remain valid.
+// Keep edges in memory so routing, rendering and evaluation pay no decode cost.
+function compactWireRuns(board) {
+  const unvisited = new Map(board.wires);
+  const runs = [];
+  for (const { o, x, y, size } of board.wires.values()) {
+    if ((o !== "H" && o !== "V") || !Number.isSafeInteger(x) || !Number.isSafeInteger(y) ||
+        !validBitWidth(size ?? 1)) throw new Error("Cannot serialize invalid wire.");
+  }
+  for (const edge of board.wires.values()) {
+    if (!unvisited.has(edgeKey(edge))) continue;
+    const { o, size } = edge;
+    let x = edge.x, y = edge.y;
+    const sameSize = (px, py) => {
+      const candidate = unvisited.get(edgeKey({ o, x: px, y: py }));
+      return candidate && wireSize(candidate) === wireSize(edge);
+    };
+    while (sameSize(o === "H" ? x - 1 : x, o === "V" ? y - 1 : y)) {
+      if (o === "H") x--; else y--;
+    }
+    let length = 0;
+    while (sameSize(o === "H" ? x + length : x, o === "V" ? y + length : y) && length < 256) {
+      unvisited.delete(edgeKey({ o, x: o === "H" ? x + length : x, y: o === "V" ? y + length : y }));
+      length++;
+    }
+    runs.push(length === 1 ? [o, x, y, size ?? 1] : [o, x, y, size ?? 1, length]);
+  }
+  return runs;
 }
 
 function object(value, path, keys) {
@@ -716,19 +742,26 @@ export function parseDocument(text, depth = 0) {
       pinSizes.get(key).add(pin.size);
     }
   }
+  const wireIndexes = new Map();
   for (const [index, raw] of data.wires.entries()) {
     const path = `wires[${index}]`;
-    if (!Array.isArray(raw) || raw.length !== 4) throw new Error(`${path} must be [orientation, x, y, size].`);
-    const [o, x, y, size] = raw;
+    if (!Array.isArray(raw) || (raw.length !== 4 && raw.length !== 5)) throw new Error(`${path} must be [orientation, x, y, size, optional length].`);
+    const [o, x, y, size, length = 1] = raw;
     if (o !== "H" && o !== "V") throw new Error(`${path}[0] must be H or V.`);
     coordinate(x, `${path}[1]`);
     coordinate(y, `${path}[2]`);
     if (!validBitWidth(size)) throw new Error(`${path}[3] must be 1–32.`);
-    const edge = { o, x, y, size };
-    const key = edgeKey(edge);
-    if (board.wires.has(key)) throw new Error(`${path} duplicates a wire.`);
-    if (blockedEdges.has(key)) throw new Error(`${path} is blocked by a component.`);
-    board.wires.set(key, edge);
+    if (raw.length === 5 && (!Number.isSafeInteger(length) || length < 2 || length > 256 ||
+        !Number.isSafeInteger((o === "H" ? x : y) + length)))
+      throw new Error(`${path}[4] must be a valid length from 2–256.`);
+    for (let offset = 0; offset < length; offset++) {
+      const edge = { o, x: x + (o === "H" ? offset : 0), y: y + (o === "V" ? offset : 0), size };
+      const key = edgeKey(edge);
+      if (board.wires.has(key)) throw new Error(`${path} duplicates a wire.`);
+      if (blockedEdges.has(key)) throw new Error(`${path} is blocked by a component.`);
+      board.wires.set(key, edge);
+      wireIndexes.set(key, index);
+    }
   }
   if (data.junctions === undefined) {
     // Documents saved before crossings were supported joined all touching wires.
@@ -744,9 +777,8 @@ export function parseDocument(text, depth = 0) {
     if (!crossingAt(board, x, y) || board.junctions.has(key)) throw new Error(`${path} is not a unique crossing.`);
     board.junctions.add(key);
   }
-  const wireIndexes = new Map(data.wires.map(([o, x, y], index) => [edgeKey({ o, x, y }), index]));
-  for (const [index, raw] of data.wires.entries()) {
-    const edge = board.wires.get(edgeKey({ o: raw[0], x: raw[1], y: raw[2] }));
+  for (const edge of board.wires.values()) {
+    const index = wireIndexes.get(edgeKey(edge));
     for (const [x, y] of edgePoints(edge)) {
       const connected = connectedAtPoint(board, edge, x, y);
       const pins = pinSizes.get(`${x},${y}`);
