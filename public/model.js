@@ -26,6 +26,21 @@ export function componentAt(board, x, y, ignoreId) {
   });
 }
 
+export function labelAvailable(board, component) {
+  return !board.components.some((item) => item.id !== component.id &&
+    item.t === component.t && item.label === component.label);
+}
+
+export function nextLabel(board, type, base = spec(type)?.label ?? type) {
+  const used = new Set(board.components.filter((item) => item.t === type).map((item) => item.label));
+  let number = 1;
+  while (true) {
+    const suffix = ` ${number++}`;
+    const label = `${base.slice(0, 80 - suffix.length)}${suffix}`;
+    if (!used.has(label)) return label;
+  }
+}
+
 function validComponentProperties(component, depth = 0) {
   const size = dimsOf(component);
   if (!size || !Number.isSafeInteger(component.x) || !Number.isSafeInteger(component.y) ||
@@ -37,14 +52,14 @@ function validComponentProperties(component, depth = 0) {
       (component.t === "clock" && !validClockFrequency(component.frequency ?? DEFAULT_CLOCK_FREQUENCY)) ||
       (component.t === "clock" && component.enable !== undefined && typeof component.enable !== "boolean") ||
       (["constant", "input"].includes(component.t) && !validConstant(component)) ||
-      (["input", "output", "portal", "rom"].includes(component.t) && (typeof (component.label ?? "") !== "string" || (component.label ?? "").length > 80)) ||
+      (typeof component.label !== "string" || component.label.length > 80) ||
       (component.t === "rom" && !validRom(component)) ||
       (component.t === "ram" && !validRam(component)) ||
       (component.format !== undefined && (!["constant", "input", "output"].includes(component.t) ||
         !validValueFormat(component.format))) ||
       (component.t === "switch" && ![0, 1].includes(component.value ?? 0))) return false;
   if (component.t === "module") {
-    if (typeof component.label !== "string" || component.label.length > 80 || !component.module ||
+    if (!component.module ||
         !validModuleSize(component) || !validModulePinLayout(component) || !validModuleFaceLayout(component)) return false;
     if (depth >= 8) return false;
     try { parseDocument(JSON.stringify(component.module), depth + 1); }
@@ -54,7 +69,7 @@ function validComponentProperties(component, depth = 0) {
 }
 
 export function isValidComponent(board, component) {
-  if (!validComponentProperties(component)) return false;
+  if (!validComponentProperties(component) || !labelAvailable(board, component)) return false;
   const size = dimsOf(component);
   for (let y = component.y; y < component.y + size.h; y++) {
     for (let x = component.x; x < component.x + size.w; x++) {
@@ -72,6 +87,7 @@ export function isValidComponent(board, component) {
 }
 
 export function addComponent(board, component) {
+  component.label ??= nextLabel(board, component.t);
   if (!isValidComponent(board, component)) return false;
   board.components.push(component);
   if (shortCircuitError(board)) {
@@ -319,29 +335,7 @@ function buildUnionFind(board) {
       union(edgeKey(pair[0]), edgeKey(pair[1]));
     } else for (const edge of edges.slice(1)) union(edgeKey(edges[0]), edgeKey(edge));
   }
-  const named = new Map();
-  for (const component of board.components) {
-    if (component.t !== "portal" || !component.label) continue;
-    const pin = pinsFor(component)[0];
-    const edge = atPoint.get(`${pin.px},${pin.py}`)?.[0];
-    if (!edge) continue;
-    const first = named.get(component.label);
-    if (first) union(first, edgeKey(edge));
-    else named.set(component.label, edgeKey(edge));
-  }
   return { parent, find, atPoint };
-}
-
-function portalWidthError(board) {
-  const widths = new Map();
-  for (const component of board.components) {
-    if (component.t !== "portal" || !component.label) continue;
-    const width = bitWidth(component);
-    if (widths.has(component.label) && widths.get(component.label) !== width)
-      return "Bus size mismatch between matching portals.";
-    widths.set(component.label, width);
-  }
-  return null;
 }
 
 // Solve the board to a fixed point: nets carry a value, each component's
@@ -504,8 +498,6 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
 // Compare actual output drivers after evaluation, including drivers connected
 // through splitters; a driven zero must count just as much as a driven one.
 export function shortCircuitError(board, pressedButtons) {
-  const widthError = portalWidthError(board);
-  if (widthError) return widthError;
   const { nets, states, settled } = evaluateBoard(board, pressedButtons);
   if (!settled) return "Short circuit: feedback loop does not settle.";
   const parent = new Map();
@@ -612,10 +604,14 @@ function documentValue(component, field) {
 }
 
 export function serialize(board) {
+  const labels = new Set();
   return JSON.stringify({
     components: board.components.map((component) => {
       if (!validComponentProperties(component))
         throw new Error(`Cannot serialize invalid ${String(component.t)} component.`);
+      const key = JSON.stringify([component.t, component.label ?? ""]);
+      if (labels.has(key)) throw new Error(`Duplicate ${component.t} label: ${component.label}.`);
+      labels.add(key);
       return [component.t, component.x, component.y, component.r ?? 0,
         ...documentFields(component.t).map((field) => documentValue(component, field))];
     }),
@@ -726,6 +722,7 @@ export function parseDocument(text, depth = 0) {
         component[field] = value;
     }
     if (!validComponentProperties(component, depth)) throw new Error(`${path} is invalid.`);
+    if (!labelAvailable(board, component)) throw new Error(`${path} duplicates a ${t} label.`);
     const { w, h } = dimsOf(component);
     for (let y = component.y; y < component.y + h; y++) for (let x = component.x; x < component.x + w; x++) {
       const key = `${x},${y}`;

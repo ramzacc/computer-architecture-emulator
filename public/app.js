@@ -201,10 +201,9 @@ function renderProperties() {
   constantValueEl.disabled = !source;
   sourceValueLabelEl.textContent = component?.t === "input" ? "Input value" : "Constant value";
   setFieldValue(constantValueEl, source ? formatValue(component.value ?? 0, bitWidth(component), component.format) : "");
-  const named = component?.t === "input" || component?.t === "output" || component?.t === "portal" || component?.t === "module" || component?.t === "rom";
-  componentLabelRowEl.hidden = !named;
-  componentLabelEl.disabled = !named;
-  setFieldValue(componentLabelEl, named ? component.label ?? "" : "");
+  componentLabelRowEl.hidden = !component;
+  componentLabelEl.disabled = !component;
+  setFieldValue(componentLabelEl, component?.label ?? "");
   moduleOpenEl.hidden = component?.t !== "module";
   moduleLayoutOpenEl.hidden = component?.t !== "module" ||
     (!modulePorts(component).length && !moduleFaceParts(component).length);
@@ -550,8 +549,8 @@ constantValueEl.addEventListener("change", () => {
 componentLabelEl.addEventListener("change", () => {
   const component = editor.component(selectedId);
   if (!editor.setLabel(selectedId, componentLabelEl.value)) {
-    if (component?.t === "portal" && component.label !== componentLabelEl.value)
-      busStatus("Matching portals must have the same width and cannot short outputs.", true);
+    if (component && component.label !== componentLabelEl.value)
+      busStatus(`Each ${spec(component.t).label} needs a unique label of at most 80 characters.`, true);
     renderProperties();
   }
 });

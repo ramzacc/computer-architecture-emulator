@@ -61,6 +61,11 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   }
 
+  function displayName(c, fallback, limit) {
+    const name = c.label?.trim() || fallback;
+    return escapeText(name.length > limit ? `${name.slice(0, limit - 1)}…` : name);
+  }
+
   function frame(w, h, color) {
     return `<rect x="6" y="6" width="${w - 12}" height="${h - 12}" rx="10" fill="${surface}" stroke="${border}" stroke-width="1.5"/>
       <path d="M16 7 H${w - 16}" stroke="${color}" stroke-width="2" stroke-linecap="round" opacity=".9"/>`;
@@ -104,8 +109,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   function numberArt(c, s, value, source) {
     const width = bitWidth(c), w = (width + 1) * U, h = 2 * U;
     const current = source ? c.value ?? 0 : value;
-    const title = c.label || (c.t === "input" ? "INPUT" : source ? "CONST" : "OUTPUT");
-    const shown = title.length > 11 ? `${title.slice(0, 10)}…` : title;
+    const title = s.constant ? "CONST" : displayName(c, c.t === "input" ? "INPUT" : "OUTPUT", 11);
     const tiles = Array.from({ length: width }, (_, index) => {
       const bit = width - 1 - index;
       const on = (current >>> bit) & 1;
@@ -116,7 +120,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
         ${textAt(x + 23, 58, on, 16, on ? "var(--part-active-ink)" : ink, 750)}</g>`;
     }).join("");
     const formatted = formatValue(current, width, c.format);
-    const base = frame(w, h, partAccent(s)) + textAt(w / 2, 16, escapeText(shown), 9, partAccent(s), 750) +
+    const base = frame(w, h, partAccent(s)) + textAt(w / 2, 16, title, 9, partAccent(s), 750) +
       textAt(w / 2, 31, escapeText(formatted), 7, muted, 650) + tiles +
       ports(actualPins(c), w, h, partAccent(s));
     return svgWrap(base, { w: width + 1, h: 2 }, 0);
@@ -142,14 +146,22 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
 
   function portalArt(c, s) {
     const w = 120, h = 80;
-    const name = c.label || "PORTAL";
-    const shown = name.length > 12 ? `${name.slice(0, 11)}…` : name;
     const inner = frame(w, h, partAccent(s)) +
       `<path d="M8 40 H25 L36 28 H106 L114 40 L106 52 H36 L25 40" fill="none" stroke="${partAccent(s)}" stroke-width="2"/>` +
       ports(localPins(c, s), w, h, partAccent(s));
     const d = dimsOf(c);
     return svgWrap(inner, s, c.r,
-      textAt(d.w * U / 2, d.h * U / 2, escapeText(shown), 10, ink, 700));
+      textAt(d.w * U / 2, d.h * U / 2, displayName(c, "PORTAL", 12), 10, ink, 700));
+  }
+
+  function tagArt(c, s) {
+    const w = 160, h = 80;
+    const stem = ["M10 40 H28", "M80 10 V28", "M150 40 H132", "M80 70 V52"][((c.r ?? 0) % 4 + 4) % 4];
+    const inner = frame(w, h, partAccent(s)) +
+      `<path d="${stem}" fill="none" stroke="${partAccent(s)}" stroke-width="2"/>` +
+      ports(actualPins(c), w, h, partAccent(s)) +
+      textAt(w / 2, h / 2, displayName(c, "TAG", 20), 13, ink, 700);
+    return svgWrap(inner, s, 0);
   }
 
   function ledArt(c, s) {
@@ -222,9 +234,8 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const glyphY = isCompact ? 52 : labelCenter + 18;
     const symbolSize = rw === 80 ? 20 : isCompact ? 22 : 25;
     const smallLabel = rw <= 120 && title.length >= 11 ? 8 : title.length > 11 ? 9 : 10;
-    const romName = c.t === "rom" && c.label?.trim() ? c.label.trim() : null;
-    const glyphText = romName && romName.length > 16 ? `${romName.slice(0, 15)}…` : romName;
-    const glyph = textAt(rw / 2, glyphY, glyphText ? escapeText(glyphText) : glyphs[s.shape], glyphText ? 14 : symbolSize, ink, 650);
+    const romName = c.t === "rom" && c.label?.trim();
+    const glyph = textAt(rw / 2, glyphY, romName ? displayName(c, "ROM", 16) : glyphs[s.shape], romName ? 14 : symbolSize, ink, 650);
     const negation = ["nand", "nor", "xnor"].includes(s.shape)
       ? `<circle cx="${rw / 2 + (rw === 80 ? 19 : 31)}" cy="${glyphY - 1}" r="3" fill="${partAccent(s)}"/>` : "";
     const channel = ["mux", "demux"].includes(s.shape)
@@ -260,8 +271,6 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   function moduleArt(c, s, state) {
     const d = dimsOf(c), w = d.w * U, h = d.h * U;
     const pins = actualPins(c);
-    const name = c.label || "Module";
-    const shown = name.length > 18 ? `${name.slice(0, 17)}…` : name;
     const face = moduleFaceParts(c).flatMap((part) => {
       const placement = c.faceLayout?.find(([index]) => index === part.index);
       if (!placement) return [];
@@ -282,7 +291,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
         textAt(x, y + 5, status?.value ?? 0, 12, ink, 750)];
     }).join("");
     return svgWrap(frame(w, h, partAccent(s)) + ports(pins, w, h, partAccent(s)) +
-      textAt(w / 2, face ? 23 : h / 2 - 8, escapeText(shown), 13, ink, 750) +
+      textAt(w / 2, face ? 23 : h / 2 - 8, displayName(c, "Module", 18), 13, ink, 750) +
       (face ? face : textAt(w / 2, h / 2 + 12, "MODULE", 8, muted, 700)) +
       portLabels(pins, w, h), d, 0);
   }
@@ -291,6 +300,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     if (s.module) return moduleArt(c, s, state);
     if (s.splitter) return splitterArt(c, s);
     if (s.portal) return portalArt(c, s);
+    if (s.tag) return tagArt(c, s);
     if (s.constant || s.input || s.output) return numberArt(c, s, value, !!(s.constant || s.input));
     if (["button", "switch", "clock"].includes(s.shape)) return sourceArt(c, s, value !== 0);
     if (s.shape === "led") return ledArt(c, s);

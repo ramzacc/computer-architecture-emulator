@@ -79,6 +79,10 @@ export const COMPONENT_TYPES = {
     label: "Portal", w: 3, h: 2, color: "#afb2b9", shape: "portal", portal: true,
     pins: [{ x: 0, y: 1, dir: "W", role: "in" }],
   },
+  tag: {
+    label: "Tag", w: 4, h: 2, color: "#afb2b9", shape: "tag", tag: true,
+    pins: [{ x: 0, y: 1, dir: "W", role: "in" }],
+  },
   led: {
     label: "LED", w: 2, h: 2, color: "#c8b49b", shape: "led",
     pins: [
@@ -244,26 +248,26 @@ export function selectWidth(component) {
 
 export function isSizable(component) {
   const entry = spec(component.t);
-  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output || entry?.portal);
+  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output || entry?.portal || entry?.tag);
 }
 
 const DOCUMENT_FIELDS = {
   constant: ["size", "value", "format"],
-  input: ["size", "value", "format", "label"],
-  output: ["size", "format", "label"],
-  portal: ["size", "label"],
-  rom: ["size", "addressSize", "data", "label"],
+  input: ["size", "value", "format"],
+  output: ["size", "format"],
+  portal: ["size"],
+  rom: ["size", "addressSize", "data"],
   ram: ["size", "addressSize"],
   clock: ["frequency", "enable"],
   switch: ["value"],
   splitter: ["size", "order"],
   mux: ["size", "channels"],
   demux: ["size", "channels"],
-  module: ["label", "module", "pinLayout", "faceLayout", "moduleWidth", "moduleHeight"],
+  module: ["module", "pinLayout", "faceLayout", "moduleWidth", "moduleHeight"],
 };
 
 export function documentFields(type) {
-  return DOCUMENT_FIELDS[type] ?? (isSizable({ t: type }) ? ["size"] : []);
+  return [...(DOCUMENT_FIELDS[type] ?? (isSizable({ t: type }) ? ["size"] : [])), "label"];
 }
 
 function tupleField(tuple, field) {
@@ -416,6 +420,7 @@ function rotateDir(dir, r) {
 export function dimsFor(type, r = 0) {
   const component = spec(type);
   if (!component) return null;
+  if (component.tag) return { w: component.w, h: component.h };
   return normalizeRotation(r) % 2
     ? { w: component.h, h: component.w }
     : { w: component.w, h: component.h };
@@ -461,6 +466,11 @@ export function pinsFor(component) {
   if (!entry) return [];
   const r = normalizeRotation(component.r);
   const width = bitWidth(component);
+  if (entry.tag) {
+    const [x, y, dir] = [[0, 1, "W"], [2, 0, "N"], [4, 1, "E"], [2, 2, "S"]][r];
+    const px = component.x + x, py = component.y + y;
+    return [{ px, py, dir, role: "in", size: width, edge: outwardEdge(px, py, dir) }];
+  }
   const plexer = component.t === "mux" || component.t === "demux";
   if (entry.module) {
     const ports = modulePorts(component);
