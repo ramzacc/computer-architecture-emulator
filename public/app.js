@@ -41,6 +41,7 @@ let romTargetId = null;
 const romDrafts = new Map();
 let romPageStart = 0;
 let romRenderedKey = null;
+let romListKey = null;
 const ROM_COLUMN_SIZE = 16;
 const ROM_PAGE_SIZE = ROM_COLUMN_SIZE * 4;
 
@@ -96,6 +97,7 @@ const romSaveEl = document.getElementById("rom-save");
 const romImportEl = document.getElementById("rom-file-input");
 const romExportEl = document.getElementById("rom-export");
 const romTargetEl = document.getElementById("rom-target");
+const romSelectEl = document.getElementById("rom-select");
 const romWidthsEl = document.getElementById("rom-widths");
 const romStatusEl = document.getElementById("rom-status");
 const valueFormatRowEl = document.getElementById("value-format-row");
@@ -398,6 +400,8 @@ function renderRomRows(force = false) {
   if (!component) {
     romRowsEl.replaceChildren();
     romRangeEl.textContent = "";
+    romPrevEl.disabled = true;
+    romNextEl.disabled = true;
     romRenderedKey = null;
     return;
   }
@@ -464,9 +468,23 @@ function renderRomRows(force = false) {
 }
 
 function renderRomTab() {
+  const roms = state.components.filter((item) => item.t === "rom");
+  const listKey = roms.map((item) => item.id).join("\u0000");
+  if (listKey !== romListKey) {
+    const placeholder = new Option(roms.length ? "Select ROM" : "No ROMs in this circuit", "");
+    const options = roms.map((item) => new Option(`ROM ${item.id}`, item.id));
+    romSelectEl.replaceChildren(placeholder, ...options);
+    romListKey = listKey;
+  }
+  if (romTargetId && !roms.some((item) => item.id === romTargetId)) {
+    romTargetId = null;
+    romStatus("The selected ROM is no longer in this circuit.");
+  }
   const component = romTarget();
   const ready = !!component;
-  romTargetEl.textContent = ready ? `Editing ROM ${component.id}` : "Select a ROM on the canvas to edit it.";
+  romSelectEl.value = ready ? component.id : "";
+  romSelectEl.disabled = roms.length === 0;
+  romTargetEl.textContent = ready ? `Editing ROM ${component.id}` : roms.length ? "Choose a ROM to edit its contents." : "Add a ROM on the canvas to edit its contents.";
   romWidthsEl.textContent = ready ? `${addressWidth(component)}-bit address · ${bitWidth(component)}-bit data` : "";
   romSaveEl.disabled = !ready;
   romImportEl.disabled = !ready;
@@ -480,16 +498,24 @@ function renderRomTab() {
   renderRomRows();
 }
 
-romOpenEl.addEventListener("click", () => {
-  const component = editor.component(selectedId);
-  if (component?.t !== "rom") return;
-  romTargetId = component.id;
+function selectRom(id) {
+  const component = editor.component(id);
+  if (id && component?.t !== "rom") return;
+  romTargetId = component?.id ?? null;
   romPageStart = 0;
   romRenderedKey = null;
   romJumpEl.value = "";
   romJumpEl.dataset.valid = "";
   renderRomTab();
-  romStatus(romDrafts.has(component.id) ? "Unsaved ROM edits restored." : "ROM loaded. Edit hex entries, then save to the component.");
+  if (!component) romStatus("Select a ROM from this circuit.");
+  else romStatus(romDrafts.has(component.id) ? "Unsaved ROM edits restored." : "ROM loaded. Edit hex entries, then save to the component.");
+}
+
+romSelectEl.addEventListener("change", () => selectRom(romSelectEl.value));
+
+romOpenEl.addEventListener("click", () => {
+  if (editor.component(selectedId)?.t !== "rom") return;
+  selectRom(selectedId);
   showView("rom");
   romRowsEl.querySelector("input")?.focus();
 });
@@ -1367,7 +1393,7 @@ function loadFromText(text) {
     romRenderedKey = null;
     romJumpEl.value = "";
     romJumpEl.dataset.valid = "";
-    romStatus("Open a ROM from its component properties.");
+    romStatus("Select a ROM from this circuit.");
     setSelection([]);
     placingType = null;
     clearWireGesture();
