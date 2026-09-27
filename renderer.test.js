@@ -24,6 +24,13 @@ test("tag canvas art keeps a 4x2 face and escaped label at every pin direction",
   }
 });
 
+test("splitter art keeps its proportions in the component palette", () => {
+  const { componentArt } = createRenderer(null, () => null, () => null, () => null, () => null);
+  const art = componentArt({ t: "splitter", x: 0, y: 0, r: 0, size: 4 }, spec("splitter"));
+  assert.match(art, /viewBox="0 0 80 200"/);
+  assert.match(art, /preserveAspectRatio="xMidYMid meet"/);
+});
+
 test("renderer reuses unchanged canvas elements and removes stale ones", () => {
   const originalDocument = globalThis.document;
   const grid = {
