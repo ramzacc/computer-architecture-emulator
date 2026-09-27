@@ -43,12 +43,17 @@ test("renderer reuses unchanged canvas elements and removes stale ones", () => {
       nets: new Map([["net", { id: "net", edges: [edge], on: false, value: 0 }]]) };
     const renderer = createRenderer(grid, () => board, () => logic, () => selectedIds, () => selectedWires);
     renderer.renderComponents();
+    renderer.renderPins();
     renderer.renderWires();
     const componentEl = grid.children.find((el) => el.dataset.id === "lamp");
     const wireEl = grid.children.find((el) => el.dataset.key === edgeKey(edge));
+    const pins = grid.children.filter((el) => el.className.startsWith("pin "));
+    assert.ok(pins.length > 0);
     renderer.renderComponents();
+    renderer.renderPins();
     renderer.renderWires();
-    assert.equal(grid.children.length, 2);
+    assert.equal(grid.children.length, 2 + pins.length);
+    assert.deepEqual(grid.children.filter((el) => el.className.startsWith("pin ")), pins);
     assert.equal(grid.children.find((el) => el.dataset.id === "lamp"), componentEl);
     assert.equal(grid.children.find((el) => el.dataset.key === edgeKey(edge)), wireEl);
     assert.equal(artWrites, 1);
@@ -58,6 +63,7 @@ test("renderer reuses unchanged canvas elements and removes stale ones", () => {
     selectedIds.add("lamp");
     selectedWires.add(edgeKey(edge));
     renderer.renderComponents();
+    renderer.renderPins();
     renderer.renderWires();
     assert.match(componentEl.className, /lit/);
     assert.match(componentEl.className, /selected/);
@@ -68,6 +74,7 @@ test("renderer reuses unchanged canvas elements and removes stale ones", () => {
     board.wires.clear();
     logic = { states: new Map(), nets: new Map() };
     renderer.renderComponents();
+    renderer.renderPins();
     renderer.renderWires();
     assert.equal(grid.children.length, 0);
   } finally {

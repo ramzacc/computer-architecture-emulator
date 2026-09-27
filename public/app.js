@@ -29,6 +29,8 @@ let selectedWires = new Set();
 let inspectorSelectionKey = null;
 let placingType = null;
 let drag = null;
+let dragPreviewFrame = null;
+let pendingDragPoint = null;
 let pressedButton = null;
 let pan = null;
 let marquee = null;
@@ -1156,6 +1158,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
 
     const world = worldFromEvent(e);
     drag = {
+      pointerId: e.pointerId,
       id: comp.id,
       originX: comp.x,
       originY: comp.y,
@@ -1213,6 +1216,46 @@ canvasWrapEl.addEventListener("contextmenu", (e) => {
   }
 });
 
+function updateDragPreview(clientX, clientY) {
+  if (!drag) return;
+  const world = worldFromEvent({ clientX, clientY });
+  if (drag.kind === "selection") {
+    const dx = Math.round((world.x - drag.startX) / CELL);
+    const dy = Math.round((world.y - drag.startY) / CELL);
+    if (dx === drag.dx && dy === drag.dy) return;
+    drag.dx = dx;
+    drag.dy = dy;
+    const trial = editor.translatedSelection(drag.ids, drag.wires, dx, dy);
+    drag.valid = !!trial || (!dx && !dy);
+    state = trial ?? editor.board;
+    selectedWires = new Set(trial ? drag.wires.map((key) => {
+      const edge = editor.board.wires.get(key);
+      return edge ? edgeKey({ ...edge, x: edge.x + dx, y: edge.y + dy }) : key;
+    }) : drag.wires);
+    const logic = trial ? evaluateBoard(trial) : editor.evaluation;
+    renderComponents(logic);
+    renderPins();
+    renderWires(logic);
+    return;
+  }
+  const rawX = (world.x - drag.grabbedX) / CELL;
+  const rawY = (world.y - drag.grabbedY) / CELL;
+  const nx = Math.round(rawX);
+  const ny = Math.round(rawY);
+  if (nx === drag.x && ny === drag.y) return;
+  drag.x = nx;
+  drag.y = ny;
+  const trial = editor.previewMove(drag.id, nx, ny);
+  drag.valid = !!trial;
+  state = trial ?? { ...editor.board, components: editor.board.components.map((item) =>
+    item.id === drag.id ? { ...item, x: nx, y: ny } : item) };
+  const logic = trial && trial !== editor.board ? evaluateBoard(trial) : editor.evaluation;
+  renderComponents(logic);
+  renderPins();
+  renderWires(logic);
+  if (!trial) gridEl.querySelector(`.comp[data-id="${drag.id}"]`)?.classList.add("invalid");
+}
+
 canvasWrapEl.addEventListener("pointermove", (e) => {
   if (marquee) {
     const world = worldFromEvent(e);
@@ -1237,47 +1280,23 @@ canvasWrapEl.addEventListener("pointermove", (e) => {
     return;
   }
 
-  if (!drag) return;
-  if (drag.kind === "selection") {
-    const world = worldFromEvent(e);
-    const dx = Math.round((world.x - drag.startX) / CELL);
-    const dy = Math.round((world.y - drag.startY) / CELL);
-    if (dx === drag.dx && dy === drag.dy) return;
-    drag.dx = dx;
-    drag.dy = dy;
-    const trial = editor.translatedSelection(drag.ids, drag.wires, dx, dy);
-    drag.valid = !!trial || (!dx && !dy);
-    state = trial ?? editor.board;
-    selectedWires = new Set(trial ? drag.wires.map((key) => {
-      const edge = editor.board.wires.get(key);
-      return edge ? edgeKey({ ...edge, x: edge.x + dx, y: edge.y + dy }) : key;
-    }) : drag.wires);
-    const logic = trial ? evaluateBoard(trial) : editor.evaluation;
-    renderComponents(logic);
-    renderPins();
-    renderWires(logic);
-    return;
-  }
-  const world = worldFromEvent(e);
-  const rawX = (world.x - drag.grabbedX) / CELL;
-  const rawY = (world.y - drag.grabbedY) / CELL;
-  const nx = Math.round(rawX);
-  const ny = Math.round(rawY);
-  if (nx === drag.x && ny === drag.y) return;
-  drag.x = nx;
-  drag.y = ny;
-  const trial = editor.previewMove(drag.id, nx, ny);
-  drag.valid = !!trial;
-  state = trial ?? { ...editor.board, components: editor.board.components.map((item) =>
-    item.id === drag.id ? { ...item, x: nx, y: ny } : item) };
-  const logic = trial && trial !== editor.board ? evaluateBoard(trial) : editor.evaluation;
-  renderComponents(logic);
-  renderPins();
-  renderWires(logic);
-  if (!trial) gridEl.querySelector(`.comp[data-id="${drag.id}"]`)?.classList.add("invalid");
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  pendingDragPoint = { x: e.clientX, y: e.clientY };
+  if (dragPreviewFrame !== null) return;
+  dragPreviewFrame = requestAnimationFrame(() => {
+    dragPreviewFrame = null;
+    const point = pendingDragPoint;
+    pendingDragPoint = null;
+    if (point) updateDragPreview(point.x, point.y);
+  });
 });
 
 function endDrag(e) {
+  if (drag && e.pointerId !== drag.pointerId) return;
+  if (dragPreviewFrame !== null) cancelAnimationFrame(dragPreviewFrame);
+  dragPreviewFrame = null;
+  pendingDragPoint = null;
+  if (drag && e.type !== "pointercancel") updateDragPreview(e.clientX, e.clientY);
   if (pressedButton?.pointerId === e.pointerId) {
     releasePressedButton();
     if (canvasWrapEl.hasPointerCapture?.(e.pointerId)) canvasWrapEl.releasePointerCapture(e.pointerId);
