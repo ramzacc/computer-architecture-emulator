@@ -129,12 +129,14 @@
       <section class="panel monitor-sidebar" aria-labelledby="monitor-signals-heading">
         <h2 id="monitor-signals-heading">Tags</h2>
         <div id="monitor-signals" class="monitor-signals"></div>
-        <p id="monitor-no-signals" class="hint" hidden>No tags</p>
       </section>
-      <section class="monitor-workspace" aria-label="Signal monitor">
-        <h2>Signals</h2>
-        <div id="monitor-grid" class="monitor-grid" aria-label="Observed signals">
-          <p id="monitor-empty" class="monitor-empty">Drag tags here</p>
+      <section class="tab-workspace" aria-label="Signal monitor">
+        <div id="monitor-no-tags" class="tab-empty" hidden>Add a tag on Canvas</div>
+        <div class="monitor-workspace">
+          <h2>Signals</h2>
+          <div id="monitor-grid" class="monitor-grid" aria-label="Observed signals">
+            <p id="monitor-empty" class="monitor-empty">Drag tags here</p>
+          </div>
         </div>
       </section>
     </section>
@@ -145,7 +147,7 @@
           <div id="rom-list" class="rom-list"></div>
         </div>
         <p id="rom-widths" class="hint" hidden></p>
-        <div class="rom-actions">
+        <div id="rom-actions" class="rom-actions">
           <button id="rom-save" type="button" disabled>Save ROM changes</button>
           <label class="file-label"><span>Import ROM file</span>
             <input id="rom-file-input" type="file" accept="text/plain,.txt" disabled />
@@ -154,20 +156,23 @@
         </div>
         <p id="rom-status" class="hint" role="status" aria-live="polite" hidden></p>
       </section>
-      <section class="rom-editor-wrap">
-        <div class="rom-editor-heading">
-          <h2>ROM contents</h2>
-          <span id="rom-range" class="hint"></span>
-        </div>
-        <div class="rom-navigation">
-          <button id="rom-prev" type="button" disabled>Previous</button>
-          <button id="rom-next" type="button" disabled>Next</button>
-          <label for="rom-jump">Go to address</label>
-          <input id="rom-jump" type="text" inputmode="text" spellcheck="false" autocapitalize="off" autocomplete="off" disabled />
-          <button id="rom-go" type="button" disabled>Go</button>
-        </div>
-        <div class="rom-memory" role="group" aria-label="ROM data values">
-          <div id="rom-rows" class="rom-rows"></div>
+      <section class="tab-workspace" aria-label="ROM contents">
+        <div id="rom-empty" class="tab-empty" hidden>Add a ROM on Canvas</div>
+        <div id="rom-editor-wrap" class="rom-editor-wrap">
+          <div class="rom-editor-heading">
+            <h2>ROM contents</h2>
+            <span id="rom-range" class="hint"></span>
+          </div>
+          <div class="rom-navigation">
+            <button id="rom-prev" type="button" disabled>Previous</button>
+            <button id="rom-next" type="button" disabled>Next</button>
+            <label for="rom-jump">Go to address</label>
+            <input id="rom-jump" type="text" inputmode="text" spellcheck="false" autocapitalize="off" autocomplete="off" disabled />
+            <button id="rom-go" type="button" disabled>Go</button>
+          </div>
+          <div class="rom-memory" role="group" aria-label="ROM data values">
+            <div id="rom-rows" class="rom-rows"></div>
+          </div>
         </div>
       </section>
     </section>
@@ -184,8 +189,8 @@
           </div>
           <p id="module-layout-status" class="hint" role="status" aria-live="polite" hidden></p>
         </section>
-        <section class="module-layout-workspace" aria-label="Module face">
-          <div id="module-layout-empty" class="module-layout-empty">Choose a module</div>
+        <section class="tab-workspace module-layout-workspace" aria-label="Module face">
+          <div id="module-layout-empty" class="tab-empty">Add a module on Canvas</div>
           <div id="module-layout-scroll" class="module-layout-scroll" hidden>
             <h2 id="module-layout-title" class="module-layout-title"></h2>
             <div id="module-layout-stage" class="module-layout-stage">

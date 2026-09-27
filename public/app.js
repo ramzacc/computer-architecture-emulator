@@ -99,6 +99,9 @@ const romImportEl = document.getElementById("rom-file-input");
 const romExportEl = document.getElementById("rom-export");
 const romListEl = document.getElementById("rom-list");
 const romWidthsEl = document.getElementById("rom-widths");
+const romActionsEl = document.getElementById("rom-actions");
+const romEmptyEl = document.getElementById("rom-empty");
+const romEditorWrapEl = document.getElementById("rom-editor-wrap");
 const romStatusEl = document.getElementById("rom-status");
 const valueFormatRowEl = document.getElementById("value-format-row");
 const valueFormatEl = document.getElementById("value-format");
@@ -130,7 +133,7 @@ const moduleStack = [];
 const monitor = createMonitor({
   getEditor: () => editor,
   signalsEl: document.getElementById("monitor-signals"),
-  noSignalsEl: document.getElementById("monitor-no-signals"),
+  noTagsEl: document.getElementById("monitor-no-tags"),
   workspaceEl: document.querySelector(".monitor-workspace"),
   gridEl: document.getElementById("monitor-grid"),
   emptyEl: document.getElementById("monitor-empty"),
@@ -287,7 +290,7 @@ function renderModuleLayout() {
     moduleLayoutListEl.append(button);
   });
   moduleLayoutEmptyEl.hidden = !!component;
-  moduleLayoutEmptyEl.textContent = "Add a module on Canvas to edit its layout.";
+  moduleLayoutEmptyEl.textContent = "Add a module on Canvas";
   moduleLayoutScrollEl.hidden = !component;
   moduleLayoutTrayEl.hidden = !component;
   if (!component) return;
@@ -719,12 +722,10 @@ function renderRomTab() {
     button.addEventListener("click", () => openRom(item.id));
     romListEl.append(button);
   });
-  if (!roms.length) {
-    const empty = document.createElement("p");
-    empty.className = "hint";
-    empty.textContent = "Add a ROM on Canvas to edit its contents.";
-    romListEl.append(empty);
-  }
+  romEmptyEl.hidden = ready;
+  romEditorWrapEl.hidden = !ready;
+  romActionsEl.hidden = !ready;
+  if (!ready) romStatus("");
   romWidthsEl.textContent = ready ? `${addressWidth(component)}-bit address · ${bitWidth(component)}-bit data` : "";
   romWidthsEl.hidden = !ready;
   romSaveEl.disabled = !ready;

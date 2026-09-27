@@ -21,7 +21,7 @@ export function insertionIndex(rects, x, y) {
   return rects.length;
 }
 
-export function createMonitor({ getEditor, signalsEl, noSignalsEl, workspaceEl, gridEl, emptyEl }) {
+export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gridEl, emptyEl }) {
   const layouts = new WeakMap();
   let draggingId = null;
   let renderedScope = null;
@@ -49,7 +49,8 @@ export function createMonitor({ getEditor, signalsEl, noSignalsEl, workspaceEl, 
 
   function renderSignals(available) {
     signalsEl.replaceChildren();
-    noSignalsEl.hidden = available.length > 0;
+    noTagsEl.hidden = available.length > 0;
+    workspaceEl.hidden = available.length === 0;
     for (const tag of available) {
       const button = document.createElement("button");
       button.type = "button";
