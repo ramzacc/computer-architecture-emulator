@@ -98,9 +98,7 @@ const romGoEl = document.getElementById("rom-go");
 const romSaveEl = document.getElementById("rom-save");
 const romImportEl = document.getElementById("rom-file-input");
 const romExportEl = document.getElementById("rom-export");
-const romTargetEl = document.getElementById("rom-target");
 const romListEl = document.getElementById("rom-list");
-const romAllEl = document.getElementById("rom-all");
 const romWidthsEl = document.getElementById("rom-widths");
 const romStatusEl = document.getElementById("rom-status");
 const valueFormatRowEl = document.getElementById("value-format-row");
@@ -111,11 +109,9 @@ const clockEnableRowEl = document.getElementById("clock-enable-row");
 const clockEnableEl = document.getElementById("clock-enable");
 const moduleOpenEl = document.getElementById("module-open");
 const moduleLayoutOpenEl = document.getElementById("module-layout-open");
-const moduleLayoutCanvasEl = document.getElementById("module-layout-canvas");
 const moduleLayoutEl = document.getElementById("module-layout");
 const moduleLayoutTitleEl = document.getElementById("module-layout-title");
 const moduleLayoutListEl = document.getElementById("module-layout-list");
-const moduleLayoutAllEl = document.getElementById("module-layout-all");
 const moduleLayoutEmptyEl = document.getElementById("module-layout-empty");
 const moduleLayoutScrollEl = document.getElementById("module-layout-scroll");
 const moduleLayoutStatusEl = document.getElementById("module-layout-status");
@@ -134,16 +130,6 @@ const modulePathEl = document.getElementById("module-path");
 const moduleStack = [];
 
 function showView(view) {
-  if (!romViewEl.hidden && view !== "rom") {
-    romTargetId = null;
-    romStatus("");
-    renderRomTab();
-  }
-  if (!moduleLayoutViewEl.hidden && view !== "layout") {
-    layoutTargetId = null;
-    moduleLayoutStatus("");
-    renderModuleLayout();
-  }
   const canvasActive = view === "canvas";
   canvasViewEl.hidden = !canvasActive;
   romViewEl.hidden = view !== "rom";
@@ -175,12 +161,6 @@ for (const [tab, view] of [[tabCanvasEl, "canvas"], [tabRomEl, "rom"], [tabModul
 moduleLayoutOpenEl.addEventListener("click", () => {
   layoutTargetId = selectedId;
   tabModuleLayoutEl.click();
-});
-moduleLayoutCanvasEl.addEventListener("click", () => tabCanvasEl.click());
-moduleLayoutAllEl.addEventListener("click", () => {
-  layoutTargetId = null;
-  moduleLayoutStatus("");
-  renderModuleLayout();
 });
 const busStatusEl = document.getElementById("bus-status");
 const { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox } =
@@ -301,11 +281,11 @@ let moduleLayoutDragging = false;
 function renderModuleLayout() {
   if (moduleLayoutDragging) return;
   let component = editor.component(layoutTargetId);
-  if (component?.t !== "module") {
-    layoutTargetId = null;
-    component = null;
-  }
   const modules = state.components.filter((item) => item.t === "module");
+  if (component?.t !== "module") {
+    component = modules[0] ?? null;
+    layoutTargetId = component?.id ?? null;
+  }
   const names = modules.map((item) => item.label || "Module");
   moduleLayoutListEl.replaceChildren();
   modules.forEach((item, index) => {
@@ -324,8 +304,7 @@ function renderModuleLayout() {
     moduleLayoutListEl.append(button);
   });
   moduleLayoutEmptyEl.hidden = !!component;
-  moduleLayoutAllEl.hidden = !component;
-  moduleLayoutEmptyEl.textContent = modules.length ? "Choose a module" : "No modules on this canvas";
+  moduleLayoutEmptyEl.textContent = "Add a module on Canvas to edit its layout.";
   moduleLayoutScrollEl.hidden = !component;
   moduleLayoutTrayEl.hidden = !component;
   if (!component) return;
@@ -367,7 +346,7 @@ function renderModuleLayout() {
   });
 
   moduleLayoutTrayEl.hidden = parts.every((part) => component.faceLayout?.some(([index]) => index === part.index));
-  moduleLayoutTrayHeadingEl.textContent = "Face components";
+  moduleLayoutTrayHeadingEl.textContent = "Available components";
   moduleLayoutItemsEl.replaceChildren();
   for (const part of parts) {
     const slot = component.faceLayout?.find(([index]) => index === part.index);
@@ -610,6 +589,7 @@ function romTarget() {
 
 function romStatus(message, error = false) {
   romStatusEl.textContent = message;
+  romStatusEl.hidden = !message;
   romStatusEl.classList.toggle("error", error);
 }
 
@@ -739,24 +719,31 @@ function renderRomRows(force = false) {
 }
 
 function renderRomTab() {
+  const roms = state.components.filter((item) => item.t === "rom");
+  if (!romTarget()) romTargetId = roms[0]?.id ?? null;
   const component = romTarget();
   const ready = !!component;
-  const roms = state.components.filter((item) => item.t === "rom");
   romListEl.replaceChildren();
+  const names = roms.map((item) => item.label || "ROM");
   roms.forEach((item, index) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = `ROM ${index + 1}`;
+    button.textContent = names.filter((name) => name === names[index]).length > 1
+      ? `${names[index]} ${index + 1}` : names[index];
     button.className = "rom-list-item";
     button.classList.toggle("active", item.id === romTargetId);
     button.setAttribute("aria-pressed", String(item.id === romTargetId));
     button.addEventListener("click", () => openRom(item.id));
     romListEl.append(button);
   });
-  romAllEl.hidden = !ready;
-  romTargetEl.textContent = ready ? `Editing ROM ${roms.indexOf(component) + 1}`
-    : roms.length ? "Choose a ROM" : "No ROMs on this canvas";
+  if (!roms.length) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "Add a ROM on Canvas to edit its contents.";
+    romListEl.append(empty);
+  }
   romWidthsEl.textContent = ready ? `${addressWidth(component)}-bit address · ${bitWidth(component)}-bit data` : "";
+  romWidthsEl.hidden = !ready;
   romSaveEl.disabled = !ready;
   romImportEl.disabled = !ready;
   romExportEl.disabled = !ready;
@@ -778,18 +765,12 @@ function openRom(id) {
   romJumpEl.value = "";
   romJumpEl.dataset.valid = "";
   renderRomTab();
-  romStatus(romDrafts.has(component.id) ? "Unsaved ROM edits restored." : "ROM loaded. Edit hex entries, then save to the component.");
+  romStatus(romDrafts.has(component.id) ? "Unsaved ROM edits." : "");
   showView("rom");
   romRowsEl.querySelector("input")?.focus();
 }
 
 romOpenEl.addEventListener("click", () => openRom(selectedId));
-romAllEl.addEventListener("click", () => {
-  romTargetId = null;
-  romStatus("");
-  renderRomTab();
-});
-
 romPrevEl.addEventListener("click", () => { romPageStart -= ROM_PAGE_SIZE; renderRomRows(true); });
 romNextEl.addEventListener("click", () => { romPageStart += ROM_PAGE_SIZE; renderRomRows(true); });
 constrainHexInput(romJumpEl, () => romTarget() ? addressWidth(romTarget()) : 1);
@@ -815,7 +796,7 @@ romSaveEl.addEventListener("click", () => {
     if (JSON.stringify(entries) !== JSON.stringify(component.data ?? []) && !editor.setRomData(component.id, entries))
       throw new Error("ROM contents conflict with a connected output.");
     romDrafts.delete(component.id);
-    romStatus("ROM saved to component.");
+    romStatus("ROM changes saved.");
   } catch (error) { romStatus(error.message, true); }
 });
 

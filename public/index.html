@@ -126,22 +126,19 @@
     </div>
     <section id="rom-view" class="rom-view" role="tabpanel" aria-labelledby="tab-rom" hidden>
       <section class="panel rom-panel">
-        <h2>ROM file</h2>
-        <p id="rom-target" class="hint">Choose a ROM</p>
+        <h2>ROMs</h2>
         <div class="rom-picker">
-          <h3>ROMs</h3>
-          <button id="rom-all" type="button" hidden>← All ROMs</button>
           <div id="rom-list" class="rom-list"></div>
         </div>
-        <p id="rom-widths" class="hint"></p>
+        <p id="rom-widths" class="hint" hidden></p>
         <div class="rom-actions">
-          <button id="rom-save" type="button" disabled>Save to component</button>
+          <button id="rom-save" type="button" disabled>Save ROM changes</button>
           <label class="file-label"><span>Import ROM file</span>
             <input id="rom-file-input" type="file" accept="text/plain,.txt" disabled />
           </label>
           <button id="rom-export" type="button" disabled>Export ROM file</button>
         </div>
-        <p id="rom-status" class="hint" role="status" aria-live="polite"></p>
+        <p id="rom-status" class="hint" role="status" aria-live="polite" hidden></p>
       </section>
       <section class="rom-editor-wrap">
         <div class="rom-editor-heading">
@@ -162,16 +159,13 @@
     </section>
     <section id="module-layout-view" class="module-layout-view" role="tabpanel" aria-labelledby="tab-module-layout" hidden>
       <div id="module-layout" class="module-layout">
-        <section class="module-layout-sidebar">
-          <h2>Module layout</h2>
-          <button id="module-layout-canvas" type="button">← Canvas</button>
+        <section class="panel module-layout-sidebar">
+          <h2>Modules</h2>
           <div class="module-layout-module-picker">
-            <h3>Modules</h3>
-            <button id="module-layout-all" class="module-layout-all" type="button" hidden>← All modules</button>
             <div id="module-layout-list" class="module-layout-list"></div>
           </div>
           <div id="module-layout-tray" class="module-layout-tray" hidden>
-            <h3>Face components</h3>
+            <h3>Available components</h3>
             <div id="module-layout-items" class="module-layout-items"></div>
           </div>
           <p id="module-layout-status" class="hint" role="status" aria-live="polite" hidden></p>
