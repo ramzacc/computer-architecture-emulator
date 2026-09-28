@@ -137,6 +137,20 @@ export function crossingAt(board, x, y) {
     wires.filter((wire) => wire.o === "V").length === 2;
 }
 
+// A three-way branch is already connected. Keep it connected if a route adds
+// its fourth arm; a fresh wire crossing an existing run remains separate.
+function junctionsAtExtendedBranches(board, trial, edges) {
+  const junctions = new Set();
+  for (const edge of edges) {
+    if (board.wires.has(edgeKey(edge))) continue;
+    for (const [x, y] of edgePoints(edge)) {
+      if (wiresAtPoint(board, x, y).length === 3 && crossingAt(trial, x, y))
+        junctions.add(`${x},${y}`);
+    }
+  }
+  return junctions;
+}
+
 export function pruneJunctions(board) {
   for (const key of board.junctions ?? []) {
     const [x, y] = key.split(",").map(Number);
@@ -243,7 +257,7 @@ export function wireRoute(board, start, end, size) {
   const blocked = blockedEdgeKeys(board);
   for (const horizontalFirst of [true, false]) {
     const edges = build(horizontalFirst);
-    const trial = { ...board, wires: new Map(board.wires) };
+    const trial = { ...board, wires: new Map(board.wires), junctions: new Set(board.junctions) };
     let error = null;
     for (const edge of edges) {
       const existing = trial.wires.get(edgeKey(edge));
@@ -254,8 +268,10 @@ export function wireRoute(board, start, end, size) {
         trial.wires.set(edgeKey(edge), edge);
       }
     }
+    const junctions = junctionsAtExtendedBranches(board, trial, edges);
+    for (const key of junctions) trial.junctions.add(key);
     if (!error) error = wireLayoutError(trial, blocked);
-    if (!error) return { edges, error: null };
+    if (!error) return { edges, junctions: [...junctions], error: null };
     firstError ??= error;
   }
   return { edges: build(true), error: firstError };

@@ -96,6 +96,7 @@ function extendMovedPins(original, trial, moved, movingWireKeys = new Set()) {
       { x: destination.px, y: destination.py }, pin.size);
     if (route.error) return false;
     for (const edge of route.edges) trial.wires.set(edgeKey(edge), edge);
+    for (const key of route.junctions) trial.junctions.add(key);
   }
   return !wireLayoutError(trial);
 }
@@ -341,6 +342,10 @@ export class BoardEditor {
     for (const edge of route.edges) {
       if (this.board.wires.has(edgeKey(edge))) continue;
       this.board.wires.set(edgeKey(edge), edge);
+      changed = true;
+    }
+    for (const key of route.junctions) {
+      this.board.junctions.add(key);
       changed = true;
     }
     if (changed) this.commit();
