@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid } from "./public/assembly.js";
+import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, normalizeIsa } from "./public/assembly.js";
 
 const sampleIsa = `NOT | op 7-6=00 | address 5-4-3 | address 2-1-0
 ADD | op 7-6=01 | address 5-4-3 | address 2-1-0
@@ -67,3 +67,24 @@ test("keyword variants may differ by Register and Value signature", () => {
 });
 
 
+
+test("physical lines reserve addresses and sparse ROM disassembles to blank lines", () => {
+  const isa = "JMP | op 7=1 | value 6-5-4-3-2-1-0";
+  assert.deepEqual(assemble("; comment\n\nJMP 3\n.word 0\n.word 0x4", 8, 8, isa), [[2, 0x83], [4, 4]]);
+  assert.equal(disassemble([[2, 0x83], [4, 4]], 8, isa), "\n\nJMP 0x3\n\n.word 0x04");
+  assert.deepEqual(assemble(disassemble([[2, 0x83], [4, 4]], 8, isa), 8, 8, isa), [[2, 0x83], [4, 4]]);
+});
+
+test("legacy saved letter rules become Register and Value fields", () => {
+  const converted = normalizeIsa("MOV Rd,#v = 10ddvvvv", 8);
+  const rules = isaGrid(converted, 8);
+  assert.deepEqual(rules[0].operands.map((operand) => operand.kind), ["register", "value"]);
+  assert.deepEqual(assemble("MOV R2 5", 8, 8, converted), [[0, 0xA5]]);
+});
+
+test("visual rules reject unassigned operands and inconsistent cells", () => {
+  const empty = serializeIsaGrid([{ keyword: "BAD", cells: Array(8).fill("0"), operands: [{ kind: "value", bits: [] }] }]);
+  assert.throws(() => parseIsa(empty, 8), /needs bits/);
+  const wrong = serializeIsaGrid([{ keyword: "BAD", cells: Array(8).fill("0"), operands: [{ kind: "value", bits: [0] }] }]);
+  assert.throws(() => parseIsa(wrong, 8), /disagree/);
+});

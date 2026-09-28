@@ -171,6 +171,10 @@ export function parseIsa(source, wordBits) {
 }
 
 export function isaGrid(source, wordBits) {
+  if (source.trim().startsWith("{")) {
+    parseIsa(source, wordBits);
+    return JSON.parse(source).rules;
+  }
   return parseIsa(source, wordBits).map((rule) => {
     const cells = Array(wordBits).fill(null);
     for (const [bit, value] of rule.fixed) cells[bit] = String(value);

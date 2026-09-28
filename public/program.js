@@ -15,6 +15,8 @@ export function createProgram({ getEditor }) {
   const formatEl = $("format");
   const statusEl = $("status");
   const sourceEl = $("source");
+  const gutterEl = $("gutter");
+  const currentLineEl = $("current-line");
   const assemblyNoteEl = $("assembly-note");
   const assembleEl = $("assemble");
   const reloadEl = $("reload-assembly");
@@ -158,11 +160,13 @@ export function createProgram({ getEditor }) {
   function updateAssembly() {
     const rom = activeRom();
     const draft = assemblyDraft(rom);
-    sourceEl.disabled = !rom;
-    assembleEl.disabled = !rom || !draft?.dirty;
-    reloadEl.disabled = !rom;
+    const locked = isPlaying();
+    sourceEl.disabled = !rom || locked;
+    assembleEl.disabled = !rom || locked || !draft?.dirty;
+    reloadEl.disabled = !rom || locked;
     if (!rom) {
       sourceEl.value = "";
+      gutterEl.replaceChildren(); currentLineEl.hidden = true;
       assemblyNoteEl.textContent = "Link a ROM in Program setup.";
       return;
     }
@@ -173,6 +177,7 @@ export function createProgram({ getEditor }) {
     }
     if (sourceEl.dataset.rom !== rom.id || sourceEl.value !== draft.text) sourceEl.value = draft.text;
     sourceEl.dataset.rom = rom.id;
+    updateGutter();
     assemblyNoteEl.textContent = draft.dirty
       ? draft.key === key ? "Unsaved assembly edits." : "ROM or ISA rules changed since this draft. Assembling will replace ROM contents."
       : "Assembly matches the linked ROM.";
@@ -260,14 +265,50 @@ export function createProgram({ getEditor }) {
     const tag = component(config().pc);
     return tag?.t === "tag" ? getEditor().evaluation.states.get(tag.id)?.value ?? 0 : null;
   }
+  function isPlaying() {
+    const run = component(config().run);
+    return run?.t === "clock" && run.enable !== false;
+  }
+  function updateGutter() {
+    const rom = activeRom(); if (!rom) return;
+    const count = sourceEl.value.split(/\r?\n/).length;
+    if (gutterEl.children.length !== count || gutterEl.dataset.rom !== rom.id) {
+      const fragment = document.createDocumentFragment();
+      for (let address = 0; address < count; address++) {
+        const line = document.createElement("div"); line.textContent = formatAddress(address);
+        fragment.append(line);
+      }
+      gutterEl.replaceChildren(fragment); gutterEl.dataset.rom = rom.id;
+    }
+    gutterEl.scrollTop = sourceEl.scrollTop;
+  }
+  function highlightPc(pc) {
+    const line = Number.isInteger(pc) && pc >= 0 && pc < gutterEl.children.length ? pc : null;
+    for (const child of gutterEl.children) child.classList.toggle("active", child === gutterEl.children[line]);
+    currentLineEl.hidden = line === null;
+    if (line === null) { lastPcLine = null; return; }
+    const style = getComputedStyle(sourceEl);
+    const lineHeight = Number.parseFloat(style.lineHeight);
+    const paddingTop = Number.parseFloat(style.paddingTop);
+    const top = paddingTop + line * lineHeight;
+    if (lastPcLine !== line && (top < sourceEl.scrollTop || top + lineHeight > sourceEl.scrollTop + sourceEl.clientHeight)) {
+      sourceEl.scrollTop = Math.max(0, top - sourceEl.clientHeight / 2);
+      gutterEl.scrollTop = sourceEl.scrollTop;
+    }
+    currentLineEl.style.top = `${top - sourceEl.scrollTop}px`;
+    currentLineEl.style.height = `${lineHeight}px`;
+    lastPcLine = line;
+  }
   function updatePc() {
     const pc = pcValue();
     $("pc-value").textContent = pc === null ? "—" : formatAddress(pc);
     const run = component(config().run);
-    const playing = run?.t === "clock" && run.enable !== false;
-    $("play").disabled = run?.t !== "clock" || playing;
+    const playing = isPlaying();
+    const dirty = assemblyDraft(activeRom())?.dirty;
+    $("play").disabled = run?.t !== "clock" || playing || dirty;
     $("pause").disabled = run?.t !== "clock" || !playing;
-    $("step-button").disabled = component(config().step)?.t !== "button";
+    $("step-button").disabled = component(config().step)?.t !== "button" || playing || dirty;
+    highlightPc(pc);
     $("reset").disabled = ![config().resetPc, config().resetRegisters].every((id) => component(id)?.t === "button");
   }
   function render() {
@@ -349,17 +390,19 @@ export function createProgram({ getEditor }) {
       renderIsa(); isaNoteEl.textContent = "ISA saved.";
     } catch (error) { isaNoteEl.textContent = error.message; isaNoteEl.classList.add("error"); }
   });
+  sourceEl.addEventListener("scroll", () => { gutterEl.scrollTop = sourceEl.scrollTop; highlightPc(pcValue()); });
   sourceEl.addEventListener("input", () => {
     const rom = activeRom();
     if (!rom) return;
+    if (isPlaying()) return;
     const draft = assemblyDraft(rom);
     draft.text = sourceEl.value;
     draft.dirty = true;
-    updateAssembly();
+    updateAssembly(); updatePc();
   });
   assembleEl.addEventListener("click", () => {
     const rom = activeRom();
-    if (!rom) return;
+    if (!rom || isPlaying()) return;
     const draft = assemblyDraft(rom);
     try {
       const entries = assemble(draft.text, addressWidth(rom), bitWidth(rom), savedIsa(rom));
@@ -374,7 +417,7 @@ export function createProgram({ getEditor }) {
   });
   reloadEl.addEventListener("click", () => {
     const rom = activeRom();
-    if (!rom) return;
+    if (!rom || isPlaying()) return;
     drafts.delete(rom.id);
     updateAssembly();
     status("Disassembled the current ROM contents.");
@@ -402,6 +445,7 @@ export function createProgram({ getEditor }) {
   });
   formatEl.addEventListener("change", () => setConfig({ format: formatEl.value }));
   function run(enable) {
+    if (enable && assemblyDraft(activeRom())?.dirty) { status("Assemble your draft before Play.", true); return; }
     const item = component(config().run);
     if (item?.t !== "clock") { status("Link a clock in Program setup.", true); return; }
     const changed = (item.enable !== false) === enable || getEditor().setClockEnabled(item.id, enable);
@@ -418,8 +462,10 @@ export function createProgram({ getEditor }) {
     return selected.length > 0 && ok;
   }
   $("step-button").addEventListener("click", () => {
+    if (assemblyDraft(activeRom())?.dirty) { status("Assemble your draft before Step.", true); return; }
     const ok = pulse([config().step]);
     status(ok ? "Stepped." : "Step button could not be pressed.", !ok);
+    updatePc();
   });
   $("reset").addEventListener("click", () => {
     const ok = pulse([config().resetPc, config().resetRegisters]);
