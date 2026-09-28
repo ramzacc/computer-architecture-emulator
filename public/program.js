@@ -16,6 +16,7 @@ export function createProgram({ getEditor }) {
   const formatEl = $("format");
   const statusEl = $("status");
   const sourceEl = $("source");
+  const syntaxEl = $("syntax");
   const gutterEl = $("gutter");
   const currentLineEl = $("current-line");
   const assemblyNoteEl = $("assembly-note");
@@ -39,6 +40,7 @@ export function createProgram({ getEditor }) {
   let defaultBoard = null;
   let renderedIsaRoms = "";
   let lastPcLine = null;
+  let renderedSyntax = "";
 
   const components = () => getEditor().board.components;
   const component = (id) => components().find((item) => item.id === id);
@@ -168,6 +170,7 @@ export function createProgram({ getEditor }) {
     reloadEl.disabled = !rom || locked;
     if (!rom) {
       sourceEl.value = "";
+      syntaxEl.replaceChildren(); renderedSyntax = "";
       gutterEl.replaceChildren(); currentLineEl.hidden = true;
       assemblyNoteEl.textContent = "Link a ROM in Program setup.";
       return;
@@ -179,10 +182,52 @@ export function createProgram({ getEditor }) {
     }
     if (sourceEl.dataset.rom !== rom.id || sourceEl.value !== draft.text) sourceEl.value = draft.text;
     sourceEl.dataset.rom = rom.id;
+    updateSyntax();
     updateGutter();
     assemblyNoteEl.textContent = draft.dirty
       ? draft.key === key ? "Unsaved assembly edits." : "ROM or ISA rules changed since this draft. Assembling will replace ROM contents."
       : "Assembly matches the linked ROM.";
+  }
+  function updateSyntax() {
+    const rom = activeRom();
+    const isa = rom ? savedIsa(rom) : "";
+    const key = JSON.stringify([sourceEl.value, isa, rom ? bitWidth(rom) : 0]);
+    if (key === renderedSyntax) return;
+    renderedSyntax = key;
+    let keywords = new Set([".WORD"]);
+    try { for (const rule of parseIsa(isa, bitWidth(rom))) keywords.add(rule.keyword); }
+    catch { /* Keep the source editable while ISA rules are invalid. */ }
+    const fragment = document.createDocumentFragment();
+    const append = (text, className) => {
+      if (!text) return;
+      if (!className) { fragment.append(document.createTextNode(text)); return; }
+      const span = document.createElement("span");
+      span.className = className; span.textContent = text; fragment.append(span);
+    };
+    for (const [index, line] of sourceEl.value.split(/\r?\n/).entries()) {
+      if (index) append("\n");
+      const comment = line.indexOf(";");
+      const code = comment < 0 ? line : line.slice(0, comment);
+      const match = /^(\s*)(\S+)/.exec(code);
+      let start = 0;
+      if (match && keywords.has(match[2].toUpperCase())) {
+        append(match[1]); append(match[2], "program-token-keyword");
+        start = match[0].length;
+      }
+      const operands = code.slice(start);
+      const registers = /\bR(?:0x[0-9a-f]+|0b[01]+|[0-9]+)\b/gi;
+      let cursor = 0;
+      for (const register of operands.matchAll(registers)) {
+        append(operands.slice(cursor, register.index));
+        append(register[0], "program-token-register");
+        cursor = register.index + register[0].length;
+      }
+      append(operands.slice(cursor));
+      if (comment >= 0) append(line.slice(comment), "program-token-comment");
+    }
+    syntaxEl.replaceChildren(fragment);
+    syntaxEl.scrollTop = sourceEl.scrollTop;
+    syntaxEl.scrollLeft = sourceEl.scrollLeft;
   }
   function formatAddress(address) {
     return `0x${address.toString(16).toUpperCase().padStart(Math.max(2, Math.ceil(addressWidth(activeRom() ?? { addressSize: 8 }) / 4)), "0")}`;
@@ -387,7 +432,12 @@ export function createProgram({ getEditor }) {
       renderIsa(); isaNoteEl.textContent = "ISA saved.";
     } catch (error) { isaNoteEl.textContent = error.message; isaNoteEl.classList.add("error"); }
   });
-  sourceEl.addEventListener("scroll", () => { gutterEl.scrollTop = sourceEl.scrollTop; highlightPc(pcValue()); });
+  sourceEl.addEventListener("scroll", () => {
+    gutterEl.scrollTop = sourceEl.scrollTop;
+    syntaxEl.scrollTop = sourceEl.scrollTop;
+    syntaxEl.scrollLeft = sourceEl.scrollLeft;
+    highlightPc(pcValue());
+  });
   sourceEl.addEventListener("input", () => {
     const rom = activeRom();
     if (!rom) return;
@@ -473,6 +523,7 @@ export function createProgram({ getEditor }) {
     if (draftBoard === board) return;
     drafts.clear(); isaDrafts.clear(); draftBoard = board;
     sourceEl.dataset.rom = "";
+    renderedSyntax = "";
     renderedIsaRoms = "";
   }
   return { render, renderIsa, reset() {
@@ -481,6 +532,7 @@ export function createProgram({ getEditor }) {
     previousRegisterValues.clear();
     renderedEditor = null; renderedComponents = ""; renderedConfig = ""; renderedIsaRoms = "";
     drafts.clear(); isaDrafts.clear(); draftBoard = null; sourceEl.dataset.rom = "";
+    renderedSyntax = "";
     defaultBoard = null;
   } };
 }
