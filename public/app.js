@@ -1827,8 +1827,19 @@ catch (error) { console.warn("Saved document is invalid:", error); }
 if (restored) {
   editor.replaceBoard(restored.board, { save: false });
 } else {
-  const board = createBoard();
-  seedLayout(board);
+  mainEl.inert = true;
+  let board;
+  try {
+    const response = await fetch(new URL("./examples/8-bit-computer.json", import.meta.url));
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    board = parseDocument(await response.text()).board;
+  } catch (error) {
+    console.warn("Could not load the default example:", error);
+    board = createBoard();
+    seedLayout(board);
+  } finally {
+    mainEl.inert = false;
+  }
   editor.replaceBoard(board, { save: false });
 }
 resetView();
