@@ -483,21 +483,33 @@ test('output width is configurable and must match its connected net', () => {
   assert.equal(editor.resizeComponent(output.id, 8), true);
 });
 
-test('portal labels are unique and widths edit independently', () => {
+test('portal labels can match and widths edit independently', () => {
   const { editor } = setup();
   const first = editor.place('portal', 0, 0);
   const second = editor.place('portal', 5, 0);
   assert.ok(first && second);
   assert.equal(editor.setLabel(first.id, 'DATA'), true);
-  assert.equal(editor.setLabel(second.id, 'DATA'), false);
+  assert.equal(editor.setLabel(second.id, 'DATA'), true);
   assert.equal(editor.resizeComponent(first.id, 8), true);
   assert.equal(editor.component(first.id).size, 8);
   assert.equal(editor.setLabel(second.id, 'OTHER'), true);
-  assert.equal(editor.setLabel(second.id, 'DATA'), false);
-  assert.equal(editor.component(second.id).label, 'OTHER');
+  assert.equal(editor.setLabel(second.id, 'DATA'), true);
+  assert.equal(editor.component(second.id).label, 'DATA');
   assert.equal(editor.undo(), true);
+  assert.equal(editor.component(second.id).label, 'OTHER');
   assert.equal(editor.component(first.id).size, 8);
-  assert.equal(parseDocument(serialize(editor.board)).board.components[0].label, 'DATA');
+  assert.equal(editor.setLabel(second.id, 'DATA'), true);
+  assert.deepEqual(parseDocument(serialize(editor.board)).board.components.map((component) => component.label), ['DATA', 'DATA']);
+});
+
+test('pasting a portal keeps its label', () => {
+  const { editor } = setup();
+  const portal = editor.place('portal', 0, 0);
+  assert.equal(editor.setLabel(portal.id, 'DATA'), true);
+  const [copy] = editor.pasteComponents(editor.copyComponents([portal.id]));
+  assert.ok(copy);
+  assert.equal(copy.label, 'DATA');
+  assert.deepEqual(parseDocument(serialize(editor.board)).board.components.map((component) => component.label), ['DATA', 'DATA']);
 });
 
 test('toggle switch drives a persistent one-bit value and rejects conflicting toggles', () => {

@@ -715,7 +715,7 @@ export class BoardEditor {
           let id;
           do { id = `c${nextId++}`; } while (trial.components.some((c) => c.id === id));
           const component = { ...copy, id, x: copy.x + offsetX, y: copy.y + offsetY,
-            label: nextLabel(trial, copy.t, copy.label || undefined) };
+            label: copy.t === "portal" ? copy.label : nextLabel(trial, copy.t, copy.label || undefined) };
           if (!addComponent(trial, component)) { valid = false; break; }
           components.push(component);
         }
