@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { insertionIndex } from "./public/monitor.js";
+import { dropPlacement, insertionIndex } from "./public/monitor.js";
 import { addComponent, createBoard, parseDocument, serialize } from "./public/model.js";
 
 test("drops across and below responsive rows follow reading order", () => {
@@ -17,6 +17,19 @@ test("drops across and below responsive rows follow reading order", () => {
   assert.equal(insertionIndex(rects, 150, 120), 3);
   assert.equal(insertionIndex(rects, 300, 400), 4);
   assert.equal(insertionIndex([], 300, 400), 0);
+});
+
+test("dragging below a partly filled row starts a new row", () => {
+  const rects = [
+    { left: 0, top: 0, width: 100, bottom: 80 },
+    { left: 112, top: 0, width: 100, bottom: 80 },
+    { left: 0, top: 92, width: 100, bottom: 172 },
+  ];
+  assert.deepEqual(dropPlacement(rects, [false, false, true], 300, 40), { index: 2, newRow: false });
+  assert.deepEqual(dropPlacement(rects, [false, false, true], 150, 86), { index: 2, newRow: true });
+  assert.deepEqual(dropPlacement(rects, [false, false, true], 20, 120), { index: 2, newRow: true });
+  assert.deepEqual(dropPlacement(rects, [false, false, true], 150, 190), { index: 3, newRow: true });
+  assert.deepEqual(dropPlacement([], [], 20, 190), { index: 0, newRow: false });
 });
 
 test("monitor order, formats, and incomplete rows survive JSON save and load", () => {
