@@ -1791,6 +1791,41 @@ fileInputEl.addEventListener("change", async (event) => {
   }
 });
 
+const btnClearEl = document.getElementById("btn-clear");
+const clearScreenEl = document.getElementById("clear-screen");
+const clearCancelEl = document.getElementById("clear-cancel");
+const clearConfirmEl = document.getElementById("clear-confirm");
+
+function openClearDialog() {
+  clearScreenEl.hidden = false;
+  headerEl.inert = true;
+  mainEl.inert = true;
+  clearCancelEl.focus();
+}
+
+function closeClearDialog() {
+  clearScreenEl.hidden = true;
+  headerEl.inert = false;
+  mainEl.inert = false;
+  btnClearEl.focus();
+}
+
+btnClearEl.addEventListener("click", openClearDialog);
+clearCancelEl.addEventListener("click", closeClearDialog);
+
+clearConfirmEl.addEventListener("click", () => {
+  closeClearDialog();
+  loadBoard(createBoard());
+  busStatus("Canvas cleared.");
+});
+
+clearScreenEl.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  event.stopPropagation();
+  closeClearDialog();
+});
+
 /* ---------- Seeds ---------- */
 
 function seedLayout(board) {
