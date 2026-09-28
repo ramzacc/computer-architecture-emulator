@@ -1170,6 +1170,11 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       if (!editor.toggleSwitch(comp.id)) busStatus("Switch cannot toggle: conflicting outputs share a net.", true);
       return;
     }
+    if (comp.t === "clock" && !placingType && !e.shiftKey) {
+      const enabled = comp.enable === false;
+      if (editor.setClockEnabled(comp.id, enabled)) busStatus(`Clock ${enabled ? "enabled" : "disabled"}.`);
+      return;
+    }
     if (comp.t === "button" && !placingType && !e.shiftKey && !pressedButton) {
       pressedButton = { id: comp.id, pointerId: e.pointerId };
       canvasWrapEl.setPointerCapture(e.pointerId);
