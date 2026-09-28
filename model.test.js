@@ -1,4 +1,5 @@
 import { assemble, disassemble } from "./public/assembly.js";
+import { restoreProgramSource } from "./public/program-source.js";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -902,6 +903,9 @@ test("8-bit computer example decodes its ISA and writes only RB", () => {
   assert.equal(rom.data.length, 255);
   clock.enable = false;
   const isa = board.program.isa[rom.id];
+  const source = restoreProgramSource(board.program.sources[rom.id], rom.data, rom.addressSize, rom.size, isa);
+  assert.match(source, /^; Demo program for the 8-bit computer\.\nNOT R0 R0\n; The four instruction forms repeat through the ROM\./);
+  assert.deepEqual(assemble(source, rom.addressSize, rom.size, isa), rom.data);
   assert.equal(disassemble([[1, 0x97]], 8, isa), "NOT R0 R0\nAND R2 R7");
   assert.deepEqual(assemble("AND R2 R7", 8, 8, isa), [[0, 0x97]]);
   for (const [pc, instruction, destination, expected] of [
