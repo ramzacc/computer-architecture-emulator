@@ -969,7 +969,7 @@ test("descendant splitter order reverses branch bits and persists", () => {
 
 
 test("8-bit computer example decodes its ISA and writes only RA", () => {
-  const text = readFileSync(new URL("./public/examples/8-bit-computer.json", import.meta.url), "utf8");
+  const text = readFileSync(new URL("./examples/8-bit-computer.json", import.meta.url), "utf8");
   const { board } = parseProject(text);
   const byLabel = new Map(board.components.map((component) => [component.label, component]));
   const registerByLabel = new Map(board.components.filter((component) => component.t === "register")
