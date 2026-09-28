@@ -2,6 +2,8 @@ import { bitWidth, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePinLayout, 
 import { addComponent, addWireEdge, buttonsInBoard, clocksInBoard, createBoard, crossingAt, edgeKey, isValidComponent, labelAvailable, nextLabel,
   evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, storedInBoard, wireLayoutError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
+import { assemble } from "./assembly.js";
+import { captureProgramSource, reconcileProgramSource } from "./program-source.js";
 
 export const STORAGE_KEY = "grid-canvas-document";
 
@@ -285,6 +287,13 @@ export class BoardEditor {
   setProgramConfig(config) {
     if (JSON.stringify(this.board.program) === JSON.stringify(config)) return false;
     this.board.program = structuredClone(config);
+    for (const [id, source] of Object.entries(this.board.program.sources ?? {})) {
+      const rom = this.component(id);
+      const next = rom?.t === "rom" && reconcileProgramSource(source, rom.data ?? [],
+        rom.addressSize ?? 8, bitWidth(rom), this.board.program.isa?.[id] ?? "");
+      if (next) this.board.program.sources[id] = next;
+      else delete this.board.program.sources[id];
+    }
     this.commit();
     return true;
   }
@@ -306,6 +315,12 @@ export class BoardEditor {
     }
     if (component.t === "rom" && changes.size !== undefined && changes.size !== previous.size && this.board.program?.isa?.[component.id]) {
       delete this.board.program.isa[component.id];
+    }
+    if (component.t === "rom" && this.board.program?.sources?.[component.id]) {
+      const next = reconcileProgramSource(this.board.program.sources[component.id], component.data ?? [],
+        component.addressSize ?? 8, bitWidth(component), this.board.program.isa?.[component.id] ?? "");
+      if (next) this.board.program.sources[component.id] = next;
+      else delete this.board.program.sources[component.id];
     }
     if (sanitize) this.commitComponentEdit();
     else this.commit(captureEdges);
@@ -503,6 +518,32 @@ export class BoardEditor {
     const sorted = data.map(([address, value]) => [address, value]).sort((a, b) => a[0] - b[0]);
     if (JSON.stringify(component.data ?? []) === JSON.stringify(sorted)) return false;
     return this.editComponent(component, { data: sorted }, { validate: (board) => !shortCircuitError(board) });
+  }
+
+  saveProgramSource(id, data, source) {
+    const component = this.component(id);
+    if (component?.t !== "rom" || !validRom({ ...component, data })) return false;
+    const sorted = data.map(([address, value]) => [address, value]).sort((a, b) => a[0] - b[0]);
+    if (JSON.stringify(assemble(source, component.addressSize ?? 8, bitWidth(component),
+      this.board.program?.isa?.[id] ?? "")) !== JSON.stringify(sorted))
+      throw new Error("Program source does not match the ROM words.");
+    const annotations = captureProgramSource(source, sorted, component.addressSize ?? 8,
+      bitWidth(component), this.board.program?.isa?.[id] ?? "");
+    if (JSON.stringify(this.board.program?.sources?.[id] ?? null) === JSON.stringify(annotations) &&
+        JSON.stringify(component.data ?? []) === JSON.stringify(sorted)) return true;
+    const previousData = component.data;
+    component.data = sorted;
+    if (shortCircuitError(this.board)) {
+      component.data = previousData;
+      return false;
+    }
+    this.board.program ??= { rom: id, pc: null, run: null, step: null, resetPc: null,
+      resetRegisters: null, registers: [], offset: 0, format: "hex" };
+    this.board.program.sources ??= {};
+    if (annotations) this.board.program.sources[id] = annotations;
+    else delete this.board.program.sources[id];
+    this.commit();
+    return true;
   }
 
   resizeMemoryAddress(id, addressSize) {
