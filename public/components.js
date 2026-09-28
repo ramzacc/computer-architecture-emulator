@@ -291,7 +291,7 @@ export function moduleFaceParts(component) {
   return (component.module?.components ?? []).flatMap((part, index) =>
     Array.isArray(part) && MODULE_FACE_TYPES.has(part[0])
       ? [{ id: `c${index + 1}`, index, type: part[0],
-        label: ["output", "button"].includes(part[0]) ? tupleField(part, "label") : "" }]
+        label: tupleField(part, "label") }]
       : []);
 }
 
