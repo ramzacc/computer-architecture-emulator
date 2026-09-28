@@ -858,22 +858,38 @@ test("descendant splitter order reverses branch bits and persists", () => {
 });
 
 
-test("counter example loads and feeds the incremented value back into its register", () => {
-  const text = readFileSync(new URL("./public/examples/counter.json", import.meta.url), "utf8");
+test("8-bit computer example runs its ROM program and writes only RA", () => {
+  const text = readFileSync(new URL("./public/examples/8-bit-computer.json", import.meta.url), "utf8");
   const { board } = parseDocument(text);
-  const { states } = evaluateBoard(board, new Set(), new Set(), new Map([["c1", 3]]));
-  assert.deepEqual(states.get("c5").inputs, [1, 3, 0]);
-  assert.equal(states.get("c1").inputs[0], 4);
-  assert.equal(states.get("c7").inputs[0], 3);
-  assert.deepEqual(JSON.parse(serialize(board)), JSON.parse(text));
-});
+  const byLabel = new Map(board.components.map((component) => [component.label, component]));
+  const registerByLabel = new Map(board.components.filter((component) => component.t === "register")
+    .map((component) => [component.label, component]));
+  const registers = new Map([0x12, 0x56, 0xbc, 0x78, 0x9a, 0xbc, 0xde, 0]
+    .map((value, index) => [registerByLabel.get(`R${index}`).id, value]));
+  const rom = byLabel.get("Program ROM");
+  const counter = byLabel.get("Counter 1");
+  const step = byLabel.get("Manual Clock").id;
+  const result = byLabel.get("Result: 00 NOT, 01 SUM, 10 AND, 11 INC").id;
 
-test("4-bit computer example loads with its register bank and visible outputs", () => {
-  const text = readFileSync(new URL("./public/examples/4-bit-computer.json", import.meta.url), "utf8");
-  const { board } = parseDocument(text);
-  assert.equal(board.components.filter((component) => component.t === "register").length, 4);
-  assert.deepEqual(board.components.filter((component) => component.t === "output").map((component) => component.label),
-    ["RA Value", "RB Value"]);
-  assert.equal(evaluateBoard(board).states.get("c9").value, 192);
+  assert.equal(board.components.filter((component) => component.t === "register").length, 8);
+  assert.equal(rom.data.length, 255);
+  for (const [pc, instruction, destination, expected] of [
+    [1, 0x97, 2, 0],
+    [2, 0x51, 2, 0x12],
+    [3, 0x10, 2, 0x43],
+    [4, 0xc8, 1, 0x57],
+  ]) {
+    const values = new Map(registers).set(counter.id, pc);
+    const { states, settled } = evaluateBoard(board, new Set([step]), new Set(), values);
+    assert.equal(settled, true);
+    assert.equal(states.get(rom.id).value, instruction);
+    assert.equal(states.get(result).value, expected);
+    assert.equal(states.get(counter.id).inputs[0], 1);
+    for (let index = 0; index < 8; index++) {
+      const [data, clock] = states.get(registerByLabel.get(`R${index}`).id).inputs;
+      assert.equal(data, expected);
+      assert.equal(clock, Number(index === destination));
+    }
+  }
   assert.deepEqual(JSON.parse(serialize(board)), JSON.parse(text));
 });
