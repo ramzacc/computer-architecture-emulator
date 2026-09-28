@@ -57,7 +57,7 @@ test("visual grid preserves scattered operand click order and types", () => {
   const isa = serializeIsaGrid(rules);
   assert.deepEqual(isaGrid(isa, 8), rules);
   assert.deepEqual(assemble("MOV R2 1", 8, 8, isa), [[0, 0x8E]]);
-  assert.equal(disassemble([[0, 0x8E]], 8, isa), "MOV R0x2 0x1");
+  assert.equal(disassemble([[0, 0x8E]], 8, isa), "MOV R2 0x1");
   assert.throws(() => assemble("MOV 2 1", 8, 8, isa), /operands do not match/);
 });
 

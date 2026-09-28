@@ -1,3 +1,4 @@
+import { assemble, disassemble } from "./public/assembly.js";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -879,7 +880,7 @@ test("descendant splitter order reverses branch bits and persists", () => {
 });
 
 
-test("8-bit computer example runs its ROM program and writes only RA", () => {
+test("8-bit computer example decodes its ISA and writes only RB", () => {
   const text = readFileSync(new URL("./public/examples/8-bit-computer.json", import.meta.url), "utf8");
   const { board } = parseDocument(text);
   const byLabel = new Map(board.components.map((component) => [component.label, component]));
@@ -899,11 +900,14 @@ test("8-bit computer example runs its ROM program and writes only RA", () => {
   assert.equal(byLabel.has("AND 1"), false);
   assert.equal(board.monitor.ids.includes(clock.id), true);
   assert.equal(rom.data.length, 255);
+  const isa = board.program.isa[rom.id];
+  assert.equal(disassemble([[1, 0x97]], 8, isa), "\nAND R2 R7");
+  assert.deepEqual(assemble("AND R2 R7", 8, 8, isa), [[0, 0x97]]);
   for (const [pc, instruction, destination, expected] of [
-    [1, 0x97, 2, 0],
-    [2, 0x51, 2, 0x12],
-    [3, 0x10, 2, 0x43],
-    [4, 0xc8, 1, 0x57],
+    [1, 0x97, 7, 0],
+    [2, 0x51, 1, 0x12],
+    [3, 0x10, 0, 0x43],
+    [4, 0xc8, 0, 0x57],
   ]) {
     const values = new Map(registers).set(counter.id, pc);
     const { states, settled } = evaluateBoard(board, new Set([step]), new Set(), values);
@@ -921,7 +925,7 @@ test("8-bit computer example runs its ROM program and writes only RA", () => {
   const running = evaluateBoard(board, new Set(), new Set([clock.id]),
     new Map(registers).set(counter.id, 1));
   assert.equal(running.states.get(counter.id).inputs[0], 1);
-  assert.equal(running.states.get(registerByLabel.get("R2").id).inputs[1], 1);
+  assert.equal(running.states.get(registerByLabel.get("R7").id).inputs[1], 1);
   clock.enable = false;
   assert.deepEqual(JSON.parse(serialize(board)), JSON.parse(text));
 });

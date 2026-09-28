@@ -227,7 +227,7 @@ function decode(rule, value) {
     if (Math.floor(value / 2 ** bit) % 2 !== expected) return null;
   const operands = rule.operands.map(({ bits, kind }) => {
     const decoded = bits.reduce((result, bit) => result * 2 + Math.floor(value / 2 ** bit) % 2, 0);
-    return `${kind === "register" ? "R" : ""}0x${decoded.toString(16).toUpperCase()}`;
+    return kind === "register" ? `R${decoded}` : `0x${decoded.toString(16).toUpperCase()}`;
   });
   return `${rule.keyword}${operands.length ? ` ${operands.join(" ")}` : ""}`;
 }
