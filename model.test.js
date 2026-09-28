@@ -110,7 +110,7 @@ test("module face indicators reflect their internal circuit state", () => {
   assert.throws(() => parseDocument(JSON.stringify(saved)), /invalid/);
 });
 
-test("portal labels identify separate buses and must be unique", () => {
+test("portals with different labels observe separate buses", () => {
   const board = createBoard();
   for (const component of [
     { id: "source", t: "constant", x: -6, y: 0, r: 2, size: 4, value: 10 },
@@ -127,10 +127,10 @@ test("portal labels identify separate buses and must be unique", () => {
   const restored = parseDocument(serialize(board)).board;
   assert.equal(restored.components[1].label, "DATA");
   assert.equal(evaluateBoard(restored).states.get(restored.components[3].id).value, 0);
-  assert.equal(addComponent(board, { id: "wrong", t: "portal", x: 20, y: 0, size: 1, label: "DATA" }), false);
+  assert.equal(addComponent(board, { id: "another", t: "portal", x: 20, y: 0, size: 1, label: "DATA" }), true);
 });
 
-test("duplicate portal names are rejected on save", () => {
+test("duplicate portal labels survive saving without joining their buses", () => {
   const board = createBoard();
   for (const component of [
     { id: "high", t: "constant", x: -3, y: 0, r: 2, value: 1 },
@@ -143,7 +143,9 @@ test("duplicate portal names are rejected on save", () => {
   assert.equal(addWireEdge(board, { o: "H", x: 12, y: 1 }), true);
   assert.equal(computeNets(board).size, 2);
   board.components[2].label = "A";
-  assert.throws(() => serialize(board), /Duplicate portal label/);
+  const restored = parseDocument(serialize(board)).board;
+  assert.deepEqual(restored.components.filter((component) => component.t === "portal").map((component) => component.label), ["A", "A"]);
+  assert.equal(computeNets(restored).size, 2);
 });
 
 test("a button drives its one output HIGH only during an evaluation with its input pressed", () => {

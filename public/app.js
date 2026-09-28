@@ -563,7 +563,9 @@ componentLabelEl.addEventListener("change", () => {
   const component = editor.component(selectedId);
   if (!editor.setLabel(selectedId, componentLabelEl.value)) {
     if (component && component.label !== componentLabelEl.value)
-      busStatus(`Each ${spec(component.t).label} needs a unique label of at most 80 characters.`, true);
+      busStatus(component.t === "portal"
+        ? "Portal labels must be at most 80 characters."
+        : `Each ${spec(component.t).label} needs a unique label of at most 80 characters.`, true);
     renderProperties();
   }
 });

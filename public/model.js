@@ -32,7 +32,7 @@ export function componentAt(board, x, y, ignoreId) {
 }
 
 export function labelAvailable(board, component) {
-  return !board.components.some((item) => item.id !== component.id &&
+  return component.t === "portal" || !board.components.some((item) => item.id !== component.id &&
     item.t === component.t && item.label === component.label);
 }
 
@@ -678,8 +678,10 @@ export function serialize(board) {
       if (!validComponentProperties(component))
         throw new Error(`Cannot serialize invalid ${String(component.t)} component.`);
       const key = JSON.stringify([component.t, component.label ?? ""]);
-      if (labels.has(key)) throw new Error(`Duplicate ${component.t} label: ${component.label}.`);
-      labels.add(key);
+      if (component.t !== "portal") {
+        if (labels.has(key)) throw new Error(`Duplicate ${component.t} label: ${component.label}.`);
+        labels.add(key);
+      }
       return [component.t, component.x, component.y, component.r ?? 0,
         ...documentFields(component.t).map((field) => documentValue(component, field))];
     }),
