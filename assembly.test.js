@@ -72,6 +72,8 @@ test("blank and comment lines do not reserve addresses; sparse ROM uses explicit
   const isa = "JMP | op 7=1 | value 6-5-4-3-2-1-0";
   assert.deepEqual(sourceLineAddresses("; comment\n\nJMP 3\n.word 0\n.word 0x4"), [null, null, 0, 1, 2]);
   assert.deepEqual(assemble("; comment\n\nJMP 3\n.word 0\n.word 0x4", 8, 8, isa), [[0, 0x83], [2, 4]]);
+  assert.deepEqual(assemble("\n; comment\n.word 1\n\n.word 2", 1, 8), [[0, 1], [1, 2]]);
+  assert.throws(() => assemble(".word 1\n\n.word 2\n.word 3", 1, 8), /Line 4: instruction exceeds ROM address space/);
   assert.equal(disassemble([[2, 0x83], [4, 4]], 8, isa), ".word 0x00\n.word 0x00\nJMP 0x3\n.word 0x00\n.word 0x04");
   assert.deepEqual(assemble(disassemble([[2, 0x83], [4, 4]], 8, isa), 8, 8, isa), [[2, 0x83], [4, 4]]);
 });

@@ -41,6 +41,8 @@ export function createProgram({ getEditor }) {
   let renderedIsaRoms = "";
   let lastPcLine = null;
   let renderedSyntax = "";
+  const breakpoints = new Map();
+  let skipBreakpointAt = null;
 
   const components = () => getEditor().board.components;
   const component = (id) => components().find((item) => item.id === id);
@@ -171,7 +173,8 @@ export function createProgram({ getEditor }) {
     if (!rom) {
       sourceEl.value = "";
       syntaxEl.replaceChildren(); renderedSyntax = "";
-      gutterEl.replaceChildren(); currentLineEl.hidden = true;
+      gutterEl.replaceChildren(); gutterEl.dataset.key = ""; currentLineEl.hidden = true;
+      $("clear-breakpoints").disabled = ![...breakpoints.values()].some((items) => items.size);
       assemblyNoteEl.textContent = "Link a ROM in Program setup.";
       return;
     }
@@ -319,16 +322,28 @@ export function createProgram({ getEditor }) {
   function updateGutter() {
     const rom = activeRom(); if (!rom) return;
     const addresses = sourceLineAddresses(sourceEl.value);
-    const key = JSON.stringify([rom.id, addressWidth(rom), addresses]);
+    const selected = breakpoints.get(rom.id) ?? new Set();
+    const key = JSON.stringify([rom.id, addressWidth(rom), addresses, [...selected].sort((a, b) => a - b)]);
     if (gutterEl.dataset.key !== key) {
       gutterEl.replaceChildren(...addresses.map((address) => {
         const line = document.createElement("div");
-        line.textContent = address === null ? "" : formatAddress(address);
+        if (address !== null && address < 2 ** addressWidth(rom)) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.dataset.address = String(address);
+          button.classList.toggle("breakpoint", selected.has(address));
+          button.setAttribute("aria-pressed", String(selected.has(address)));
+          button.setAttribute("aria-label", `${selected.has(address) ? "Remove" : "Add"} breakpoint at ${formatAddress(address)}`);
+          button.title = `${selected.has(address) ? "Remove" : "Add"} breakpoint at ${formatAddress(address)}`;
+          button.textContent = formatAddress(address);
+          line.append(button);
+        } else if (address !== null) line.textContent = formatAddress(address);
         return line;
       }));
       gutterEl.dataset.key = key;
     }
     gutterEl.scrollTop = sourceEl.scrollTop;
+    $("clear-breakpoints").disabled = ![...breakpoints.values()].some((items) => items.size);
   }
   function highlightPc(pc) {
     const line = Number.isInteger(pc) && pc >= 0 ? sourceLineAddresses(sourceEl.value).indexOf(pc) : -1;
@@ -358,6 +373,23 @@ export function createProgram({ getEditor }) {
     $("step-button").disabled = component(config().step)?.t !== "button" || playing || dirty;
     highlightPc(pc);
     $("reset").disabled = ![config().resetPc, config().resetRegisters].every((id) => component(id)?.t === "button");
+  }
+  function checkBreakpoint() {
+    ensureBoard();
+    const rom = activeRom();
+    const pc = pcValue();
+    if (!rom || pc === null || !isPlaying()) return;
+    const clock = component(config().run);
+    if (skipBreakpointAt !== null) {
+      if (pc === skipBreakpointAt) {
+        if (getEditor().highClocks.has(clock.id)) skipBreakpointAt = null;
+        return;
+      }
+      skipBreakpointAt = null;
+    }
+    if (!breakpoints.get(rom.id)?.has(pc)) return;
+    if (getEditor().setClockEnabled(clock.id, false))
+      status(`Breakpoint reached at ${formatAddress(pc)}.`);
   }
   function render() {
     const editor = getEditor();
@@ -447,6 +479,23 @@ export function createProgram({ getEditor }) {
     draft.dirty = true;
     updateAssembly(); updatePc();
   });
+  gutterEl.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-address]");
+    const rom = activeRom();
+    if (!button || !rom) return;
+    const address = Number(button.dataset.address);
+    const selected = breakpoints.get(rom.id) ?? new Set();
+    if (selected.has(address)) selected.delete(address);
+    else selected.add(address);
+    breakpoints.set(rom.id, selected);
+    updateGutter(); highlightPc(pcValue()); checkBreakpoint();
+  });
+  $("clear-breakpoints").addEventListener("click", () => {
+    breakpoints.clear();
+    skipBreakpointAt = null;
+    updateGutter(); highlightPc(pcValue());
+    $("clear-breakpoints").disabled = true;
+  });
   assembleEl.addEventListener("click", () => {
     const rom = activeRom();
     if (!rom || isPlaying()) return;
@@ -495,6 +544,7 @@ export function createProgram({ getEditor }) {
     if (enable && assemblyDraft(activeRom())?.dirty) { status("Assemble your draft before Play.", true); return; }
     const item = component(config().run);
     if (item?.t !== "clock") { status("Link a clock in Program setup.", true); return; }
+    skipBreakpointAt = enable && breakpoints.get(activeRom()?.id)?.has(pcValue()) ? pcValue() : null;
     const changed = (item.enable !== false) === enable || getEditor().setClockEnabled(item.id, enable);
     if (!changed) status("Clock could not be changed.", true);
     else status(enable ? "Playing." : "Paused.");
@@ -521,17 +571,17 @@ export function createProgram({ getEditor }) {
   function ensureBoard() {
     const board = getEditor().board;
     if (draftBoard === board) return;
-    drafts.clear(); isaDrafts.clear(); draftBoard = board;
+    drafts.clear(); isaDrafts.clear(); breakpoints.clear(); skipBreakpointAt = null; draftBoard = board;
     sourceEl.dataset.rom = "";
     renderedSyntax = "";
     renderedIsaRoms = "";
   }
-  return { render, renderIsa, reset() {
+  return { render, renderIsa, checkBreakpoint, reset() {
     for (const timer of registerHighlightTimers.values()) clearTimeout(timer);
     registerHighlightTimers.clear();
     previousRegisterValues.clear();
     renderedEditor = null; renderedComponents = ""; renderedConfig = ""; renderedIsaRoms = "";
-    drafts.clear(); isaDrafts.clear(); draftBoard = null; sourceEl.dataset.rom = "";
+    drafts.clear(); isaDrafts.clear(); breakpoints.clear(); skipBreakpointAt = null; draftBoard = null; sourceEl.dataset.rom = "";
     renderedSyntax = "";
     defaultBoard = null;
   } };

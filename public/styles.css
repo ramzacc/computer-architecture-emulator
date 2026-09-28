@@ -742,6 +742,10 @@ main > [role="tabpanel"][hidden] { display: none; }
 :root[data-theme="light"] .program-token-comment { color: #567d67; }
 .program-gutter { flex: 0 0 66px; overflow: hidden; padding: 14px 7px; border-right: 1px solid var(--line); color: var(--muted); font: 14px/1.6 ui-monospace, monospace; text-align: right; white-space: pre; }
 .program-gutter > div { height: 22.4px; }
+.program-gutter button { display: block; position: relative; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: right; cursor: pointer; }
+.program-gutter button:hover, .program-gutter button:focus-visible { color: var(--text); }
+.program-gutter button:focus-visible { outline: 1px solid var(--accent); }
+.program-gutter button.breakpoint::before { content: ""; position: absolute; left: 0; top: 50%; width: 10px; height: 10px; transform: translateY(-50%); border-radius: 50%; background: #e4525c; }
 .program-gutter > div.active { color: var(--accent); font-weight: 700; }
 .program-current-line { position: absolute; z-index: 1; left: 66px; right: 0; background: var(--selection-fill); border-left: 2px solid var(--accent); pointer-events: none; }
 .program-registers-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
