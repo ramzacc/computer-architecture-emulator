@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dimsOf, pinsFor, spec } from "./public/components.js";
+import { dimsOf, moduleFaceParts, pinsFor, spec } from "./public/components.js";
 import { addComponent, addWireEdge, canPlaceEdge, computeNets, createBoard,
   edgeKey, edgePlacementError, evaluateBoard, isValidComponent, parseDocument, resizeNet,
   sanitizeWires, serialize, wireRoute } from "./public/model.js";
@@ -108,6 +108,27 @@ test("module face indicators reflect their internal circuit state", () => {
   assert.throws(() => parseDocument(JSON.stringify(saved)), /invalid/);
   saved.components[0][6] = [[1, 0, 2]];
   assert.throws(() => parseDocument(JSON.stringify(saved)), /invalid/);
+});
+
+test("module layout face parts retain labels from every supported component type", () => {
+  const inner = createBoard();
+  for (const [index, type, label] of [
+    [0, "led", "Carry light"],
+    [1, "sevenseg", "Digit"],
+    [2, "debugdisplay", "Hex value"],
+    [3, "output", "Result"],
+    [4, "button", "Reset"],
+  ]) {
+    assert.equal(addComponent(inner, { id: `c${index + 1}`, t: type, x: index * 8, y: 0, r: 0, label }), true);
+  }
+  const module = { module: JSON.parse(serialize(inner)) };
+  assert.deepEqual(moduleFaceParts(module).map(({ type, label }) => [type, label]), [
+    ["led", "Carry light"],
+    ["sevenseg", "Digit"],
+    ["debugdisplay", "Hex value"],
+    ["output", "Result"],
+    ["button", "Reset"],
+  ]);
 });
 
 test("portals with different labels observe separate buses", () => {
