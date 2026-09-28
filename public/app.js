@@ -6,6 +6,7 @@ import { formatValue, parseValue } from "./value-format.js";
 import { parseRomFile, serializeRomFile, validHexWord } from "./rom-format.js";
 import { createTabs } from "./tabs.js";
 import { createMonitor } from "./monitor.js";
+import { createProgram } from "./program.js";
 
 const CELL = 48;
 const GAP = 3;
@@ -138,11 +139,13 @@ const monitor = createMonitor({
   gridEl: document.getElementById("monitor-grid"),
   emptyEl: document.getElementById("monitor-empty"),
 });
+const program = createProgram({ getEditor: () => editor });
 
 const viewRenderers = {
   "canvas-view": applyView,
   "monitor-view": monitor.render,
   "rom-view": renderRomTab,
+  "program-view": program.render,
   "module-layout-view": renderModuleLayout,
 };
 const tabs = createTabs(document.querySelector(".view-tabs"), (panelId) => viewRenderers[panelId]?.());
@@ -1669,6 +1672,7 @@ function loadBoard(board) {
   romJumpEl.dataset.valid = "";
   romStatus("");
   monitor.reset();
+  program.reset();
   setSelection([]);
   placingType = null;
   clearWireGesture();
