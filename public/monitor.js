@@ -34,7 +34,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
   }
 
   function items() {
-    return getEditor().board.components.filter((component) => ["tag", "button", "switch"].includes(component.t));
+    return getEditor().board.components.filter((component) => ["tag", "button", "switch", "input", "output"].includes(component.t));
   }
 
   function add(id, index = layout().ids.length) {
@@ -58,7 +58,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       button.draggable = true;
       button.dataset.id = item.id;
       button.textContent = item.label || item.t;
-      button.title = `${item.t === "tag" ? `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"} tag` : item.t === "button" ? "Button" : "Switch"} · Click or drag to monitor`;
+      button.title = `${["tag", "input", "output"].includes(item.t) ? `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"} ${item.t}` : item.t === "button" ? "Button" : "Switch"} · Click or drag to monitor`;
       signalsEl.append(button);
     }
   }
@@ -92,17 +92,32 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       remove.title = "Remove from monitor";
       remove.textContent = "×";
       header.append(name, remove);
-      if (item.t === "tag") {
+      if (["tag", "input", "output"].includes(item.t)) {
         const value = document.createElement("output");
         value.className = "monitor-value";
         value.dataset.value = id;
+        card.append(header, value);
+        if (item.t === "input") {
+          const bits = document.createElement("div");
+          bits.className = "monitor-bits";
+          for (let bit = bitWidth(item) - 1; bit >= 0; bit--) {
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.draggable = false;
+            toggle.dataset.inputBit = String(bit);
+            toggle.dataset.inputId = id;
+            toggle.setAttribute("aria-label", `Toggle ${item.label || "Input"} bit ${bit}`);
+            bits.append(toggle);
+          }
+          card.append(bits);
+        }
         const footer = document.createElement("div");
         footer.className = "monitor-card-footer";
         const width = document.createElement("span");
         width.textContent = `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"}`;
         const select = document.createElement("select");
         select.dataset.format = id;
-        select.setAttribute("aria-label", `${item.label || "Tag"} value format`);
+        select.setAttribute("aria-label", `${item.label || item.t} value format`);
         for (const [format, label] of [["binary", "Binary"], ["hex", "Hex"], ["decimal", "Decimal"]]) {
           const option = document.createElement("option");
           option.value = format;
@@ -111,7 +126,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
         }
         select.value = formats.get(id) ?? "binary";
         footer.append(width, select);
-        card.append(header, value, footer);
+        card.append(footer);
       } else {
         const control = document.createElement("button");
         control.type = "button";
@@ -135,6 +150,14 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       if (!item) continue;
       const current = editor.evaluation.states.get(item.id)?.value ?? 0;
       value.textContent = formatValue(current, bitWidth(item), layout().formats.get(item.id) ?? "binary");
+    }
+    for (const toggle of gridEl.querySelectorAll("[data-input-bit]")) {
+      const item = available.get(toggle.dataset.inputId);
+      if (!item) continue;
+      const active = ((item.value ?? 0) & (1 << Number(toggle.dataset.inputBit))) !== 0;
+      toggle.textContent = active ? "1" : "0";
+      toggle.classList.toggle("active", active);
+      toggle.setAttribute("aria-pressed", String(active));
     }
     for (const control of gridEl.querySelectorAll("[data-control]")) {
       const item = available.get(control.dataset.control);
@@ -199,6 +222,8 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
     const control = event.target.closest("[data-control]");
     if (control && getEditor().component(control.dataset.control)?.t === "switch")
       getEditor().toggleSwitch(control.dataset.control);
+    const bit = event.target.closest("[data-input-bit]");
+    if (bit) getEditor().toggleInputBit(bit.dataset.inputId, Number(bit.dataset.inputBit));
   });
   gridEl.addEventListener("pointerdown", (event) => {
     const control = event.target.closest("[data-control]");
@@ -227,6 +252,10 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
 
   for (const source of [signalsEl, gridEl]) {
     source.addEventListener("dragstart", (event) => {
+      if (event.target.closest(".monitor-control, .monitor-bits, .monitor-remove, select")) {
+        event.preventDefault();
+        return;
+      }
       const item = event.target.closest(".monitor-signal, .monitor-card");
       if (!item) return;
       draggingId = item.dataset.id;
