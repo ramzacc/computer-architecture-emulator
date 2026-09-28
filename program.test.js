@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BoardEditor } from './public/editor.js';
 import { parseDocument, serialize } from './public/model.js';
+import { serializeIsaGrid, assemble } from './public/assembly.js';
 
 test('program bindings survive save and load and reject invalid signal types', () => {
   const editor = new BoardEditor({ storage: { setItem() {} } });
@@ -67,4 +68,18 @@ test('per-ROM ISA rules survive save and load', () => {
   assert.equal(editor.board.program.isa[first.id], undefined);
   assert.equal(editor.board.program.isa[second.id], 'JMP | op 7-6=10 | address *');
   assert.doesNotThrow(() => parseDocument(serialize(editor.board)));
+});
+
+test('visual ISA remains linked to its ROM across document save and load', () => {
+  const editor = new BoardEditor({ storage: { setItem() {} } });
+  const rom = editor.place('rom', 0, 0);
+  const rule = { keyword: 'MOV', cells: ['0', '0', 1, 1, 0, 0, '1', '0'], operands: [
+    { kind: 'register', bits: [5, 4] }, { kind: 'value', bits: [3, 2] },
+  ] };
+  const isa = serializeIsaGrid([rule]);
+  editor.setProgramConfig({ rom: rom.id, pc: null, run: null, step: null,
+    resetPc: null, resetRegisters: null, registers: [], offset: 0, format: 'hex', isa: { [rom.id]: isa } });
+  const loaded = parseDocument(serialize(editor.board)).board;
+  assert.equal(loaded.program.isa[loaded.program.rom], isa);
+  assert.deepEqual(assemble('MOV R2 1', 8, 8, isa), [[0, 0x64]]);
 });

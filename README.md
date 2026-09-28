@@ -4,16 +4,8 @@
 
 ## ISA and assembly
 
-Create a ROM on Canvas. In **ISA**, select the ROM to link it with Program, then write rules such as:
+Create a ROM on Canvas, then select it in **ISA**. Add an instruction card, enter its keyword, and add ordered **Register** or **Value** operands. Select `0`, `1`, or an operand and click ROM bit cells to assign them. Bit 0 is the least significant bit. The first assigned operand cell receives its highest bit; use the arrows in the operand strip to change the order. Save the ISA for the selected ROM.
 
-```text
-ADD | op 7-6=01 | address 5-4-3 | address 2-1-0
-LDI | op 7-6-5=110 | address 4-3 | immediate 2-1-0
-JMP | op 7-6=10 | address *
-```
+In **Program**, each physical source line maps to one ROM address, starting at 0. Blank lines and `;` comments reserve a zero word. Write instructions such as `ADD R2 5`; register indexes use `R` (for example `R7` or `R0xA`), while unprefixed decimal, `0x` hex, and `0b` binary numbers are Values. Use `.word 0xAB` for a raw ROM word. Assemble a draft before using Play or Step. Disassembling a sparse ROM fills gaps with blank lines and uses `.word` for unmatched values.
 
-Bit 0 is the least significant bit. The first position in a list receives the highest bit of that opcode or operand. `*` assigns every unused bit to that operand, from high to low. Bits left unassigned are zero. Each `address` or `immediate` clause creates one numeric operand in the listed order. Save rules for each ROM separately.
-
-For scattered fields, a rule can use `MIX | op 0-3-5=101 | immediate 1-4-6 | address *`.
-
-In **Program**, link the ROM and write instructions such as `ADD 2 1`, `LDI 3 0x5`, or `JMP 0b101`. Numbers can be decimal, hex (`0x`), or binary (`0b`). Use `.org 0x10` to set the next address and `;` for comments. Click **Assemble to ROM** to validate and save the complete ROM image. **Disassemble ROM** reloads the ROM into the editor; unmatched words use `.word`. Raw memory editing is in **ROM**.
+The Program gutter shows each line’s ROM address and highlights the line selected by the PC. The linked run clock locks source and ROM writing while enabled. Saved ISAs from older text rules are converted when documents load.

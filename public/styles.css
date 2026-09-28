@@ -705,19 +705,9 @@ main > [role="tabpanel"][hidden] { display: none; }
 .isa-heading p { margin: 0; }
 .isa-heading label { display: grid; gap: 5px; min-width: 220px; color: var(--muted); font-size: 12px; }
 .isa-heading select { min-width: 0; padding: 8px; color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 5px; }
-.isa-content { display: grid; grid-template-columns: minmax(0, 1fr) minmax(270px, 340px); gap: 18px; flex: 1; min-height: 0; }
-.isa-editor, .isa-help { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
-.isa-editor { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
-.isa-editor label { font-weight: 700; }
-.isa-editor textarea { flex: 1; min-height: 260px; width: 100%; resize: none; padding: 14px 16px; color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 6px; font: 14px/1.6 ui-monospace, monospace; }
-.isa-editor textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.isa-editor { display: flex; flex-direction: column; gap: 10px; min-height: 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 .isa-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 #isa-note.error { color: var(--status-error); }
-.isa-help { overflow-y: auto; line-height: 1.5; }
-.isa-help h3 { margin: 0 0 12px; }
-.isa-help pre { overflow-x: auto; padding: 10px; border-radius: 5px; background: var(--input); font: 12px/1.6 ui-monospace, monospace; }
-.isa-help code { color: var(--selected-value); }
-@media (max-width: 900px) { .isa-content { grid-template-columns: minmax(0, 1fr); overflow-y: auto; } .isa-editor { min-height: 390px; } }
 .isa-editor { overflow-y: auto; }
 .isa-rules { display: grid; align-content: start; gap: 12px; }
 .isa-card { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--input); }

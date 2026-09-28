@@ -272,13 +272,13 @@ export function createProgram({ getEditor }) {
   function updateGutter() {
     const rom = activeRom(); if (!rom) return;
     const count = sourceEl.value.split(/\r?\n/).length;
-    if (gutterEl.children.length !== count || gutterEl.dataset.rom !== rom.id) {
+    if (gutterEl.children.length !== count || gutterEl.dataset.rom !== rom.id || gutterEl.dataset.width !== String(addressWidth(rom))) {
       const fragment = document.createDocumentFragment();
       for (let address = 0; address < count; address++) {
         const line = document.createElement("div"); line.textContent = formatAddress(address);
         fragment.append(line);
       }
-      gutterEl.replaceChildren(fragment); gutterEl.dataset.rom = rom.id;
+      gutterEl.replaceChildren(fragment); gutterEl.dataset.rom = rom.id; gutterEl.dataset.width = String(addressWidth(rom));
     }
     gutterEl.scrollTop = sourceEl.scrollTop;
   }
