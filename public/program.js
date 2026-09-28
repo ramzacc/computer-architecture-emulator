@@ -590,9 +590,11 @@ export function createProgram({ getEditor }) {
       return {
         isa: [...isaDrafts].filter(([id, draft]) => draft.dirty && component(id)?.t === "rom").map(([id, draft]) => [id, structuredClone(draft.rules)]),
         assembly: [...drafts].filter(([id, draft]) => draft.dirty && component(id)?.t === "rom").map(([id, draft]) => [id, draft.text]),
+        breakpoints: [...breakpoints].filter(([id, addresses]) => component(id)?.t === "rom" && addresses.size)
+          .map(([id, addresses]) => [id, [...addresses].sort((a, b) => a - b)]),
       };
     },
-    restoreDrafts({ isa = [], assembly = [] } = {}) {
+    restoreDrafts({ isa = [], assembly = [], breakpoints: savedBreakpoints = [] } = {}) {
       ensureBoard();
       for (const [id, rules] of isa) {
         const rom = component(id);
@@ -602,6 +604,7 @@ export function createProgram({ getEditor }) {
         const rom = component(id);
         drafts.set(id, { text: source, key: romKey(rom), dirty: true });
       }
+      for (const [id, addresses] of savedBreakpoints) breakpoints.set(id, new Set(addresses));
       renderedIsaRoms = "";
       renderIsa();
       render();

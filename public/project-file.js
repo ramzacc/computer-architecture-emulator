@@ -2,6 +2,7 @@ import { bitWidth, addressWidth, validRom } from "./components.js";
 import { parseDocument, serialize } from "./model.js";
 
 export const PROJECT_VERSION = 1;
+export const PROJECT_FORMAT = "computer-architecture-project";
 
 function object(value, name, keys) {
   if (!value || typeof value !== "object" || Array.isArray(value) ||
@@ -50,10 +51,11 @@ export function serializeProject(board, drafts = {}) {
     if (index === undefined) throw new Error(`Cannot save ${kind} draft for a missing component.`);
     return [index, value];
   });
-  const result = { version: PROJECT_VERSION, document, drafts: {
+  const result = { format: PROJECT_FORMAT, version: PROJECT_VERSION, document, drafts: {
     rom: encode(drafts.rom, "ROM"),
     isa: encode(drafts.isa, "ISA"),
     assembly: encode(drafts.assembly, "assembly"),
+    breakpoints: encode(drafts.breakpoints, "breakpoint"),
   } };
   // Use the same validation path for files we write and files we open.
   parseProject(JSON.stringify(result));
@@ -64,14 +66,16 @@ export function parseProject(text) {
   const data = JSON.parse(text);
   // Files exported before project v1 contained the board directly.
   if (data?.version === undefined && data?.components !== undefined)
-    return { ...parseDocument(text), drafts: { rom: [], isa: [], assembly: [] }, legacy: true };
-  object(data, "Project", ["version", "document", "drafts"]);
+    return { ...parseDocument(text), drafts: { rom: [], isa: [], assembly: [], breakpoints: [] }, legacy: true };
+  object(data, "Project", ["format", "version", "document", "drafts"]);
+  if (data.format !== PROJECT_FORMAT) throw new Error("File is not a Computer Architecture project.");
   if (data.version !== PROJECT_VERSION) throw new Error(`Unsupported project version ${String(data.version)}.`);
   const { board } = parseDocument(JSON.stringify(data.document));
-  const drafts = data.drafts ?? { rom: [], isa: [], assembly: [] };
-  object(drafts, "Project drafts", ["rom", "isa", "assembly"]);
-  if (!Array.isArray(drafts.rom) || !Array.isArray(drafts.isa) || !Array.isArray(drafts.assembly))
-    throw new Error("Project drafts must include ROM, ISA, and assembly arrays.");
+  const drafts = data.drafts;
+  object(drafts, "Project drafts", ["rom", "isa", "assembly", "breakpoints"]);
+  if (!Array.isArray(drafts.rom) || !Array.isArray(drafts.isa) ||
+      !Array.isArray(drafts.assembly) || !Array.isArray(drafts.breakpoints))
+    throw new Error("Project drafts must include ROM, ISA, assembly, and breakpoint arrays.");
   return { board, drafts: {
     rom: draftEntries(drafts.rom, board, "ROM", (entries, rom) => {
       if (!validRom({ t: "rom", size: bitWidth(rom), addressSize: addressWidth(rom), data: entries }))
@@ -83,6 +87,12 @@ export function parseProject(text) {
     assembly: draftEntries(drafts.assembly, board, "assembly", (source) => {
       if (typeof source !== "string" || source.length > 1_000_000)
         throw new Error("Project assembly draft is invalid.");
+    }),
+    breakpoints: draftEntries(drafts.breakpoints, board, "breakpoint", (addresses, rom) => {
+      if (!Array.isArray(addresses) || addresses.some((address) =>
+        !Number.isInteger(address) || address < 0 || address >= 2 ** addressWidth(rom)) ||
+        new Set(addresses).size !== addresses.length)
+        throw new Error("Project breakpoints are invalid.");
     }),
   } };
 }

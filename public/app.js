@@ -1679,7 +1679,7 @@ btnPan.addEventListener("click", () => {
 
 /* ---------- Persistence ---------- */
 
-function loadBoard(board, drafts = { rom: [], isa: [], assembly: [] }) {
+function loadBoard(board, drafts = { rom: [], isa: [], assembly: [], breakpoints: [] }) {
   romTargetId = null;
   layoutTargetId = null;
   romDrafts.clear();
