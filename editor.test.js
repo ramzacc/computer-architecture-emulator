@@ -92,6 +92,36 @@ test('debug display can be placed on a module face without external ports', () =
   assert.equal(editor.evaluation.states.get(module.id).faceStates.get('c1').value, 0);
 });
 
+test('module face buttons press their own internal circuits momentarily', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  const child = new BoardEditor();
+  const button = child.place('button', 0, 0);
+  const led = child.place('led', 0, 3);
+  assert.equal(child.addWire({ o: 'V', x: 1, y: 2 }), true);
+  const first = editor.place('module', 0, 0);
+  const second = editor.place('module', 6, 0);
+  for (const component of [first, second]) {
+    assert.equal(editor.setModuleBoard(component.id, child.board), true);
+    assert.equal(editor.setModuleFacePart(component.id, 0, 1, 2), true);
+    assert.equal(editor.setModuleFacePart(component.id, 1, 2, 2), true);
+  }
+  const restored = parseDocument(serialize(editor.board)).board.components[0];
+  assert.deepEqual(restored.faceLayout, [[0, 1, 2], [1, 2, 2]]);
+  const saves = ctx.saves;
+  const path = `${first.id}/${button.id}`;
+  assert.equal(editor.evaluation.states.get(first.id).faceStates.get(led.id).lit, false);
+  assert.equal(editor.setButtonPressed(path, true), true);
+  assert.equal(editor.evaluation.states.get(first.id).faceStates.get(led.id).lit, true);
+  assert.equal(editor.evaluation.states.get(second.id).faceStates.get(led.id).lit, false);
+  const art = createRenderer(null, () => null, () => null, () => new Set(), () => new Set())
+    .componentArt(first, spec('module'), 0, [], editor.evaluation.states.get(first.id));
+  assert.match(art, /data-face-button="c1"/);
+  assert.equal(editor.setButtonPressed(path, false), true);
+  assert.equal(editor.evaluation.states.get(first.id).faceStates.get(led.id).lit, false);
+  assert.equal(ctx.saves, saves);
+});
+
 test('successful edits render and save once, while rejected edits do neither', () => {
   const ctx = setup();
   const { editor } = ctx;

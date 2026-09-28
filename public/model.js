@@ -322,6 +322,18 @@ export function clocksInBoard(board, prefix = "", depth = 0) {
   return clocks;
 }
 
+export function buttonsInBoard(board, prefix = "", depth = 0) {
+  const buttons = new Map();
+  for (const component of board.components) {
+    const path = `${prefix}${component.id}`;
+    if (component.t === "button") buttons.set(path, component);
+    if (component.t === "module" && depth < 8)
+      for (const [id, button] of buttonsInBoard(innerBoard(component.module, depth + 1), `${path}/`, depth + 1))
+        buttons.set(id, button);
+  }
+  return buttons;
+}
+
 function blockOutputs(kind, inputs, size, channels = 2) {
   const mask = bitMask(size) >>> 0;
   const [a = 0, b = 0, control = 0] = inputs;
@@ -470,9 +482,11 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       inputs.set(port.id, root === null ? 0 : (values.get(root) ?? 0));
     }
     const prefix = `${part.id}/`;
+    const innerButtons = new Set([...pressedButtons].filter((id) => id.startsWith(prefix))
+      .map((id) => id.slice(prefix.length)));
     const innerClocks = new Set([...highClocks].filter((id) => id.startsWith(prefix))
       .map((id) => id.slice(prefix.length)));
-    const result = evaluateBoard(inner, new Set(), innerClocks, new Map(), new Map(), inputs, depth + 1);
+    const result = evaluateBoard(inner, innerButtons, innerClocks, new Map(), new Map(), inputs, depth + 1);
     return { outputs: ports.filter((port) => port.role === "out")
       .map((port) => result.states.get(port.id)?.value ?? 0), states: result.states };
   };

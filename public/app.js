@@ -1147,6 +1147,14 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
   if (compEl) {
     const comp = state.components.find((c) => c.id === compEl.dataset.id);
     if (!comp) return;
+    const faceButton = e.target.closest?.("[data-face-button]");
+    if (comp.t === "module" && faceButton && !placingType && !e.shiftKey && !pressedButton) {
+      const id = `${comp.id}/${faceButton.dataset.faceButton}`;
+      pressedButton = { id, pointerId: e.pointerId };
+      canvasWrapEl.setPointerCapture(e.pointerId);
+      if (!editor.setButtonPressed(id, true)) busStatus("Button cannot press: conflicting outputs share a net.", true);
+      return;
+    }
     const tile = e.target.closest?.(".bit-tile[data-bit]");
     if (comp.t === "input" && tile && !placingType && !e.shiftKey) {
       if (!editor.toggleInputBit(comp.id, Number(tile.dataset.bit)))

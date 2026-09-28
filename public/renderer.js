@@ -278,6 +278,14 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       const x = cellX * U, y = cellY * U;
       const status = state?.faceStates?.get(part.id);
       const base = `<rect x="${x - 17}" y="${y - 17}" width="34" height="34" rx="5" fill="${display}" stroke="${displayBorder}"/>`;
+      if (part.type === "button") {
+        const label = escapeText(part.label || "Button");
+        return [`<g class="module-face-button" data-face-button="${part.id}" aria-label="${label}">
+          ${base}<circle cx="${x}" cy="${y}" r="11" fill="${status?.value ? partAccent(spec("button")) : recess}"
+          stroke="${partAccent(spec("button"))}" stroke-width="2"/>
+          <circle cx="${x}" cy="${y}" r="4" fill="${status?.value ? surface : partAccent(spec("button"))}"/>
+          </g>`];
+      }
       if (part.type === "led") return [base +
         `<circle cx="${x}" cy="${y}" r="10" fill="${status?.lit ? "var(--lamp-lit)" : "var(--part-lamp-off)"}"/>`];
       if (part.type === "sevenseg" || part.type === "debugdisplay") {
