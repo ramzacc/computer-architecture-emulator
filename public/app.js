@@ -1795,32 +1795,6 @@ function loadingPainted() {
   return new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 }
 
-for (const [buttonId, filename, title] of [
-  ["btn-example-basic", "8-bit-computer.json", "8-bit computer"],
-  ["btn-example-branching", "branching-computer.json", "Branching computer"],
-]) document.getElementById(buttonId).addEventListener("click", async () => {
-  if (moduleStack.length) { fileError("Save & back from the module before opening an example."); return; }
-  if (importing) return;
-  if (!window.confirm(`Open ${title}? This replaces the current project and its browser save.`)) return;
-  importing = true;
-  fileError("");
-  showLoading("Opening example", "Loading project…", title);
-  try {
-    await loadingPainted();
-    const response = await fetch(new URL(`./examples/${filename}`, import.meta.url));
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const project = parseProject(await response.text());
-    loadBoard(project.board, project.drafts);
-    if (filename === "branching-computer.json") tabs.show("program-view", { focus: true });
-    projectMenuEl.open = false;
-  } catch (error) {
-    fileError(`Could not open ${title}: ${error.message}`);
-  } finally {
-    importing = false;
-    hideLoading();
-  }
-});
-
 fileInputEl.addEventListener("change", async (event) => {
   const file = event.target.files[0];
   if (!file) return;
