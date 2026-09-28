@@ -284,12 +284,13 @@ export function modulePorts(component) {
   });
 }
 
-export const MODULE_FACE_TYPES = new Set(["led", "sevenseg", "debugdisplay", "output"]);
+export const MODULE_FACE_TYPES = new Set(["led", "sevenseg", "debugdisplay", "output", "button"]);
 
 export function moduleFaceParts(component) {
   return (component.module?.components ?? []).flatMap((part, index) =>
     Array.isArray(part) && MODULE_FACE_TYPES.has(part[0])
-      ? [{ id: `c${index + 1}`, index, type: part[0], label: part[0] === "output" ? tupleField(part, "label") : "" }]
+      ? [{ id: `c${index + 1}`, index, type: part[0],
+        label: ["output", "button"].includes(part[0]) ? tupleField(part, "label") : "" }]
       : []);
 }
 

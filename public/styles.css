@@ -468,6 +468,7 @@ main > [role="tabpanel"][hidden] { display: none; }
 }
 .comp.splitter { border: 0; }
 .pan .comp.button { cursor: pointer; }
+.pan .module-face-button { cursor: pointer; }
 .pan .comp.switch { cursor: pointer; }
 .pan .comp.input .bit-tile { cursor: pointer; }
 .comp.button.pressed .button-cap { filter: drop-shadow(0 0 5px rgba(180, 177, 170, .6)); }

@@ -1,5 +1,5 @@
 import { bitWidth, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePinLayout, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
-import { addComponent, addWireEdge, clocksInBoard, createBoard, crossingAt, edgeKey, isValidComponent, labelAvailable, nextLabel,
+import { addComponent, addWireEdge, buttonsInBoard, clocksInBoard, createBoard, crossingAt, edgeKey, isValidComponent, labelAvailable, nextLabel,
   evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, wireLayoutError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
 
@@ -171,8 +171,7 @@ export class BoardEditor {
   // An accepted edit produces one snapshot for every reader of circuit state.
   // Trial boards used by validation remain separate from this published result.
   evaluate(captureEdges = false) {
-    const buttonIds = new Set(this.board.components.filter((component) => component.t === "button")
-      .map((component) => component.id));
+    const buttonIds = new Set(buttonsInBoard(this.board).keys());
     for (const id of this.pressedButtons) if (!buttonIds.has(id)) this.pressedButtons.delete(id);
     const clockIds = new Set([...clocksInBoard(this.board)].filter(([, clock]) => clock.enable !== false)
       .map(([id]) => id));
@@ -230,7 +229,7 @@ export class BoardEditor {
   }
 
   setButtonPressed(id, pressed) {
-    if (this.component(id)?.t !== "button" || this.pressedButtons.has(id) === pressed) return false;
+    if (!buttonsInBoard(this.board).has(id) || this.pressedButtons.has(id) === pressed) return false;
     const next = new Set(this.pressedButtons);
     if (pressed) next.add(id);
     else next.delete(id);
