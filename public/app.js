@@ -7,7 +7,7 @@ import { parseRomFile, serializeRomFile, validHexWord } from "./rom-format.js";
 import { createTabs } from "./tabs.js";
 import { createMonitor } from "./monitor.js";
 import { createProgram } from "./program.js";
-import { serializeProject } from "./project-file.js";
+import { parseProject, serializeProject } from "./project-file.js";
 
 const CELL = 48;
 const GAP = 3;
@@ -1941,7 +1941,7 @@ try {
     try {
       const response = await fetch(new URL("./examples/8-bit-computer.json", import.meta.url));
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      board = parseDocument(await response.text()).board;
+      board = parseProject(await response.text()).board;
     } catch (error) {
       console.warn("Could not load the default example:", error);
       board = createBoard();
