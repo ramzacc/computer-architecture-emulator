@@ -74,15 +74,28 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
     signalsEl.replaceChildren();
     noTagsEl.hidden = available.length > 0;
     workspaceEl.hidden = available.length === 0;
-    for (const item of available) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "monitor-signal";
-      button.draggable = true;
-      button.dataset.id = item.id;
-      button.textContent = item.label || item.t;
-      button.title = `${["tag", "input", "output"].includes(item.t) ? `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"} ${item.t}` : item.t === "button" ? "Button" : item.t === "clock" ? "Clock" : "Switch"} · Click or drag to monitor`;
-      signalsEl.append(button);
+    const groups = [
+      { title: "Tags and outputs", items: available.filter((item) => ["tag", "output"].includes(item.t)) },
+      { title: "Controls", items: available.filter((item) => ["input", "button", "switch", "clock"].includes(item.t)) },
+    ];
+    for (const group of groups) {
+      if (!group.items.length) continue;
+      const section = document.createElement("section");
+      section.className = "monitor-signal-group";
+      const heading = document.createElement("h3");
+      heading.textContent = group.title;
+      section.append(heading);
+      for (const item of group.items) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "monitor-signal";
+        button.draggable = true;
+        button.dataset.id = item.id;
+        button.textContent = item.label || item.t;
+        button.title = `${["tag", "input", "output"].includes(item.t) ? `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"} ${item.t}` : item.t === "button" ? "Button" : item.t === "clock" ? "Clock" : "Switch"} · Click or drag to monitor`;
+        section.append(button);
+      }
+      signalsEl.append(section);
     }
   }
 

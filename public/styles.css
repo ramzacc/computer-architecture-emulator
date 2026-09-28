@@ -221,7 +221,9 @@ main > [role="tabpanel"][hidden] { display: none; }
 .panel.monitor-sidebar { gap: 12px; min-height: 0; overflow: hidden; padding-top: 20px; }
 .monitor-sidebar h2 { margin: 0; }
 .monitor-sidebar > .hint { margin: 0; }
-.monitor-signals { display: grid; grid-auto-rows: max-content; align-content: start; flex: 1 1 auto; min-height: 0; overflow-y: auto; gap: 6px; padding-bottom: 16px; }
+.monitor-signals { display: grid; grid-auto-rows: max-content; align-content: start; flex: 1 1 auto; min-height: 0; overflow-y: auto; gap: 18px; padding-bottom: 16px; }
+.monitor-signal-group { display: grid; grid-auto-rows: max-content; gap: 6px; }
+.monitor-signal-group h3 { margin: 0 0 2px; color: var(--muted); font-size: 12px; font-weight: 650; }
 .monitor-signal {
   width: 100%;
   min-height: 36px;
@@ -296,7 +298,8 @@ main > [role="tabpanel"][hidden] { display: none; }
 @media (max-width: 700px) {
   .monitor-view { flex-direction: column; }
   .monitor-sidebar { width: 100%; max-height: 210px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .monitor-signals { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .monitor-signal-group { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .monitor-signal-group h3 { grid-column: 1 / -1; }
 }
 
 .panel {
