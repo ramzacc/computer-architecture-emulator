@@ -324,6 +324,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const state = getBoard();
     const selectedIds = getSelectedIds();
     const present = new Set();
+    const pending = document.createDocumentFragment?.();
     for (const c of state.components) {
       const s = spec(c.t);
       const d = dimsOf(c);
@@ -334,7 +335,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       if (!entry) {
         const el = document.createElement("div");
         el.dataset.id = c.id;
-        gridEl.appendChild(el);
+        (pending ?? gridEl).appendChild(el);
         entry = { el, signature: null };
         componentEls.set(c.id, entry);
       }
@@ -359,11 +360,13 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       entry.el.remove();
       componentEls.delete(id);
     }
+    if (pending?.hasChildNodes()) gridEl.appendChild(pending);
   }
 
   function renderPins() {
     const state = getBoard();
     const present = new Set();
+    const pending = document.createDocumentFragment?.();
     for (const c of state.components) {
       for (const [index, p] of pinsFor(c).entries()) {
         const key = `${c.id}:${index}`;
@@ -371,7 +374,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
         let el = pinEls.get(key);
         if (!el) {
           el = document.createElement("div");
-          gridEl.appendChild(el);
+          (pending ?? gridEl).appendChild(el);
           pinEls.set(key, el);
         }
         const className = "pin " + p.role;
@@ -387,6 +390,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       el.remove();
       pinEls.delete(key);
     }
+    if (pending?.hasChildNodes()) gridEl.appendChild(pending);
   }
 
   function edgeBox(e) {
@@ -417,6 +421,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   function renderWires(logic = getEvaluation()) {
     const state = getBoard();
     const selectedWires = getSelectedWires();
+    const pending = document.createDocumentFragment?.();
     const presentWires = new Set();
     const presentJunctions = new Set();
     const info = new Map();
@@ -432,7 +437,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       if (!entry) {
         const el = document.createElement("div");
         el.dataset.key = key;
-        gridEl.appendChild(el);
+        (pending ?? gridEl).appendChild(el);
         entry = { el, size: null };
         wireEls.set(key, entry);
       }
@@ -469,7 +474,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
         el = document.createElement("div");
         el.style.left = x * CELL + "px";
         el.style.top = y * CELL + "px";
-        gridEl.appendChild(el);
+        (pending ?? gridEl).appendChild(el);
         junctionEls.set(point, el);
       }
       const className = "wire-junction " + (net?.on ? "on" : "off") +
@@ -480,6 +485,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       el.remove();
       junctionEls.delete(point);
     }
+    if (pending?.hasChildNodes()) gridEl.appendChild(pending);
   }
 
   return { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox };

@@ -47,7 +47,7 @@ export function nextLabel(board, type, base = spec(type)?.label ?? type) {
   }
 }
 
-function validComponentProperties(component, depth = 0) {
+function validComponentProperties(component, depth = 0, parsedModule = false) {
   const size = dimsOf(component);
   if (!size || !Number.isSafeInteger(component.x) || !Number.isSafeInteger(component.y) ||
       (component.r !== undefined && (!Number.isInteger(component.r) || component.r < 0 || component.r > 3)) ||
@@ -68,7 +68,12 @@ function validComponentProperties(component, depth = 0) {
     if (!component.module ||
         !validModuleSize(component) || !validModulePinLayout(component) || !validModuleFaceLayout(component)) return false;
     if (depth >= 8) return false;
-    try { parseDocument(JSON.stringify(component.module), depth + 1); }
+    try {
+      const inner = parsedModule
+        ? parseDocumentData(component.module, depth + 1)
+        : parseDocument(JSON.stringify(component.module), depth + 1);
+      moduleBoardCache.set(component.module, inner.board);
+    }
     catch { return false; }
   }
   return true;
@@ -752,7 +757,10 @@ function coordinate(value, path) {
 
 // Parsing builds a complete board before callers replace the visible one.
 export function parseDocument(text, depth = 0) {
-  const data = JSON.parse(text);
+  return parseDocumentData(JSON.parse(text), depth);
+}
+
+function parseDocumentData(data, depth) {
   object(data, "Document", ["components", "wires", "junctions", "monitor", "program"]);
   if (!Array.isArray(data.components)) throw new Error("Document.components must be an array.");
   if (!Array.isArray(data.wires)) throw new Error("Document.wires must be an array.");
@@ -760,6 +768,7 @@ export function parseDocument(text, depth = 0) {
     throw new Error("Document.junctions must be an array.");
   const board = createBoard();
   const occupied = new Set();
+  const labels = new Set();
   for (const [index, raw] of data.components.entries()) {
     const path = `components[${index}]`;
     if (!Array.isArray(raw)) throw new Error(`${path} must be a component tuple.`);
@@ -807,8 +816,10 @@ export function parseDocument(text, depth = 0) {
       } else if (!(["pinLayout", "faceLayout"].includes(field) && value === null))
         component[field] = value;
     }
-    if (!validComponentProperties(component, depth)) throw new Error(`${path} is invalid.`);
-    if (!labelAvailable(board, component)) throw new Error(`${path} duplicates a ${t} label.`);
+    if (!validComponentProperties(component, depth, true)) throw new Error(`${path} is invalid.`);
+    const labelKey = JSON.stringify([t, component.label]);
+    if (t !== "portal" && labels.has(labelKey)) throw new Error(`${path} duplicates a ${t} label.`);
+    labels.add(labelKey);
     const { w, h } = dimsOf(component);
     for (let y = component.y; y < component.y + h; y++) for (let x = component.x; x < component.x + w; x++) {
       const key = `${x},${y}`;
@@ -885,6 +896,7 @@ export function parseDocument(text, depth = 0) {
     }
   }
   const wireIndexes = new Map();
+  const wiresByPoint = new Map();
   for (const [index, raw] of data.wires.entries()) {
     const path = `wires[${index}]`;
     if (!Array.isArray(raw) || (raw.length !== 4 && raw.length !== 5)) throw new Error(`${path} must be [orientation, x, y, size, optional length].`);
@@ -904,6 +916,11 @@ export function parseDocument(text, depth = 0) {
       if (blockedEdges.has(key)) throw new Error(`${path} is blocked by a component.`);
       board.wires.set(key, edge);
       wireIndexes.set(key, index);
+      for (const [px, py] of edgePoints(edge)) {
+        const point = `${px},${py}`;
+        if (!wiresByPoint.has(point)) wiresByPoint.set(point, []);
+        wiresByPoint.get(point).push(edge);
+      }
     }
   }
   for (const [index, raw] of data.junctions.entries()) {
@@ -913,14 +930,20 @@ export function parseDocument(text, depth = 0) {
     coordinate(x, `${path}[0]`);
     coordinate(y, `${path}[1]`);
     const key = `${x},${y}`;
-    if (!crossingAt(board, x, y) || board.junctions.has(key)) throw new Error(`${path} is not a unique crossing.`);
+    const crossing = wiresByPoint.get(key);
+    if (crossing?.length !== 4 || crossing.filter((wire) => wire.o === "H").length !== 2 ||
+        crossing.filter((wire) => wire.o === "V").length !== 2 || board.junctions.has(key))
+      throw new Error(`${path} is not a unique crossing.`);
     board.junctions.add(key);
   }
   for (const edge of board.wires.values()) {
     const index = wireIndexes.get(edgeKey(edge));
     for (const [x, y] of edgePoints(edge)) {
-      const connected = connectedAtPoint(board, edge, x, y);
-      const pins = pinSizes.get(`${x},${y}`);
+      const point = `${x},${y}`;
+      const touching = wiresByPoint.get(point);
+      const pins = pinSizes.get(point);
+      const connected = touching.length === 4 && !board.junctions.has(point) && !pins
+        ? touching.filter((wire) => wire.o === edge.o) : touching;
       const mismatched = connected.find((wire) => wireSize(wire) !== edge.size);
       if (mismatched) {
         const later = Math.max(index, wireIndexes.get(edgeKey(mismatched)));

@@ -900,6 +900,7 @@ test("8-bit computer example decodes its ISA and writes only RB", () => {
   assert.equal(byLabel.has("AND 1"), false);
   assert.equal(board.monitor.ids.includes(clock.id), true);
   assert.equal(rom.data.length, 255);
+  clock.enable = false;
   const isa = board.program.isa[rom.id];
   assert.equal(disassemble([[1, 0x97]], 8, isa), "NOT R0 R0\nAND R2 R7");
   assert.deepEqual(assemble("AND R2 R7", 8, 8, isa), [[0, 0x97]]);

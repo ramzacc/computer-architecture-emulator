@@ -43,10 +43,22 @@ test("renderer reuses unchanged canvas elements and removes stale ones", () => {
   const originalDocument = globalThis.document;
   const grid = {
     children: [],
-    appendChild(el) { this.children.push(el); el.parent = this; },
+    appendChild(el) {
+      for (const child of el.children ?? [el]) {
+        this.children.push(child);
+        child.parent = this;
+      }
+    },
   };
   let artWrites = 0;
   globalThis.document = {
+    createDocumentFragment() {
+      return {
+        children: [],
+        appendChild(el) { this.children.push(el); },
+        hasChildNodes() { return this.children.length > 0; },
+      };
+    },
     createElement() {
       return {
         style: {}, dataset: {}, className: "", title: "",
