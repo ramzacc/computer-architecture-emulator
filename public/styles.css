@@ -243,8 +243,18 @@ main > [role="tabpanel"][hidden] { display: none; }
 .monitor-card-header h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; font-size: 14px; }
 .monitor-remove { padding: 0 6px; border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; }
 .monitor-remove:hover { color: var(--text); background: var(--button-hover); }
-.monitor-control { display: block; width: 100%; margin-top: 18px; padding: 12px; cursor: pointer; }
-.monitor-control.active { border-color: var(--accent); background: var(--selection-fill); color: var(--text); }
+.monitor-control { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 94px; margin-top: 18px; padding: 12px; border-color: var(--part-border); background: var(--part-surface); color: var(--part-ink); cursor: pointer; }
+.monitor-control:hover { border-color: var(--part-control); background: var(--part-surface); }
+.monitor-control.active { border-color: var(--part-control); background: var(--part-surface); color: var(--part-ink); }
+.monitor-control-art { display: flex; align-items: center; justify-content: center; width: 58px; height: 40px; }
+.monitor-push-button .monitor-control-center { position: relative; width: 37px; height: 37px; border: 2px solid var(--part-control); border-radius: 50%; background: var(--part-recess); box-shadow: 0 3px 0 var(--part-border); }
+.monitor-push-button .monitor-control-center::after { content: ""; position: absolute; inset: 12px; border-radius: 50%; background: var(--part-control); }
+.monitor-push-button.active .monitor-control-center { transform: translateY(3px); background: var(--part-control); box-shadow: none; }
+.monitor-push-button.active .monitor-control-center::after { background: var(--part-surface); }
+.monitor-switch .monitor-control-art { position: relative; width: 58px; height: 28px; border: 2px solid var(--part-border); border-radius: 16px; background: var(--part-recess); }
+.monitor-switch .monitor-control-center { position: absolute; left: 5px; width: 18px; height: 18px; border-radius: 50%; background: var(--part-muted); transition: left .12s ease; }
+.monitor-switch.active .monitor-control-center { left: 31px; background: var(--part-control); }
+.monitor-control-status { font-size: 12px; font-weight: 650; }
 .monitor-bits { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
 .monitor-bits button { min-width: 34px; padding: 7px; font: 600 14px/1 ui-monospace, monospace; cursor: pointer; }
 .monitor-bits button.active { border-color: var(--accent); background: var(--selection-fill); color: var(--text); }

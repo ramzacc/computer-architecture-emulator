@@ -145,9 +145,18 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
         const control = document.createElement("button");
         control.type = "button";
         control.className = "monitor-control";
+        control.classList.add(item.t === "button" ? "monitor-push-button" : "monitor-switch");
         control.draggable = false;
         control.dataset.control = id;
-        control.textContent = item.t === "button" ? "Press" : "Off";
+        const art = document.createElement("span");
+        art.className = "monitor-control-art";
+        const center = document.createElement("span");
+        center.className = "monitor-control-center";
+        art.append(center);
+        const status = document.createElement("span");
+        status.className = "monitor-control-status";
+        status.textContent = item.t === "button" ? "Press" : "Off";
+        control.append(art, status);
         control.setAttribute("aria-label", `${item.label || item.t} ${item.t}`);
         card.append(header, control);
       }
@@ -179,7 +188,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       const active = item.t === "button" ? editor.pressedButtons.has(item.id) : item.value === 1;
       control.classList.toggle("active", active);
       control.setAttribute("aria-pressed", String(active));
-      control.textContent = item.t === "button" ? active ? "Pressed" : "Press" : active ? "On" : "Off";
+      control.querySelector(".monitor-control-status").textContent = item.t === "button" ? active ? "Pressed" : "Press" : active ? "On" : "Off";
     }
   }
 
