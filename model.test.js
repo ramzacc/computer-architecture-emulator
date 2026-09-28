@@ -881,7 +881,7 @@ test("descendant splitter order reverses branch bits and persists", () => {
 });
 
 
-test("8-bit computer example decodes its ISA and writes only RB", () => {
+test("8-bit computer example decodes its ISA and writes only RA", () => {
   const text = readFileSync(new URL("./public/examples/8-bit-computer.json", import.meta.url), "utf8");
   const { board } = parseDocument(text);
   const byLabel = new Map(board.components.map((component) => [component.label, component]));
@@ -904,15 +904,15 @@ test("8-bit computer example decodes its ISA and writes only RB", () => {
   clock.enable = false;
   const isa = board.program.isa[rom.id];
   const source = restoreProgramSource(board.program.sources[rom.id], rom.data, rom.addressSize, rom.size, isa);
-  assert.match(source, /^; Demo program for the 8-bit computer\.\nNOT R0 R0\n; The four instruction forms repeat through the ROM\./);
+  assert.match(source, /^; Demo program for the 8-bit computer\.\nNOT R0\n; The four instruction forms repeat through the ROM\./);
   assert.deepEqual(assemble(source, rom.addressSize, rom.size, isa), rom.data);
-  assert.equal(disassemble([[1, 0x97]], 8, isa), "NOT R0 R0\nAND R2 R7");
+  assert.equal(disassemble([[1, 0x97]], 8, isa), "NOT R0\nAND R2 R7");
   assert.deepEqual(assemble("AND R2 R7", 8, 8, isa), [[0, 0x97]]);
   for (const [pc, instruction, destination, expected] of [
-    [1, 0x97, 7, 0],
-    [2, 0x51, 1, 0x12],
-    [3, 0x10, 0, 0x43],
-    [4, 0xc8, 0, 0x57],
+    [1, 0x97, 2, 0],
+    [2, 0x51, 2, 0x12],
+    [3, 0x10, 2, 0x43],
+    [4, 0xc8, 1, 0x57],
   ]) {
     const values = new Map(registers).set(counter.id, pc);
     const { states, settled } = evaluateBoard(board, new Set([step]), new Set(), values);
@@ -930,7 +930,7 @@ test("8-bit computer example decodes its ISA and writes only RB", () => {
   const running = evaluateBoard(board, new Set(), new Set([clock.id]),
     new Map(registers).set(counter.id, 1));
   assert.equal(running.states.get(counter.id).inputs[0], 1);
-  assert.equal(running.states.get(registerByLabel.get("R7").id).inputs[1], 1);
+  assert.equal(running.states.get(registerByLabel.get("R2").id).inputs[1], 1);
   clock.enable = false;
   assert.deepEqual(JSON.parse(serialize(board)), JSON.parse(text));
 });
