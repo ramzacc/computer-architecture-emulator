@@ -1,6 +1,6 @@
 import { addressWidth, bitWidth } from "./components.js";
 import { formatValue } from "./value-format.js";
-import { assemble, disassemble, parseIsa } from "./assembly.js";
+import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid } from "./assembly.js";
 
 const fields = { rom: "rom", pc: "tag", run: "clock", step: "button", resetPc: "button", resetRegisters: "button" };
 const names = { rom: "Program ROM", pc: "PC", run: "Main Clock", step: "Manual Clock", resetPc: "Reset PC", resetRegisters: "Reset Registers" };
@@ -19,7 +19,8 @@ export function createProgram({ getEditor }) {
   const assembleEl = $("assemble");
   const reloadEl = $("reload-assembly");
   const isaRomEl = document.getElementById("isa-rom");
-  const isaEl = document.getElementById("isa-source");
+  const isaRulesEl = document.getElementById("isa-rules");
+  const isaAddEl = document.getElementById("isa-add");
   const saveIsaEl = document.getElementById("isa-save");
   const isaNoteEl = document.getElementById("isa-note");
   const drafts = new Map();
@@ -34,6 +35,7 @@ export function createProgram({ getEditor }) {
   let defaultConfig = null;
   let defaultBoard = null;
   let renderedIsaRoms = "";
+  let lastPcLine = null;
 
   const components = () => getEditor().board.components;
   const component = (id) => components().find((item) => item.id === id);
@@ -59,6 +61,19 @@ export function createProgram({ getEditor }) {
   function savedIsa(rom) { return config().isa?.[rom.id] ?? ""; }
   function romKey(rom) { return JSON.stringify([rom.id, bitWidth(rom), addressWidth(rom), rom.data ?? [], savedIsa(rom)]); }
   function isaRom() { return activeRom(); }
+  function isaDraft(rom) {
+    let draft = isaDrafts.get(rom.id);
+    if (!draft) {
+      draft = { rules: isaGrid(savedIsa(rom), bitWidth(rom)), saved: savedIsa(rom), dirty: false, selected: [] };
+      isaDrafts.set(rom.id, draft);
+    }
+    if (!draft.dirty && draft.saved !== savedIsa(rom)) {
+      draft.rules = isaGrid(savedIsa(rom), bitWidth(rom));
+      draft.saved = savedIsa(rom);
+    }
+    return draft;
+  }
+  function markIsaDirty(draft) { draft.dirty = true; isaNoteEl.textContent = "Unsaved ISA rules."; isaNoteEl.classList.remove("error"); }
   function renderIsa() {
     ensureBoard();
     const roms = components().filter((item) => item.t === "rom");
@@ -70,20 +85,66 @@ export function createProgram({ getEditor }) {
     }
     const rom = isaRom();
     isaRomEl.value = rom?.id ?? "";
-    isaEl.disabled = !rom;
+    isaAddEl.disabled = !rom;
     saveIsaEl.disabled = !rom;
+    isaRulesEl.replaceChildren();
     if (!rom) {
-      isaEl.value = "";
-      isaNoteEl.textContent = roms.length ? "Select a ROM to define its ISA." : "Add a ROM on Canvas to define its ISA.";
+      isaNoteEl.textContent = roms.length ? "Select a ROM." : "Add a ROM on Canvas.";
       return;
     }
-    const draft = isaDrafts.get(rom.id) ?? { text: savedIsa(rom), dirty: false };
-    isaDrafts.set(rom.id, draft);
-    if (!draft.dirty) draft.text = savedIsa(rom);
-    if (isaEl.dataset.rom !== rom.id || isaEl.value !== draft.text) isaEl.value = draft.text;
-    isaEl.dataset.rom = rom.id;
+    let draft;
+    try { draft = isaDraft(rom); }
+    catch (error) { isaNoteEl.textContent = error.message; isaNoteEl.classList.add("error"); return; }
     isaNoteEl.textContent = draft.dirty ? "Unsaved ISA rules." : `${bitWidth(rom)}-bit ROM · rules saved.`;
     isaNoteEl.classList.remove("error");
+    draft.rules.forEach((rule, ruleIndex) => {
+      const card = document.createElement("section");
+      card.className = "isa-card";
+      card.dataset.rule = String(ruleIndex);
+      const head = document.createElement("div"); head.className = "isa-card-head";
+      const keyword = document.createElement("input"); keyword.value = rule.keyword;
+      keyword.placeholder = "KEYWORD"; keyword.maxLength = 24; keyword.dataset.action = "keyword";
+      keyword.setAttribute("aria-label", `Instruction ${ruleIndex + 1} keyword`);
+      const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "Remove"; remove.dataset.action = "remove-rule";
+      head.append(keyword, remove); card.append(head);
+      const palette = document.createElement("div"); palette.className = "isa-palette";
+      for (const [value, label] of [["0", "0"], ["1", "1"], ["clear", "Erase"], ...rule.operands.map((operand, index) => [String(index), `${operand.kind === "register" ? "Register" : "Value"} ${index + 1}`])]) {
+        const button = document.createElement("button"); button.type = "button"; button.textContent = label;
+        button.dataset.action = "select"; button.dataset.value = value;
+        button.classList.toggle("selected", (draft.selected[ruleIndex] ?? "0") === value);
+        palette.append(button);
+      }
+      const addRegister = document.createElement("button"); addRegister.type = "button"; addRegister.textContent = "+ Register"; addRegister.dataset.action = "add-register";
+      const addValue = document.createElement("button"); addValue.type = "button"; addValue.textContent = "+ Value"; addValue.dataset.action = "add-value";
+      palette.append(addRegister, addValue); card.append(palette);
+      const grid = document.createElement("div"); grid.className = "isa-grid"; grid.setAttribute("role", "group"); grid.setAttribute("aria-label", `${rule.keyword || "Instruction"} bits`);
+      for (let bit = rule.cells.length - 1; bit >= 0; bit--) {
+        const cell = rule.cells[bit]; const button = document.createElement("button"); button.type = "button";
+        button.dataset.action = "cell"; button.dataset.bit = String(bit);
+        const position = typeof cell === "number" ? rule.operands[cell]?.bits.indexOf(bit) ?? -1 : -1;
+        const label = cell === null ? "·" : typeof cell === "number" ? `${cell + 1}:${position + 1}` : cell;
+        button.innerHTML = `<small>${bit}</small><strong>${label}</strong>`;
+        button.setAttribute("aria-label", `Bit ${bit}: ${typeof cell === "number" ? `${rule.operands[cell]?.kind} ${cell + 1}, order ${position + 1}` : cell ?? "unassigned"}`);
+        grid.append(button);
+      }
+      card.append(grid);
+      rule.operands.forEach((operand, operandIndex) => {
+        const row = document.createElement("div"); row.className = "isa-operand"; row.dataset.operand = String(operandIndex);
+        const kind = document.createElement("select"); kind.dataset.action = "kind"; kind.setAttribute("aria-label", `Operand ${operandIndex + 1} type`);
+        kind.replaceChildren(new Option("Register", "register"), new Option("Value", "value")); kind.value = operand.kind;
+        const order = document.createElement("span"); order.className = "isa-order";
+        operand.bits.forEach((bit, index) => {
+          const chip = document.createElement("span"); chip.textContent = `${bit}`;
+          const left = document.createElement("button"); left.type = "button"; left.textContent = "←"; left.dataset.action = "move-left"; left.dataset.index = String(index); left.disabled = index === 0;
+          const right = document.createElement("button"); right.type = "button"; right.textContent = "→"; right.dataset.action = "move-right"; right.dataset.index = String(index); right.disabled = index === operand.bits.length - 1;
+          chip.append(left, right); order.append(chip);
+        });
+        if (!operand.bits.length) order.textContent = "Assign bits in click order";
+        const del = document.createElement("button"); del.type = "button"; del.textContent = "×"; del.dataset.action = "remove-operand"; del.setAttribute("aria-label", `Remove operand ${operandIndex + 1}`);
+        row.append(kind, order, del); card.append(row);
+      });
+      isaRulesEl.append(card);
+    });
   }
   function assemblyDraft(rom) {
     if (!rom) return null;
@@ -229,25 +290,63 @@ export function createProgram({ getEditor }) {
   }
   for (const key of Object.keys(fields)) selectEls[key].addEventListener("change", () => setConfig({ [key]: selectEls[key].value || null }));
   isaRomEl.addEventListener("change", () => { setConfig({ rom: isaRomEl.value || null }); renderIsa(); });
-  isaEl.addEventListener("input", () => {
-    const rom = isaRom();
-    if (!rom) return;
-    isaDrafts.set(rom.id, { text: isaEl.value, dirty: true });
-    renderIsa();
+  isaAddEl.addEventListener("click", () => {
+    const rom = isaRom(); if (!rom) return;
+    const draft = isaDraft(rom);
+    draft.rules.push({ keyword: "", cells: Array(bitWidth(rom)).fill(null), operands: [] });
+    markIsaDirty(draft); renderIsa();
+    isaRulesEl.lastElementChild?.querySelector("input")?.focus();
+  });
+  isaRulesEl.addEventListener("input", (event) => {
+    if (event.target.dataset.action !== "keyword") return;
+    const draft = isaDraft(isaRom());
+    draft.rules[Number(event.target.closest("[data-rule]").dataset.rule)].keyword = event.target.value.toUpperCase();
+    markIsaDirty(draft);
+  });
+  isaRulesEl.addEventListener("change", (event) => {
+    if (event.target.dataset.action !== "kind") return;
+    const draft = isaDraft(isaRom()); const card = event.target.closest("[data-rule]");
+    draft.rules[Number(card.dataset.rule)].operands[Number(event.target.closest("[data-operand]").dataset.operand)].kind = event.target.value;
+    markIsaDirty(draft); renderIsa();
+  });
+  isaRulesEl.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action]"); if (!button) return;
+    const rom = isaRom(); if (!rom) return;
+    const draft = isaDraft(rom); const ruleIndex = Number(button.closest("[data-rule]").dataset.rule);
+    const rule = draft.rules[ruleIndex]; const action = button.dataset.action;
+    if (action === "select") { draft.selected[ruleIndex] = button.dataset.value; renderIsa(); return; }
+    if (action === "remove-rule") { draft.rules.splice(ruleIndex, 1); draft.selected.splice(ruleIndex, 1); }
+    else if (action === "add-register" || action === "add-value") {
+      rule.operands.push({ kind: action === "add-register" ? "register" : "value", bits: [] });
+      draft.selected[ruleIndex] = String(rule.operands.length - 1);
+    } else if (action === "cell") {
+      const bit = Number(button.dataset.bit); const selected = draft.selected[ruleIndex] ?? "0";
+      for (const operand of rule.operands) operand.bits = operand.bits.filter((item) => item !== bit);
+      rule.cells[bit] = selected === "clear" ? null : selected === "0" || selected === "1" ? selected : Number(selected);
+      if (typeof rule.cells[bit] === "number") rule.operands[rule.cells[bit]].bits.push(bit);
+    } else {
+      const operandIndex = Number(button.closest("[data-operand]").dataset.operand);
+      if (action === "remove-operand") {
+        rule.cells = rule.cells.map((cell) => cell === operandIndex ? null : typeof cell === "number" && cell > operandIndex ? cell - 1 : cell);
+        rule.operands.splice(operandIndex, 1); draft.selected[ruleIndex] = "0";
+      } else {
+        const bits = rule.operands[operandIndex].bits; const index = Number(button.dataset.index);
+        const other = action === "move-left" ? index - 1 : index + 1;
+        [bits[index], bits[other]] = [bits[other], bits[index]];
+      }
+    }
+    markIsaDirty(draft); renderIsa();
   });
   saveIsaEl.addEventListener("click", () => {
-    const rom = isaRom();
-    if (!rom) return;
-    const draft = isaDrafts.get(rom.id);
+    const rom = isaRom(); if (!rom) return;
+    const draft = isaDraft(rom); const source = serializeIsaGrid(draft.rules);
     try {
-      parseIsa(draft.text, bitWidth(rom));
+      parseIsa(source, bitWidth(rom));
       const isa = { ...(config().isa ?? {}) };
-      if (draft.text) isa[rom.id] = draft.text;
-      else delete isa[rom.id];
-      draft.dirty = false;
-      if (draft.text !== savedIsa(rom)) setConfig({ isa });
-      renderIsa();
-      isaNoteEl.textContent = "ISA rules saved. ROM contents are unchanged.";
+      if (draft.rules.length) isa[rom.id] = source; else delete isa[rom.id];
+      draft.dirty = false; draft.saved = isa[rom.id] ?? "";
+      if (draft.saved !== savedIsa(rom)) setConfig({ isa });
+      renderIsa(); isaNoteEl.textContent = "ISA saved.";
     } catch (error) { isaNoteEl.textContent = error.message; isaNoteEl.classList.add("error"); }
   });
   sourceEl.addEventListener("input", () => {
@@ -330,7 +429,7 @@ export function createProgram({ getEditor }) {
     const board = getEditor().board;
     if (draftBoard === board) return;
     drafts.clear(); isaDrafts.clear(); draftBoard = board;
-    sourceEl.dataset.rom = ""; isaEl.dataset.rom = "";
+    sourceEl.dataset.rom = "";
     renderedIsaRoms = "";
   }
   return { render, renderIsa, reset() {
@@ -338,7 +437,7 @@ export function createProgram({ getEditor }) {
     registerHighlightTimers.clear();
     previousRegisterValues.clear();
     renderedEditor = null; renderedComponents = ""; renderedConfig = ""; renderedIsaRoms = "";
-    drafts.clear(); isaDrafts.clear(); draftBoard = null; sourceEl.dataset.rom = ""; isaEl.dataset.rom = "";
+    drafts.clear(); isaDrafts.clear(); draftBoard = null; sourceEl.dataset.rom = "";
     defaultBoard = null;
   } };
 }

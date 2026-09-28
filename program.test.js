@@ -51,10 +51,10 @@ test('per-ROM ISA rules survive save and load', () => {
   const second = editor.place('rom', 8, 0);
   editor.setProgramConfig({ rom: first.id, pc: null, run: null, step: null,
     resetPc: null, resetRegisters: null, registers: [], offset: 0, format: 'hex',
-    isa: { [first.id]: 'ADD | op 7-6=01 | address 5-4-3 | address 2-1-0', [second.id]: 'JMP | op 7-6=10 | address *' } });
+    isa: { [first.id]: 'ADD | op 7-6=01 | register 5-4-3 | register 2-1-0', [second.id]: 'JMP | op 7-6=10 | address *' } });
   const saved = serialize(editor.board);
   assert.deepEqual(parseDocument(saved).board.program.isa, {
-    [first.id]: 'ADD | op 7-6=01 | address 5-4-3 | address 2-1-0', [second.id]: 'JMP | op 7-6=10 | address *',
+    [first.id]: 'ADD | op 7-6=01 | register 5-4-3 | register 2-1-0', [second.id]: 'JMP | op 7-6=10 | address *',
   });
   const invalid = JSON.parse(saved);
   invalid.program.isa[0][1] = 'BAD = 000';
@@ -62,7 +62,7 @@ test('per-ROM ISA rules survive save and load', () => {
   const legacy = JSON.parse(saved);
   legacy.program.isa[0][1] = 'ADD Rd, Rs = 01dddsss';
   assert.equal(parseDocument(JSON.stringify(legacy)).board.program.isa[first.id],
-    'ADD | op 7-6=01 | address 5-4-3 | address 2-1-0');
+    'ADD | op 7-6=01 | register 5-4-3 | register 2-1-0');
   assert.equal(editor.resizeComponent(first.id, 16), true);
   assert.equal(editor.board.program.isa[first.id], undefined);
   assert.equal(editor.board.program.isa[second.id], 'JMP | op 7-6=10 | address *');

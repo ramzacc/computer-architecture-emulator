@@ -38,13 +38,13 @@ export function normalizeIsa(source, wordBits) {
     const clauses = fields.map((field) => {
       const letter = field.at(-1).toLowerCase();
       const bits = [...pattern].flatMap((char, index) => char === letter ? [wordBits - index - 1] : []);
-      return `${field.startsWith("#") ? "immediate" : "address"} ${bits.join("-")}`;
+      return `${field.startsWith("R") ? "register" : "value"} ${bits.join("-")}`;
     });
     return `${match[1]} | op ${opBits.join("-")}=${opValue}${clauses.map((part) => ` | ${part}`).join("")}${comment.length ? ` ;${comment.join(";")}` : ""}`;
   }).join("\n");
 }
 
-export function parseIsa(source, wordBits) {
+function parseLegacyIsa(source, wordBits) {
   const rules = [];
   for (const [index, original] of source.split(/\r?\n/).entries()) {
     const line = original.split(";", 1)[0].trim();
@@ -74,9 +74,9 @@ export function parseIsa(source, wordBits) {
         }
         continue;
       }
-      const operand = /^(address|addr|immediate|imm)\s+(\*|[^\s]+)$/i.exec(clause);
+      const operand = /^(address|addr|immediate|imm|value|register|reg)\s+(\*|[^\s]+)$/i.exec(clause);
       if (!operand) throw new Error(`ISA line ${lineNumber}: invalid clause “${clause}”.`);
-      const kind = /^addr/i.test(operand[1]) ? "address" : "immediate";
+      const kind = /^(?:reg)/i.test(operand[1]) ? "register" : "value";
       if (operand[2] === "*") {
         if (restOperand) throw new Error(`ISA line ${lineNumber}: only one operand can use *.`);
         restOperand = { kind, bits: [] };
@@ -96,12 +96,6 @@ export function parseIsa(source, wordBits) {
       if (!restOperand.bits.length) throw new Error(`ISA line ${lineNumber}: no bits remain for *.`);
       for (const bit of restOperand.bits) used.add(bit);
     }
-    // Unassigned bits are reserved zero bits.
-    for (let bit = 0; bit < wordBits; bit++) if (!used.has(bit)) fixed.set(bit, 0);
-    for (const prior of rules) {
-      const overlaps = [...fixed].every(([bit, value]) => !prior.fixed.has(bit) || prior.fixed.get(bit) === value);
-      if (overlaps) throw new Error(`ISA line ${lineNumber}: encoding overlaps ${prior.keyword}.`);
-    }
     rules.push({ keyword, fixed, operands });
   }
   return rules;
@@ -118,25 +112,93 @@ function encode(rule, values) {
   return word;
 }
 
+export function parseIsa(source, wordBits) {
+  let raw;
+  if (source.trim().startsWith("{")) {
+    let document;
+    try { document = JSON.parse(source); }
+    catch { throw new Error("ISA: invalid saved bit grid."); }
+    if (document.version !== 2 || !Array.isArray(document.rules)) throw new Error("ISA: invalid saved bit grid.");
+    raw = document.rules.map((rule) => {
+      if (!Array.isArray(rule.cells) || rule.cells.length !== wordBits || !Array.isArray(rule.operands))
+        throw new Error("ISA: bit grid does not match ROM width.");
+      const fixed = new Map();
+      for (const [bit, cell] of rule.cells.entries()) {
+        if (cell === "0" || cell === "1") fixed.set(bit, Number(cell));
+        else if (cell !== null && (!Number.isInteger(cell) || cell < 0 || cell >= rule.operands.length))
+          throw new Error(`ISA ${rule.keyword}: invalid cell assignment.`);
+      }
+      for (const [operandIndex, item] of rule.operands.entries()) {
+        if (!Array.isArray(item.bits)) throw new Error(`ISA ${rule.keyword}: invalid operand bits.`);
+        for (const bit of item.bits) if (rule.cells[bit] !== operandIndex)
+          throw new Error(`ISA ${rule.keyword}: bit grid and operand order disagree.`);
+      }
+      for (const [bit, cell] of rule.cells.entries()) if (typeof cell === "number" && !rule.operands[cell].bits.includes(bit))
+        throw new Error(`ISA ${rule.keyword}: bit grid and operand order disagree.`);
+      return { keyword: rule.keyword, fixed, operands: rule.operands.map((item) => ({ kind: item.kind, bits: item.bits })) };
+    });
+  } else raw = parseLegacyIsa(source, wordBits);
+  const rules = [];
+  const signatures = new Set();
+  for (const [index, rule] of raw.entries()) {
+    const label = `ISA rule ${index + 1}`;
+    if (!/^[A-Z][A-Z0-9_]*$/.test(rule.keyword)) throw new Error(`${label}: invalid keyword.`);
+    const used = new Set();
+    for (const bit of rule.fixed.keys()) {
+      if (!Number.isInteger(bit) || bit < 0 || bit >= wordBits) throw new Error(`${label}: invalid bit position.`);
+      used.add(bit);
+    }
+    for (const operand of rule.operands) {
+      if (!["register", "value"].includes(operand.kind) || !Array.isArray(operand.bits) || !operand.bits.length)
+        throw new Error(`${label}: every Register or Value operand needs bits.`);
+      for (const bit of operand.bits) {
+        if (!Number.isInteger(bit) || bit < 0 || bit >= wordBits || used.has(bit))
+          throw new Error(`${label}: bit ${bit} is assigned twice or outside the ROM word.`);
+        used.add(bit);
+      }
+    }
+    const signature = `${rule.keyword}:${rule.operands.map((item) => item.kind).join(",")}`;
+    if (signatures.has(signature)) throw new Error(`${label}: duplicate instruction signature ${rule.keyword}.`);
+    signatures.add(signature);
+    for (let bit = 0; bit < wordBits; bit++) if (!used.has(bit)) rule.fixed.set(bit, 0);
+    for (const prior of rules) {
+      if ([...rule.fixed].every(([bit, value]) => !prior.fixed.has(bit) || prior.fixed.get(bit) === value))
+        throw new Error(`${label}: encoding overlaps ${prior.keyword}.`);
+    }
+    rules.push(rule);
+  }
+  return rules;
+}
+
+export function isaGrid(source, wordBits) {
+  return parseIsa(source, wordBits).map((rule) => {
+    const cells = Array(wordBits).fill(null);
+    for (const [bit, value] of rule.fixed) cells[bit] = String(value);
+    rule.operands.forEach((operand, index) => operand.bits.forEach((bit) => { cells[bit] = index; }));
+    return { keyword: rule.keyword, cells, operands: rule.operands.map((operand) => ({ kind: operand.kind, bits: [...operand.bits] })) };
+  });
+}
+
+export function serializeIsaGrid(rules) { return JSON.stringify({ version: 2, rules }); }
+
+function sourceOperand(token) {
+  const register = /^R(0x[0-9a-f]+|0b[01]+|[0-9]+)$/i.exec(token);
+  if (register) return { kind: "register", value: number(register[1]) };
+  return { kind: "value", value: number(token) };
+}
+
 export function assemble(source, addressBits, wordBits, isa = "") {
   const rules = parseIsa(isa, wordBits);
   const entries = new Map();
   const capacity = 2 ** addressBits;
-  let address = 0;
   for (const [index, original] of source.split(/\r?\n/).entries()) {
     const line = original.split(";", 1)[0].trim();
+    if (index >= capacity) throw new Error(`Line ${index + 1}: instruction exceeds ROM address space.`);
     if (!line) continue;
     const [command, ...tokens] = line.split(/[\s,]+/).filter(Boolean);
     const name = command.toUpperCase();
     const fail = (message) => { throw new Error(`Line ${index + 1}: ${message}`); };
-    if (name === ".ORG") {
-      const value = tokens.length === 1 ? number(tokens[0]) : NaN;
-      if (!Number.isInteger(value) || value < 0 || value >= capacity) fail(`address must be 0–${capacity - 1}.`);
-      address = value;
-      continue;
-    }
-    if (address >= capacity) fail("instruction exceeds ROM address space.");
-    if (entries.has(address)) fail(`address 0x${address.toString(16).toUpperCase()} is written twice.`);
+    if (name === ".ORG") fail(".org is unavailable; each physical line has one ROM address.");
     let value;
     if (name === ".WORD") {
       value = tokens.length === 1 ? number(tokens[0]) : NaN;
@@ -144,13 +206,14 @@ export function assemble(source, addressBits, wordBits, isa = "") {
     } else {
       const candidates = rules.filter((rule) => rule.keyword === name);
       if (!candidates.length) fail(`unknown instruction ${command}. Define it in ISA or use .word.`);
-      const values = tokens.map(number);
-      const rule = candidates.find((candidate) => candidate.operands.length === values.length &&
-        values.every((operand, i) => Number.isSafeInteger(operand) && operand >= 0 && operand < 2 ** candidate.operands[i].bits.length));
-      if (!rule) fail(`operands do not fit ${name}; use numeric addresses and immediates.`);
-      value = encode(rule, values);
+      const operands = tokens.map(sourceOperand);
+      const rule = candidates.find((candidate) => candidate.operands.length === operands.length &&
+        operands.every((operand, i) => operand.kind === candidate.operands[i].kind &&
+          Number.isSafeInteger(operand.value) && operand.value >= 0 && operand.value < 2 ** candidate.operands[i].bits.length));
+      if (!rule) fail(`operands do not match ${name} or do not fit its bit fields.`);
+      value = encode(rule, operands.map((operand) => operand.value));
     }
-    entries.set(address++, value);
+    entries.set(index, value);
   }
   return [...entries].filter(([, value]) => value !== 0).sort((a, b) => a[0] - b[0]);
 }
@@ -158,8 +221,11 @@ export function assemble(source, addressBits, wordBits, isa = "") {
 function decode(rule, value) {
   for (const [bit, expected] of rule.fixed)
     if (Math.floor(value / 2 ** bit) % 2 !== expected) return null;
-  const operands = rule.operands.map(({ bits }) => bits.reduce((result, bit) => result * 2 + Math.floor(value / 2 ** bit) % 2, 0));
-  return `${rule.keyword}${operands.length ? ` ${operands.map((item) => `0x${item.toString(16).toUpperCase()}`).join(" ")}` : ""}`;
+  const operands = rule.operands.map(({ bits, kind }) => {
+    const decoded = bits.reduce((result, bit) => result * 2 + Math.floor(value / 2 ** bit) % 2, 0);
+    return `${kind === "register" ? "R" : ""}0x${decoded.toString(16).toUpperCase()}`;
+  });
+  return `${rule.keyword}${operands.length ? ` ${operands.join(" ")}` : ""}`;
 }
 
 export function disassemble(data, wordBits, isa = "") {
@@ -168,7 +234,7 @@ export function disassemble(data, wordBits, isa = "") {
   let next = 0;
   for (const [address, value] of [...data].sort((a, b) => a[0] - b[0])) {
     if (value === 0) continue;
-    if (address !== next) lines.push(`.org 0x${address.toString(16).toUpperCase()}`);
+    while (next < address) { lines.push(""); next++; }
     lines.push(rules.map((rule) => decode(rule, value)).find((item) => item !== null)
       ?? `.word 0x${value.toString(16).toUpperCase().padStart(Math.ceil(wordBits / 4), "0")}`);
     next = address + 1;

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assemble, disassemble, parseIsa } from "./public/assembly.js";
+import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid } from "./public/assembly.js";
 
 const sampleIsa = `NOT | op 7-6=00 | address 5-4-3 | address 2-1-0
 ADD | op 7-6=01 | address 5-4-3 | address 2-1-0
@@ -37,7 +37,7 @@ test("noncontiguous opcode and operand tuples and remaining bits round trip", ()
 test("raw words and sparse ROM remain representable", () => {
   const data = [[1, 0x12], [17, 0xABCD], [255, 0xFFFF]];
   assert.deepEqual(assemble(disassemble(data, 16), 8, 16), data);
-  assert.deepEqual(assemble(".org 0x10\n.word 0b1010 ; comment\n.word 0", 8, 8), [[16, 10]]);
+  assert.deepEqual(assemble("\n; reserved\n.word 0b1010\n.word 0", 8, 8), [[2, 10]]);
 });
 
 test("invalid mappings and source do not produce a ROM image", () => {
@@ -45,7 +45,25 @@ test("invalid mappings and source do not produce a ROM image", () => {
   assert.throws(() => parseIsa("A | op 7-6-5-4-3-2-1-0=00000000\nB | op 7-6-5-4-3-2-1-0=00000000", 8), /overlaps/);
   assert.throws(() => parseIsa("BAD | op 0-3-5=10", 8), /3 binary digits/);
   assert.throws(() => assemble("ADD 8 1", 8, 8, sampleIsa), /Line 1/);
-  assert.throws(() => assemble(".org 0x100\n.word 1", 8, 8), /Line 1/);
+  assert.throws(() => assemble(".org 0x10", 8, 8), /Line 1/);
   assert.throws(() => assemble(".word 0x100", 8, 8), /Line 1/);
-  assert.throws(() => assemble(".word 1\n.org 0\n.word 2", 8, 8), /written twice/);
+  assert.throws(() => parseIsa("A | op 7-6=01 | value 5-4-3\nA | op 7-6=10 | value 5-4-3", 8), /duplicate instruction signature/);
 });
+
+test("visual grid preserves scattered operand click order and types", () => {
+  const rules = [{ keyword: "MOV", cells: [0, 1, "1", 0, "0", 1, "0", "1"], operands: [
+    { kind: "register", bits: [3, 0] }, { kind: "value", bits: [5, 1] },
+  ] }];
+  const isa = serializeIsaGrid(rules);
+  assert.deepEqual(isaGrid(isa, 8), rules);
+  assert.deepEqual(assemble("MOV R2 1", 8, 8, isa), [[0, 0x8E]]);
+  assert.equal(disassemble([[0, 0x8E]], 8, isa), "MOV R0x2 0x1");
+  assert.throws(() => assemble("MOV 2 1", 8, 8, isa), /operands do not match/);
+});
+
+test("keyword variants may differ by Register and Value signature", () => {
+  const isa = "LOAD | op 7-6=01 | register 5-4-3 | value 2-1-0\nLOAD | op 7-6=10 | value 5-4-3 | register 2-1-0";
+  assert.deepEqual(assemble("LOAD R2 1\nLOAD 2 R1", 8, 8, isa), [[0, 0x51], [1, 0x91]]);
+});
+
+
