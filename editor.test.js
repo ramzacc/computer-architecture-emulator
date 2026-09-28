@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { BoardEditor, STORAGE_KEY } from './public/editor.js';
 import { dimsOf, pinsFor, spec } from './public/components.js';
 import { edgeKey, parseDocument, serialize } from './public/model.js';
@@ -17,6 +18,20 @@ function setup() {
   const editor = new BoardEditor({ storage, onChange: () => renders++ });
   return { editor, data, get renders() { return renders; }, get saves() { return saves; } };
 }
+
+test('registers inside separate wrapper instances capture and retain their values', () => {
+  const { editor } = setup();
+  editor.importText(readFileSync(new URL('./fixtures/register-wrappers.json', import.meta.url), 'utf8'));
+  assert.deepEqual([...editor.registerValues.values()], [0, 0, 0, 0]);
+  assert.equal(editor.setButtonPressed('c7', true), true);
+  assert.deepEqual([...editor.registerValues.values()], [124, 0, 0, 0]);
+  assert.equal(editor.evaluation.states.get('c6').value, 124);
+  assert.equal(editor.setButtonPressed('c7', false), true);
+  assert.equal(editor.evaluation.states.get('c6').value, 124);
+  assert.equal(editor.registerValues.get('c1/c8'), 124);
+  editor.importText(readFileSync(new URL('./fixtures/register-wrappers.json', import.meta.url), 'utf8'));
+  assert.deepEqual([...editor.registerValues.values()], [0, 0, 0, 0]);
+});
 
 test('module edits save atomically and reject incompatible parent wiring', () => {
   const ctx = setup();

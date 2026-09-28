@@ -1,6 +1,6 @@
 import { bitWidth, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePinLayout, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, buttonsInBoard, clocksInBoard, createBoard, crossingAt, edgeKey, isValidComponent, labelAvailable, nextLabel,
-  evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, wireLayoutError, wireRoute } from "./model.js";
+  evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, storedInBoard, wireLayoutError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
 
 export const STORAGE_KEY = "grid-canvas-document";
@@ -176,48 +176,59 @@ export class BoardEditor {
     const clockIds = new Set([...clocksInBoard(this.board)].filter(([, clock]) => clock.enable !== false)
       .map(([id]) => id));
     for (const id of this.highClocks) if (!clockIds.has(id)) this.highClocks.delete(id);
-    const stored = this.board.components.filter((component) => component.t === "register" || component.t === "counter");
-    const storedIds = new Set(stored.map((component) => component.id));
-    for (const id of this.registerValues.keys()) if (!storedIds.has(id)) this.registerValues.delete(id);
-    for (const component of stored) {
+    const stored = storedInBoard(this.board);
+    const stateAt = (evaluation, path) => {
+      let states = evaluation.states;
+      let state;
+      for (const id of path.split("/")) {
+        state = states?.get(id);
+        states = state?.faceStates;
+      }
+      return state;
+    };
+    for (const id of this.registerValues.keys()) if (!stored.has(id)) this.registerValues.delete(id);
+    for (const [id, component] of stored) {
+      if (component.t === "ram") continue;
       const width = bitWidth(component);
       const mask = width === 32 ? 0xffffffff : 2 ** width - 1;
-      this.registerValues.set(component.id, ((this.registerValues.get(component.id) ?? 0) & mask) >>> 0);
+      this.registerValues.set(id, ((this.registerValues.get(id) ?? 0) & mask) >>> 0);
     }
-    const ramComponents = this.board.components.filter((component) => component.t === "ram");
-    const ramIds = new Set(ramComponents.map((component) => component.id));
-    for (const id of this.ramValues.keys()) if (!ramIds.has(id)) this.ramValues.delete(id);
-    for (const component of ramComponents) {
-      const words = this.ramValues.get(component.id) ?? new Map();
+    for (const id of this.ramValues.keys()) if (stored.get(id)?.t !== "ram") this.ramValues.delete(id);
+    for (const [id, component] of stored) {
+      if (component.t !== "ram") continue;
+      const words = this.ramValues.get(id) ?? new Map();
       const maxAddress = 2 ** component.addressSize;
       const maxValue = 2 ** component.size;
       for (const [address, value] of words) {
         if (address >= maxAddress) words.delete(address);
         else words.set(address, value % maxValue);
       }
-      this.ramValues.set(component.id, words);
+      this.ramValues.set(id, words);
     }
     const next = evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues, this.ramValues);
     const captured = new Map();
-    for (const component of stored) {
-      const inputs = next.states.get(component.id).inputs;
+    for (const [id, component] of stored) {
+      if (component.t === "ram") continue;
+      const inputs = stateAt(next, id).inputs;
+      const previous = stateAt(this.evaluation, id);
       if (component.t === "counter") {
-        if (inputs[1]) captured.set(component.id, 0);
-        else if (captureEdges && (this.evaluation.states.get(component.id)?.inputs[0] ?? 0) === 0 && inputs[0] !== 0) {
+        if (inputs[1]) captured.set(id, 0);
+        else if (captureEdges && (previous?.inputs[0] ?? 0) === 0 && inputs[0] !== 0) {
           const width = bitWidth(component);
           const mask = width === 32 ? 0xffffffff : 2 ** width - 1;
-          captured.set(component.id, (((this.registerValues.get(component.id) ?? 0) + 1) & mask) >>> 0);
+          captured.set(id, (((this.registerValues.get(id) ?? 0) + 1) & mask) >>> 0);
         }
-      } else if (captureEdges && (this.evaluation.states.get(component.id)?.inputs[1] ?? 0) === 0 && inputs[1] !== 0) {
-        captured.set(component.id, inputs[0] >>> 0);
+      } else if (captureEdges && (previous?.inputs[1] ?? 0) === 0 && inputs[1] !== 0) {
+        captured.set(id, inputs[0] >>> 0);
       }
     }
     for (const [id, value] of captured) this.registerValues.set(id, value);
     let wroteRam = false;
-    if (captureEdges) for (const component of ramComponents) {
-      const inputs = next.states.get(component.id).inputs;
-      if ((this.evaluation.states.get(component.id)?.inputs[2] ?? 0) === 0 && inputs[2] !== 0) {
-        this.ramValues.get(component.id).set(inputs[0], inputs[1] >>> 0);
+    if (captureEdges) for (const [id, component] of stored) {
+      if (component.t !== "ram") continue;
+      const inputs = stateAt(next, id).inputs;
+      if ((stateAt(this.evaluation, id)?.inputs[2] ?? 0) === 0 && inputs[2] !== 0) {
+        this.ramValues.get(id).set(inputs[0], inputs[1] >>> 0);
         wroteRam = true;
       }
     }
