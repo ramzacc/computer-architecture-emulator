@@ -141,8 +141,8 @@ body {
   border-bottom: 1px solid var(--line);
   background: var(--header);
 }
-.view-tabs { display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; }
-.view-tabs button { flex: 0 0 120px; border-radius: 7px 7px 0 0; border-bottom: 0; white-space: nowrap; }
+.view-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.view-tabs button { flex: 0 0 auto; border-radius: 7px 7px 0 0; border-bottom: 0; white-space: nowrap; }
 .view-tabs button[hidden] { display: none; }
 .view-tabs button[aria-selected="true"] { background: var(--bg); border-color: var(--line); color: var(--text); }
 .module-navigation { display: flex; align-items: center; gap: 10px; min-width: 0; align-self: center; margin: 0 12px 8px; font-size: 12px; color: var(--muted); }
