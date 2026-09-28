@@ -6,6 +6,7 @@ const fields = { rom: "rom", pc: "tag", run: "clock", step: "button", resetPc: "
 const names = { rom: "Program ROM", pc: "PC", run: "Main Clock", step: "Manual Clock", resetPc: "Reset PC", resetRegisters: "Reset Registers" };
 const $ = (id) => document.getElementById(`program-${id}`);
 const operandName = (index) => index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
+const operandHue = (index) => (195 + index * 137.508) % 360;
 
 export function createProgram({ getEditor }) {
   const selectEls = Object.fromEntries(Object.keys(fields).map((key) => [key, $(key === "resetPc" ? "reset-pc" : key === "resetRegisters" ? "reset-registers" : key)]));
@@ -114,9 +115,13 @@ export function createProgram({ getEditor }) {
       const controls = document.createElement("div"); controls.className = "isa-card-controls";
       const operandList = document.createElement("div"); operandList.className = "isa-operand-list";
       const palette = document.createElement("div"); palette.className = "isa-palette";
-      for (const [value, label] of rule.operands.map((operand, index) => [`operand:${index}`, `${operand.kind === "register" ? "Register" : "Value"} ${operandName(index)}`])) {
-        const button = document.createElement("button"); button.type = "button"; button.textContent = label;
+      for (const [index, operand] of rule.operands.entries()) {
+        const button = document.createElement("button"); button.type = "button";
+        const value = `operand:${index}`;
+        button.textContent = `${operand.kind === "register" ? "Register" : "Value"} ${operandName(index)}`;
         button.dataset.action = "select"; button.dataset.value = value;
+        button.classList.add("isa-operand-color");
+        button.style.setProperty("--isa-hue", operandHue(index));
         button.classList.toggle("selected", draft.selected[ruleIndex] === value);
         button.setAttribute("aria-pressed", String(draft.selected[ruleIndex] === value));
         palette.append(button);
@@ -129,6 +134,7 @@ export function createProgram({ getEditor }) {
         const cell = rule.cells[bit]; const button = document.createElement("button"); button.type = "button";
         button.dataset.action = "cell"; button.dataset.bit = String(bit);
         button.classList.add(cell === null ? "empty-cell" : typeof cell === "number" ? "operand-cell" : "fixed-cell");
+        if (typeof cell === "number") button.style.setProperty("--isa-hue", operandHue(cell));
         const position = typeof cell === "number" ? rule.operands[cell]?.bits.indexOf(bit) ?? -1 : -1;
         const label = cell === null ? "·" : typeof cell === "number" ? `${operandName(cell)}${rule.operands[cell].bits.length - position - 1}` : cell;
         button.innerHTML = `<small>${bit}</small><strong>${label}</strong>`;
@@ -141,6 +147,7 @@ export function createProgram({ getEditor }) {
         kind.replaceChildren(new Option("Register", "register"), new Option("Value", "value")); kind.value = operand.kind;
         const name = document.createElement("span"); name.className = "isa-operand-name";
         name.textContent = operandName(operandIndex);
+        name.style.setProperty("--isa-hue", operandHue(operandIndex));
         const del = document.createElement("button"); del.type = "button"; del.textContent = "×"; del.dataset.action = "remove-operand"; del.setAttribute("aria-label", `Remove operand ${operandName(operandIndex)}`);
         row.append(name, kind, del); operandList.append(row);
       });
