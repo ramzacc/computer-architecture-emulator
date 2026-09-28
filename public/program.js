@@ -118,8 +118,11 @@ export function createProgram({ getEditor }) {
       const keyword = document.createElement("input"); keyword.value = rule.keyword;
       keyword.placeholder = "KEYWORD"; keyword.maxLength = 24; keyword.dataset.action = "keyword";
       keyword.setAttribute("aria-label", `Instruction ${ruleIndex + 1} keyword`);
+      const comment = document.createElement("input"); comment.value = rule.comment ?? "";
+      comment.placeholder = "Comment (optional)"; comment.maxLength = 160; comment.dataset.action = "comment";
+      comment.setAttribute("aria-label", `Instruction ${ruleIndex + 1} comment`);
       const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "Remove"; remove.dataset.action = "remove-rule";
-      head.append(keyword, remove); card.append(head);
+      head.append(keyword, comment, remove); card.append(head);
       const body = document.createElement("div"); body.className = "isa-card-body";
       const controls = document.createElement("div"); controls.className = "isa-card-controls";
       const operandList = document.createElement("div"); operandList.className = "isa-operand-list";
@@ -430,9 +433,11 @@ export function createProgram({ getEditor }) {
     isaRulesEl.lastElementChild?.querySelector("input")?.focus();
   });
   isaRulesEl.addEventListener("input", (event) => {
-    if (event.target.dataset.action !== "keyword") return;
+    const action = event.target.dataset.action;
+    if (action !== "keyword" && action !== "comment") return;
     const draft = isaDraft(isaRom());
-    draft.rules[Number(event.target.closest("[data-rule]").dataset.rule)].keyword = event.target.value.toUpperCase();
+    const rule = draft.rules[Number(event.target.closest("[data-rule]").dataset.rule)];
+    rule[action] = action === "keyword" ? event.target.value.toUpperCase() : event.target.value;
     markIsaDirty(draft);
   });
   isaRulesEl.addEventListener("change", (event) => {

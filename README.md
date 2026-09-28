@@ -4,7 +4,7 @@
 
 ## ISA and assembly
 
-Create a ROM on Canvas, then select it in **ISA**. Add an instruction card, enter its keyword, and add ordered **Register** or **Value** operands. Click a ROM bit cell to cycle `0` → `1` → empty. Select a Register or Value operand, then click empty cells to assign its bits. Click an assigned operand cell to remove it and click again to assign it last in bit order. Click the selected operand button again to return to fixed-bit cycling. Bit 0 is the least significant bit; the first assigned operand cell receives its highest bit. Save the ISA for the selected ROM.
+Create a ROM on Canvas, then select it in **ISA**. Add an instruction card, enter its keyword and optional comment, and add ordered **Register** or **Value** operands. Click a ROM bit cell to cycle `0` → `1` → empty. Select a Register or Value operand, then click empty cells to assign its bits. Click an assigned operand cell to remove it and click again to assign it last in bit order. Click the selected operand button again to return to fixed-bit cycling. Bit 0 is the least significant bit; the first assigned operand cell receives its highest bit. Save the ISA for the selected ROM.
 
 In **Program**, each instruction or `.word` line maps to one ROM address, starting at 0. Blank lines and `;` comments do not consume an address. Write instructions such as `ADD R2 5`; register indexes use `R` (for example `R7` or `R0xA`), while unprefixed decimal, `0x` hex, and `0b` binary numbers are Values. Use `.word 0xAB` for a raw ROM word. Assemble a draft before using Play or Step. Disassembling a sparse ROM fills gaps with `.word 0` lines and uses `.word` for unmatched values. Address 0 is shown explicitly when it contains a zero word, so the first program line is readable.
 
