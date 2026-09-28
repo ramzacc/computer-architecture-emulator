@@ -110,6 +110,9 @@ export function createProgram({ getEditor }) {
       keyword.setAttribute("aria-label", `Instruction ${ruleIndex + 1} keyword`);
       const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "Remove"; remove.dataset.action = "remove-rule";
       head.append(keyword, remove); card.append(head);
+      const body = document.createElement("div"); body.className = "isa-card-body";
+      const controls = document.createElement("div"); controls.className = "isa-card-controls";
+      const operandList = document.createElement("div"); operandList.className = "isa-operand-list";
       const palette = document.createElement("div"); palette.className = "isa-palette";
       for (const [value, label] of rule.operands.map((operand, index) => [`operand:${index}`, `${operand.kind === "register" ? "Register" : "Value"} ${operandName(index)}`])) {
         const button = document.createElement("button"); button.type = "button"; button.textContent = label;
@@ -120,18 +123,18 @@ export function createProgram({ getEditor }) {
       }
       const addRegister = document.createElement("button"); addRegister.type = "button"; addRegister.textContent = "+ Register"; addRegister.dataset.action = "add-register";
       const addValue = document.createElement("button"); addValue.type = "button"; addValue.textContent = "+ Value"; addValue.dataset.action = "add-value";
-      palette.append(addRegister, addValue); card.append(palette);
+      palette.append(addRegister, addValue); controls.append(palette);
       const grid = document.createElement("div"); grid.className = "isa-grid"; grid.setAttribute("role", "group"); grid.setAttribute("aria-label", `${rule.keyword || "Instruction"} bits`);
       for (let bit = rule.cells.length - 1; bit >= 0; bit--) {
         const cell = rule.cells[bit]; const button = document.createElement("button"); button.type = "button";
         button.dataset.action = "cell"; button.dataset.bit = String(bit);
+        button.classList.add(cell === null ? "empty-cell" : typeof cell === "number" ? "operand-cell" : "fixed-cell");
         const position = typeof cell === "number" ? rule.operands[cell]?.bits.indexOf(bit) ?? -1 : -1;
         const label = cell === null ? "·" : typeof cell === "number" ? `${operandName(cell)}${rule.operands[cell].bits.length - position - 1}` : cell;
         button.innerHTML = `<small>${bit}</small><strong>${label}</strong>`;
         button.setAttribute("aria-label", `Bit ${bit}: ${typeof cell === "number" ? `${rule.operands[cell]?.kind} ${operandName(cell)} bit ${rule.operands[cell].bits.length - position - 1}` : cell ?? "unassigned"}`);
         grid.append(button);
       }
-      card.append(grid);
       rule.operands.forEach((operand, operandIndex) => {
         const row = document.createElement("div"); row.className = "isa-operand"; row.dataset.operand = String(operandIndex);
         const kind = document.createElement("select"); kind.dataset.action = "kind"; kind.setAttribute("aria-label", `Operand ${operandIndex + 1} type`);
@@ -139,8 +142,11 @@ export function createProgram({ getEditor }) {
         const name = document.createElement("span"); name.className = "isa-operand-name";
         name.textContent = operandName(operandIndex);
         const del = document.createElement("button"); del.type = "button"; del.textContent = "×"; del.dataset.action = "remove-operand"; del.setAttribute("aria-label", `Remove operand ${operandName(operandIndex)}`);
-        row.append(name, kind, del); card.append(row);
+        row.append(name, kind, del); operandList.append(row);
       });
+      controls.append(operandList);
+      body.append(controls, grid);
+      card.append(body);
       isaRulesEl.append(card);
     });
   }

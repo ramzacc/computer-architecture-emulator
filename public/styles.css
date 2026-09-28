@@ -709,19 +709,26 @@ main > [role="tabpanel"][hidden] { display: none; }
 .isa-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 #isa-note.error { color: var(--status-error); }
 .isa-editor { overflow-y: auto; }
-.isa-rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); align-content: start; align-items: start; gap: 12px; }
-.isa-card { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--input); }
-.isa-card-head, .isa-palette, .isa-operand { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 9px; }
-.isa-card-head { justify-content: space-between; }
-.isa-card-head input { min-width: 90px; width: 180px; padding: 7px; font-weight: 700; text-transform: uppercase; }
+.isa-rules { display: flex; flex-direction: column; gap: 12px; }
+.isa-card { min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--input); }
+.isa-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.isa-card-head input { min-width: 90px; width: min(240px, 100%); padding: 7px; font-weight: 700; text-transform: uppercase; }
+.isa-card-body { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); align-items: center; gap: 20px; min-width: 0; }
+.isa-card-controls { display: grid; align-content: center; gap: 10px; min-width: 0; }
+.isa-palette { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .isa-palette button.selected { border-color: var(--accent); background: var(--selection-fill); color: var(--accent); }
-.isa-grid { display: flex; gap: 3px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px; }
-.isa-grid button { display: grid; flex: 0 0 42px; gap: 3px; justify-items: center; padding: 5px 2px; font: 12px ui-monospace, monospace; }
+.isa-operand-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.isa-operand { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.isa-operand select { padding: 5px; }
+.isa-operand-name { width: 18px; font-weight: 700; color: var(--accent); }
+.isa-grid { display: flex; justify-content: safe center; gap: 5px; min-width: 0; overflow-x: auto; padding-bottom: 5px; }
+.isa-grid button { display: grid; flex: 1 0 42px; max-width: 96px; min-height: 52px; gap: 3px; justify-items: center; padding: 5px 2px; font: 12px ui-monospace, monospace; }
+.isa-grid button.operand-cell { border-color: var(--button-hover-line); background: var(--selection-fill); }
+.isa-grid button.empty-cell strong { color: var(--muted); }
+.isa-grid button:hover { border-color: var(--accent); }
 .isa-grid small { color: var(--muted); }
 .isa-grid strong { font-size: 14px; }
-.isa-operand select { padding: 5px; }
-.isa-operand { margin-bottom: 0; }
-.isa-operand-name { width: 18px; font-weight: 700; color: var(--accent); }
+@media (max-width: 800px) { .isa-card-body { grid-template-columns: minmax(0, 1fr); gap: 14px; } .isa-grid { justify-content: start; } }
 .program-source-wrap { position: relative; display: flex; flex: 1; min-height: 240px; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: var(--input); }
 .program-source-wrap textarea { position: relative; z-index: 2; flex: 1; min-width: 0; min-height: 0; border: 0; border-radius: 0; background: transparent; padding: 14px 16px 14px 8px; resize: none; white-space: pre; overflow: auto; }
 .program-gutter { flex: 0 0 66px; overflow: hidden; padding: 14px 7px; border-right: 1px solid var(--line); color: var(--muted); font: 14px/1.6 ui-monospace, monospace; text-align: right; white-space: pre; }
