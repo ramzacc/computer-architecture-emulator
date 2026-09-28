@@ -21,8 +21,7 @@ export function createProgram({ getEditor }) {
   const gutterEl = $("gutter");
   const currentLineEl = $("current-line");
   const assemblyNoteEl = $("assembly-note");
-  const assembleEl = $("assemble");
-  const reloadEl = $("reload-assembly");
+  const saveRomEl = $("save-rom");
   const isaRomEl = document.getElementById("isa-rom");
   const isaRulesEl = document.getElementById("isa-rules");
   const isaAddEl = document.getElementById("isa-add");
@@ -175,8 +174,7 @@ export function createProgram({ getEditor }) {
     const draft = assemblyDraft(rom);
     const locked = isPlaying();
     sourceEl.disabled = !rom || locked;
-    assembleEl.disabled = !rom || locked || !draft?.dirty;
-    reloadEl.disabled = !rom || locked;
+    saveRomEl.disabled = !rom || locked || !draft?.dirty;
     if (!rom) {
       sourceEl.value = "";
       syntaxEl.replaceChildren(); renderedSyntax = "";
@@ -503,7 +501,7 @@ export function createProgram({ getEditor }) {
     updateGutter(); highlightPc(pcValue());
     $("clear-breakpoints").disabled = true;
   });
-  assembleEl.addEventListener("click", () => {
+  saveRomEl.addEventListener("click", () => {
     const rom = activeRom();
     if (!rom || isPlaying()) return;
     const draft = assemblyDraft(rom);
@@ -515,15 +513,8 @@ export function createProgram({ getEditor }) {
       draft.key = romKey(rom);
       draft.dirty = false;
       render();
-      status(`Assembled ${entries.length} nonzero words to ROM.`);
+      status(`Saved ${entries.length} nonzero words to ROM.`);
     } catch (error) { status(error.message, true); }
-  });
-  reloadEl.addEventListener("click", () => {
-    const rom = activeRom();
-    if (!rom || isPlaying()) return;
-    drafts.delete(rom.id);
-    updateAssembly();
-    status("Disassembled the current ROM contents.");
   });
   addRegister.addEventListener("click", () => {
     const selected = config().registers.filter((id) => component(id)?.t === "register");
@@ -548,7 +539,7 @@ export function createProgram({ getEditor }) {
   });
   formatEl.addEventListener("change", () => setConfig({ format: formatEl.value }));
   function run(enable) {
-    if (enable && assemblyDraft(activeRom())?.dirty) { status("Assemble your draft before Play.", true); return; }
+    if (enable && assemblyDraft(activeRom())?.dirty) { status("Save your draft to ROM before Play.", true); return; }
     const item = component(config().run);
     if (item?.t !== "clock") { status("Link a clock in Program setup.", true); return; }
     skipBreakpointAt = enable && breakpoints.get(activeRom()?.id)?.has(pcValue()) ? pcValue() : null;
@@ -566,7 +557,7 @@ export function createProgram({ getEditor }) {
     return selected.length > 0 && ok;
   }
   $("step-button").addEventListener("click", () => {
-    if (assemblyDraft(activeRom())?.dirty) { status("Assemble your draft before Step.", true); return; }
+    if (assemblyDraft(activeRom())?.dirty) { status("Save your draft to ROM before Step.", true); return; }
     const ok = pulse([config().step]);
     status(ok ? "Stepped." : "Step button could not be pressed.", !ok);
     updatePc();
@@ -583,7 +574,10 @@ export function createProgram({ getEditor }) {
     renderedSyntax = "";
     renderedIsaRoms = "";
   }
-  return { render, renderIsa, checkBreakpoint, reset() {
+  return { render, renderIsa, checkBreakpoint, syncRom(id) {
+    drafts.delete(id);
+    if (activeRom()?.id === id) updateAssembly();
+  }, reset() {
     for (const timer of registerHighlightTimers.values()) clearTimeout(timer);
     registerHighlightTimers.clear();
     previousRegisterValues.clear();

@@ -790,9 +790,11 @@ romSaveEl.addEventListener("click", () => {
   if (!component || romLocked(component)) return;
   try {
     const entries = [...romEntries(component)].sort((a, b) => a[0] - b[0]);
-    if (JSON.stringify(entries) !== JSON.stringify(component.data ?? []) && !editor.setRomData(component.id, entries))
+    const changed = JSON.stringify(entries) !== JSON.stringify(component.data ?? []);
+    if (changed && !editor.setRomData(component.id, entries))
       throw new Error("ROM contents conflict with a connected output.");
     romDrafts.delete(component.id);
+    if (changed) program.syncRom(component.id);
     romStatus("ROM changes saved.");
   } catch (error) { romStatus(error.message, true); }
 });
