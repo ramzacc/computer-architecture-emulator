@@ -18,8 +18,9 @@ export function createProgram({ getEditor }) {
   const formatEl = $("format");
   const statusEl = $("status");
   const sourceEl = $("source");
-  const syntaxEl = $("syntax");
+  const syntaxContentEl = $("syntax-content");
   const gutterEl = $("gutter");
+  const gutterLinesEl = $("gutter-lines");
   const currentLineEl = $("current-line");
   const assemblyNoteEl = $("assembly-note");
   const saveRomEl = $("save-rom");
@@ -186,8 +187,8 @@ export function createProgram({ getEditor }) {
     saveRomEl.disabled = !rom || locked || !draft?.dirty;
     if (!rom) {
       sourceEl.value = "";
-      syntaxEl.replaceChildren(); renderedSyntax = "";
-      gutterEl.replaceChildren(); gutterEl.dataset.key = ""; currentLineEl.hidden = true;
+      syntaxContentEl.replaceChildren(); renderedSyntax = "";
+      gutterLinesEl.replaceChildren(); gutterEl.dataset.key = ""; currentLineEl.hidden = true;
       $("clear-breakpoints").disabled = ![...breakpoints.values()].some((items) => items.size);
       assemblyNoteEl.textContent = "Link a ROM in Program setup.";
       return;
@@ -242,9 +243,14 @@ export function createProgram({ getEditor }) {
       append(operands.slice(cursor));
       if (comment >= 0) append(line.slice(comment), "program-token-comment");
     }
-    syntaxEl.replaceChildren(fragment);
-    syntaxEl.scrollTop = sourceEl.scrollTop;
-    syntaxEl.scrollLeft = sourceEl.scrollLeft;
+    syntaxContentEl.replaceChildren(fragment);
+    syncSourceLayers();
+  }
+  function syncSourceLayers() {
+    // These layers can have different scroll ranges, especially with a horizontal scrollbar.
+    const { scrollTop, scrollLeft } = sourceEl;
+    gutterLinesEl.style.transform = `translateY(${-scrollTop}px)`;
+    syntaxContentEl.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`;
   }
   function formatAddress(address) {
     return `0x${address.toString(16).toUpperCase().padStart(Math.max(2, Math.ceil(addressWidth(activeRom() ?? { addressSize: 8 }) / 4)), "0")}`;
@@ -339,7 +345,7 @@ export function createProgram({ getEditor }) {
     const selected = breakpoints.get(rom.id) ?? new Set();
     const key = JSON.stringify([rom.id, addressWidth(rom), addresses, [...selected].sort((a, b) => a - b)]);
     if (gutterEl.dataset.key !== key) {
-      gutterEl.replaceChildren(...addresses.map((address) => {
+      gutterLinesEl.replaceChildren(...addresses.map((address) => {
         const line = document.createElement("div");
         if (address !== null && address < 2 ** addressWidth(rom)) {
           const button = document.createElement("button");
@@ -356,12 +362,12 @@ export function createProgram({ getEditor }) {
       }));
       gutterEl.dataset.key = key;
     }
-    gutterEl.scrollTop = sourceEl.scrollTop;
+    syncSourceLayers();
     $("clear-breakpoints").disabled = ![...breakpoints.values()].some((items) => items.size);
   }
   function highlightPc(pc) {
     const line = Number.isInteger(pc) && pc >= 0 ? sourceLineAddresses(sourceEl.value).indexOf(pc) : -1;
-    for (const child of gutterEl.children) child.classList.toggle("active", child === gutterEl.children[line]);
+    for (const child of gutterLinesEl.children) child.classList.toggle("active", child === gutterLinesEl.children[line]);
     currentLineEl.hidden = line < 0;
     if (line < 0) { lastPcLine = null; return; }
     const style = getComputedStyle(sourceEl);
@@ -370,7 +376,7 @@ export function createProgram({ getEditor }) {
     const top = paddingTop + line * lineHeight;
     if (lastPcLine !== line && (top < sourceEl.scrollTop || top + lineHeight > sourceEl.scrollTop + sourceEl.clientHeight)) {
       sourceEl.scrollTop = Math.max(0, top - sourceEl.clientHeight / 2);
-      gutterEl.scrollTop = sourceEl.scrollTop;
+      syncSourceLayers();
     }
     currentLineEl.style.top = `${top - sourceEl.scrollTop}px`;
     currentLineEl.style.height = `${lineHeight}px`;
@@ -481,9 +487,7 @@ export function createProgram({ getEditor }) {
     } catch (error) { isaNoteEl.textContent = error.message; isaNoteEl.classList.add("error"); }
   });
   sourceEl.addEventListener("scroll", () => {
-    gutterEl.scrollTop = sourceEl.scrollTop;
-    syntaxEl.scrollTop = sourceEl.scrollTop;
-    syntaxEl.scrollLeft = sourceEl.scrollLeft;
+    syncSourceLayers();
     highlightPc(pcValue());
   });
   sourceEl.addEventListener("input", () => {
