@@ -247,6 +247,7 @@ main > [role="tabpanel"][hidden] { display: none; }
 .monitor-workspace[hidden] { display: none; }
 .monitor-workspace > h2 { margin: 0 0 16px; font-size: 18px; text-transform: none; letter-spacing: normal; color: var(--text); }
 .monitor-grid {
+  position: relative;
   display: grid;
   flex: 1 0 auto;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
@@ -255,6 +256,7 @@ main > [role="tabpanel"][hidden] { display: none; }
   border: 1px dashed transparent;
   border-radius: 10px;
 }
+.monitor-grid.drop-new-row::after { content: ""; position: absolute; top: var(--drop-line-top); left: 0; right: 0; border-top: 2px solid var(--accent); pointer-events: none; }
 .monitor-grid.is-empty { min-height: 140px; place-content: center; border-color: var(--line); }
 .monitor-workspace.drag-over .monitor-grid { border-color: var(--accent); background: var(--selection-fill); }
 .monitor-empty { margin: 0; color: var(--muted); text-align: center; pointer-events: none; }
@@ -271,10 +273,6 @@ main > [role="tabpanel"][hidden] { display: none; }
 .monitor-card.drop-before { box-shadow: inset 3px 0 var(--accent); }
 .monitor-card.drop-after { box-shadow: inset -3px 0 var(--accent); }
 .monitor-card-header, .monitor-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.monitor-card-actions { display: flex; align-items: center; gap: 4px; }
-.monitor-row-break { padding: 3px 7px; border: 0; background: transparent; color: var(--muted); font-size: 21px; line-height: 1; }
-.monitor-row-break[aria-pressed="true"] { color: var(--accent); background: var(--selection-fill); }
-.monitor-row-break:disabled { visibility: hidden; }
 .monitor-card-header h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; font-size: 14px; }
 .monitor-remove { padding: 0 6px; border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; }
 .monitor-remove:hover { color: var(--text); background: var(--button-hover); }
