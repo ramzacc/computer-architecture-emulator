@@ -3,7 +3,7 @@ import { formatValue } from "./value-format.js";
 
 const PAGE_SIZE = 64;
 const fields = { rom: "rom", pc: "tag", run: "clock", step: "button", resetPc: "button", resetRegisters: "button" };
-const names = { rom: "Program ROM", pc: "PC", run: "Main Clock", step: "Manual Clock", resetPc: "RESET PC", resetRegisters: "Reset Registers" };
+const names = { rom: "Program ROM", pc: "PC", run: "Main Clock", step: "Manual Clock", resetPc: "Reset PC", resetRegisters: "Reset Registers" };
 const $ = (id) => document.getElementById(`program-${id}`);
 
 export function parseInstruction(text, format, width) {
