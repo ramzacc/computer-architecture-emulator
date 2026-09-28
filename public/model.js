@@ -835,7 +835,7 @@ export function parseDocument(text, depth = 0) {
   if (data.program !== undefined) {
     const config = data.program;
     object(config, "Document.program", ["rom", "pc", "run", "step", "resetPc", "resetRegisters", "registers", "offset", "format"]);
-    const types = { rom: ["rom"], pc: ["tag"], run: ["switch", "clock"], step: ["button"], resetPc: ["button"], resetRegisters: ["button"] };
+    const types = { rom: ["rom"], pc: ["tag"], run: ["clock"], step: ["button"], resetPc: ["button"], resetRegisters: ["button"] };
     const program = {};
     for (const [key, allowed] of Object.entries(types)) {
       const index = config[key] ?? null;

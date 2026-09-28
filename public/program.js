@@ -2,8 +2,8 @@ import { addressWidth, bitWidth } from "./components.js";
 import { formatValue } from "./value-format.js";
 
 const PAGE_SIZE = 64;
-const fields = { rom: "rom", pc: "tag", run: ["switch", "clock"], step: "button", resetPc: "button", resetRegisters: "button" };
-const names = { rom: "Program ROM", pc: "PC", run: "Clock Guard", step: "Manual Clock", resetPc: "RESET PC", resetRegisters: "Reset Registers" };
+const fields = { rom: "rom", pc: "tag", run: "clock", step: "button", resetPc: "button", resetRegisters: "button" };
+const names = { rom: "Program ROM", pc: "PC", run: "Main Clock", step: "Manual Clock", resetPc: "RESET PC", resetRegisters: "Reset Registers" };
 const $ = (id) => document.getElementById(`program-${id}`);
 
 export function parseInstruction(text, format, width) {
@@ -126,9 +126,9 @@ export function createProgram({ getEditor }) {
       row.querySelector("[data-marker]").textContent = current ? "▶" : "";
     }
     const run = component(config().run);
-    const playing = run?.t === "switch" ? run.value === 1 : run?.t === "clock" && run.enable !== false;
-    $("play").disabled = !run || playing;
-    $("pause").disabled = !run || !playing;
+    const playing = run?.t === "clock" && run.enable !== false;
+    $("play").disabled = run?.t !== "clock" || playing;
+    $("pause").disabled = run?.t !== "clock" || !playing;
     $("step-button").disabled = component(config().step)?.t !== "button";
     $("reset").disabled = ![config().resetPc, config().resetRegisters].every((id) => component(id)?.t === "button");
   }
@@ -251,11 +251,9 @@ export function createProgram({ getEditor }) {
   });
   function run(enable) {
     const item = component(config().run);
-    if (!item) { status("Link a run control in Program setup.", true); return; }
-    const changed = item.t === "switch"
-      ? (item.value === Number(enable) || getEditor().toggleSwitch(item.id))
-      : ((item.enable !== false) === enable || getEditor().setClockEnabled(item.id, enable));
-    if (!changed) status("Run control could not be changed.", true);
+    if (item?.t !== "clock") { status("Link a clock in Program setup.", true); return; }
+    const changed = (item.enable !== false) === enable || getEditor().setClockEnabled(item.id, enable);
+    if (!changed) status("Clock could not be changed.", true);
     else status(enable ? "Playing." : "Paused.");
   }
   $("play").addEventListener("click", () => run(true));

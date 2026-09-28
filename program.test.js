@@ -8,7 +8,7 @@ test('program bindings survive save and load and reject invalid signal types', (
   const editor = new BoardEditor({ storage: { setItem() {} } });
   const rom = editor.place('rom', 0, 0);
   const pc = editor.place('tag', 6, 0);
-  const run = editor.place('switch', 12, 0);
+  const run = editor.place('clock', 12, 0);
   const step = editor.place('button', 16, 0);
   const resetPc = editor.place('button', 20, 0);
   const resetRegisters = editor.place('button', 24, 0);
@@ -25,6 +25,10 @@ test('program bindings survive save and load and reject invalid signal types', (
   document.program.step = 3;
   document.program.registers = [1, 1];
   assert.throws(() => parseDocument(JSON.stringify(document)), /unique tags/);
+  document.program.registers = [6];
+  document.components.push(['switch', 32, 0, 0, 0, 'Other switch']);
+  document.program.run = 7;
+  assert.throws(() => parseDocument(JSON.stringify(document)), /program.run/);
 });
 
 test('instruction input accepts bounded binary and hex words', () => {
