@@ -187,8 +187,15 @@
         <label class="property">Manual clock button<select id="program-step"></select></label>
         <label class="property">PC reset button<select id="program-reset-pc"></select></label>
         <label class="property">Registers reset button<select id="program-reset-registers"></select></label>
-        <h3>Register tags</h3>
-        <div id="program-register-options" class="program-register-options"></div>
+        <div class="program-register-heading">
+          <h3>Register tracking</h3>
+          <button id="program-add-register" type="button" aria-label="Add register tracking">+ Add</button>
+        </div>
+        <table class="program-register-table" aria-label="Tracked register tags">
+          <thead><tr><th scope="col">Tag</th><th scope="col">Remove</th></tr></thead>
+          <tbody id="program-register-options"></tbody>
+        </table>
+        <p id="program-register-empty" class="hint">Add a tag on Canvas, then link it here.</p>
       </aside>
       <div class="program-workspace">
         <div class="program-toolbar">
