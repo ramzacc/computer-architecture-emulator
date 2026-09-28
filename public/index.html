@@ -28,7 +28,18 @@
       <button id="module-back" type="button">← Save &amp; back</button>
       <span id="module-path" aria-live="polite"></span>
     </div>
-    <button id="btn-theme" class="theme-toggle" type="button">Theme</button>
+    <div class="header-actions">
+      <details id="project-menu" class="project-menu">
+        <summary>File</summary>
+        <div class="project-menu-items">
+          <button id="btn-download" type="button">Save project to file</button>
+          <button id="btn-import" type="button">Import project from file</button>
+          <input id="file-input" type="file" accept="application/json,.json" hidden />
+          <p id="import-error" class="import-error" role="alert" hidden></p>
+        </div>
+      </details>
+      <button id="btn-theme" class="theme-toggle" type="button">Theme</button>
+    </div>
   </header>
 
   <main>
@@ -96,17 +107,8 @@
       </div>
       <p id="bus-status" class="hint" role="status" hidden></p>
       </section>
-      <section class="file-section" aria-labelledby="file-heading">
-        <h2 id="file-heading">File</h2>
-        <div class="file-actions">
-          <button id="btn-download">Save to file</button>
-          <label class="file-label">
-            <span>Import from file</span>
-            <input id="file-input" type="file" accept="application/json,.json" />
-          </label>
-          <button id="btn-clear" type="button">Clear canvas</button>
-        </div>
-        <p id="import-error" class="import-error" role="alert" hidden></p>
+      <section class="file-section">
+        <button id="btn-clear" type="button">Clear canvas</button>
       </section>
     </section>
 

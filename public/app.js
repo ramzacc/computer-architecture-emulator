@@ -7,6 +7,7 @@ import { parseRomFile, serializeRomFile, validHexWord } from "./rom-format.js";
 import { createTabs } from "./tabs.js";
 import { createMonitor } from "./monitor.js";
 import { createProgram } from "./program.js";
+import { serializeProject } from "./project-file.js";
 
 const CELL = 48;
 const GAP = 3;
@@ -1678,7 +1679,7 @@ btnPan.addEventListener("click", () => {
 
 /* ---------- Persistence ---------- */
 
-function loadBoard(board) {
+function loadBoard(board, drafts = { rom: [], isa: [], assembly: [] }) {
   romTargetId = null;
   layoutTargetId = null;
   romDrafts.clear();
@@ -1694,6 +1695,11 @@ function loadBoard(board) {
   clearWireGesture();
   mode = MODE.PAN;
   editor.replaceBoard(board);
+  for (const [id, entries] of drafts.rom) {
+    const component = editor.component(id);
+    romDrafts.set(id, { entries: new Map(entries), addressSize: addressWidth(component), dataSize: bitWidth(component) });
+  }
+  program.restoreDrafts(drafts);
   renderPalette();
   syncPlacingCursor();
   resetView();
@@ -1707,7 +1713,7 @@ function parseImport(text) {
     worker.onmessage = ({ data }) => {
       worker.terminate();
       if (data.error) reject(new Error(data.error));
-      else resolve(data.board);
+      else resolve(data);
     };
     worker.onerror = (event) => {
       worker.terminate();
@@ -1722,17 +1728,9 @@ function parseImport(text) {
   });
 }
 
-document.getElementById("btn-download").addEventListener("click", () => {
-  const blob = new Blob([serialize(state)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "grid-canvas.json";
-  a.click();
-  URL.revokeObjectURL(url);
-});
-
 const fileInputEl = document.getElementById("file-input");
+const projectMenuEl = document.getElementById("project-menu");
+const importButtonEl = document.getElementById("btn-import");
 const importScreenEl = document.getElementById("import-screen");
 const importTitleEl = document.getElementById("import-title");
 const importDetailEl = document.getElementById("import-detail");
@@ -1741,6 +1739,41 @@ const importErrorEl = document.getElementById("import-error");
 const headerEl = document.querySelector(".view-header");
 const mainEl = document.querySelector("main");
 let importing = false;
+
+function fileError(message) {
+  importErrorEl.textContent = message;
+  importErrorEl.hidden = !message;
+  if (message) projectMenuEl.open = true;
+}
+
+document.getElementById("btn-download").addEventListener("click", () => {
+  if (moduleStack.length) { fileError("Save & back from the module before saving the project."); return; }
+  try {
+    const programDrafts = program.exportDrafts();
+    const drafts = { rom: [...romDrafts].filter(([id]) => editor.component(id)?.t === "rom")
+      .map(([id]) => [id, [...romEntries(editor.component(id))]]), ...programDrafts };
+    const blob = new Blob([serializeProject(state, drafts)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "computer-architecture-project.json";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    fileError("");
+    projectMenuEl.open = false;
+  } catch (error) { fileError(`Could not save project: ${error.message}`); }
+});
+
+importButtonEl.addEventListener("click", () => {
+  if (moduleStack.length) { fileError("Save & back from the module before importing a project."); return; }
+  fileInputEl.click();
+});
+projectMenuEl.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") { projectMenuEl.open = false; projectMenuEl.querySelector("summary").focus(); }
+});
+document.addEventListener("pointerdown", (event) => {
+  if (!projectMenuEl.contains(event.target)) projectMenuEl.open = false;
+});
 
 function showLoading(title, detail, name = "", focus = false) {
   importTitleEl.textContent = title;
@@ -1769,20 +1802,22 @@ fileInputEl.addEventListener("change", async (event) => {
   if (importing) return;
   importing = true;
   fileInputEl.disabled = true;
-  importErrorEl.hidden = true;
-  importErrorEl.textContent = "";
+  fileError("");
   showLoading("Importing file", "Reading file…", file.name, true);
   try {
     const text = await file.text();
     importDetailEl.textContent = "Validating document…";
-    const board = await parseImport(text);
+    const project = await parseImport(text);
     importDetailEl.textContent = "Opening circuit…";
     // Let the updated progress message paint before evaluation and rendering.
     await loadingPainted();
-    loadBoard(board);
+    hideLoading();
+    if (!window.confirm(`Import ${file.name}? This replaces the current project and its browser save.`)) return;
+    showLoading("Importing project", "Opening circuit…", file.name);
+    loadBoard(project.board, project.drafts);
+    projectMenuEl.open = false;
   } catch (error) {
-    importErrorEl.textContent = `Could not import ${file.name}: ${error.message}`;
-    importErrorEl.hidden = false;
+    fileError(`Could not import ${file.name}: ${error.message}`);
   } finally {
     hideLoading();
     fileInputEl.disabled = false;
