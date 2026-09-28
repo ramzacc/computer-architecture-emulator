@@ -29,7 +29,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
 
   function layout() {
     const editor = getEditor();
-    if (!layouts.has(editor)) layouts.set(editor, { ids: [], formats: new Map() });
+    if (!layouts.has(editor)) layouts.set(editor, { ids: [], formats: new Map(), breaks: new Set() });
     return layouts.get(editor);
   }
 
@@ -65,25 +65,36 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
 
   function renderCards() {
     const available = new Map(items().map((item) => [item.id, item]));
-    const { ids, formats } = layout();
+    const { ids, formats, breaks } = layout();
     for (let index = ids.length - 1; index >= 0; index--) if (!available.has(ids[index])) {
       formats.delete(ids[index]);
+      breaks.delete(ids[index]);
       ids.splice(index, 1);
     }
     gridEl.replaceChildren();
     emptyEl.hidden = ids.length > 0;
     gridEl.classList.toggle("is-empty", ids.length === 0);
     if (!ids.length) gridEl.append(emptyEl);
-    for (const id of ids) {
+    for (const [index, id] of ids.entries()) {
       const item = available.get(id);
       const card = document.createElement("article");
       card.className = "monitor-card";
+      card.classList.toggle("new-row", breaks.has(id));
       card.dataset.id = id;
       card.draggable = true;
       const header = document.createElement("div");
       header.className = "monitor-card-header";
       const name = document.createElement("h3");
       name.textContent = item.label || item.t;
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "monitor-row-break";
+      row.dataset.rowBreak = id;
+      row.disabled = index === 0;
+      row.setAttribute("aria-label", `${breaks.has(id) ? "Join previous row" : "Start new row"} for ${item.label || item.t}`);
+      row.setAttribute("aria-pressed", String(breaks.has(id)));
+      row.title = breaks.has(id) ? "Join previous row" : "Start new row";
+      row.textContent = "↵";
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "monitor-remove";
@@ -91,7 +102,10 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       remove.setAttribute("aria-label", `Remove ${item.label || item.t} from monitor`);
       remove.title = "Remove from monitor";
       remove.textContent = "×";
-      header.append(name, remove);
+      const actions = document.createElement("div");
+      actions.className = "monitor-card-actions";
+      actions.append(row, remove);
+      header.append(name, actions);
       if (["tag", "input", "output"].includes(item.t)) {
         const value = document.createElement("output");
         value.className = "monitor-value";
@@ -207,9 +221,18 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
   gridEl.addEventListener("click", (event) => {
     const button = event.target.closest("[data-remove]");
     if (!button) return;
-    const { ids, formats } = layout();
+    const { ids, formats, breaks } = layout();
     ids.splice(ids.indexOf(button.dataset.remove), 1);
     formats.delete(button.dataset.remove);
+    breaks.delete(button.dataset.remove);
+    renderCards();
+  });
+  gridEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-row-break]");
+    if (!button) return;
+    const breaks = layout().breaks;
+    if (breaks.has(button.dataset.rowBreak)) breaks.delete(button.dataset.rowBreak);
+    else breaks.add(button.dataset.rowBreak);
     renderCards();
   });
   gridEl.addEventListener("change", (event) => {
@@ -252,7 +275,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
 
   for (const source of [signalsEl, gridEl]) {
     source.addEventListener("dragstart", (event) => {
-      if (event.target.closest(".monitor-control, .monitor-bits, .monitor-remove, select")) {
+      if (event.target.closest(".monitor-control, .monitor-bits, .monitor-remove, .monitor-row-break, select")) {
         event.preventDefault();
         return;
       }

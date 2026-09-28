@@ -214,7 +214,7 @@ main > [role="tabpanel"][hidden] { display: none; }
 .monitor-grid {
   display: grid;
   flex: 1 0 auto;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   align-content: start;
   gap: 12px;
   border: 1px dashed transparent;
@@ -232,9 +232,14 @@ main > [role="tabpanel"][hidden] { display: none; }
   background: var(--palette-card);
   cursor: grab;
 }
+.monitor-card.new-row { grid-column-start: 1; }
 .monitor-card.drop-before { box-shadow: inset 3px 0 var(--accent); }
 .monitor-card.drop-after { box-shadow: inset -3px 0 var(--accent); }
 .monitor-card-header, .monitor-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.monitor-card-actions { display: flex; align-items: center; gap: 4px; }
+.monitor-row-break { padding: 3px 7px; border: 0; background: transparent; color: var(--muted); font-size: 21px; line-height: 1; }
+.monitor-row-break[aria-pressed="true"] { color: var(--accent); background: var(--selection-fill); }
+.monitor-row-break:disabled { visibility: hidden; }
 .monitor-card-header h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; font-size: 14px; }
 .monitor-remove { padding: 0 6px; border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; }
 .monitor-remove:hover { color: var(--text); background: var(--button-hover); }
