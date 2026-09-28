@@ -204,6 +204,10 @@ button:disabled { opacity: .4; cursor: default; border-color: var(--line); }
 .import-card h2 { margin-bottom: 8px; color: var(--text); font-size: 17px; letter-spacing: normal; text-transform: none; }
 .import-card p { margin: 0; color: var(--muted); }
 .import-card .import-name { margin-top: 12px; overflow-wrap: anywhere; font-size: 12px; }
+.clear-card p { margin-bottom: 18px; }
+.clear-actions { display: flex; justify-content: center; gap: 8px; }
+.clear-actions .danger { border-color: var(--danger); color: var(--danger); }
+.clear-actions .danger:hover { border-color: var(--danger); background: var(--button-hover); }
 @keyframes import-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .import-spinner { animation: none; } }
 
