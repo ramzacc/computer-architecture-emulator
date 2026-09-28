@@ -1015,7 +1015,7 @@ function openModule(id) {
   clearWireGesture();
   moduleStack.push({ editor, id, name: component.label || "Module" });
   editor = new BoardEditor({ storage: { setItem() {} },
-    onChange: (board) => { state = board; syncClockTimers(); render(); } });
+    onChange: boardChanged });
   editor.replaceBoard(board, { save: false });
   state = editor.board;
   romTargetId = null;
@@ -1236,6 +1236,37 @@ canvasWrapEl.addEventListener("contextmenu", (e) => {
   }
 });
 
+function renderDragPreview() {
+  if (!drag) return;
+  const evaluatePreview = (trial) => evaluateBoard(trial, editor.pressedButtons,
+    editor.highClocks, editor.registerValues, editor.ramValues);
+  if (drag.kind === "selection") {
+    const { dx, dy } = drag;
+    const trial = editor.translatedSelection(drag.ids, drag.wires, dx, dy);
+    drag.valid = !!trial || (!dx && !dy);
+    state = trial ?? editor.board;
+    selectedWires = new Set(trial ? drag.wires.map((key) => {
+      const edge = editor.board.wires.get(key);
+      return edge ? edgeKey({ ...edge, x: edge.x + dx, y: edge.y + dy }) : key;
+    }) : drag.wires);
+    const logic = trial ? evaluatePreview(trial) : editor.evaluation;
+    renderComponents(logic);
+    renderPins();
+    renderWires(logic);
+    return;
+  }
+  const nx = drag.x, ny = drag.y;
+  const trial = editor.previewMove(drag.id, nx, ny);
+  drag.valid = !!trial;
+  state = trial ?? { ...editor.board, components: editor.board.components.map((item) =>
+    item.id === drag.id ? { ...item, x: nx, y: ny } : item) };
+  const logic = trial && trial !== editor.board ? evaluatePreview(trial) : editor.evaluation;
+  renderComponents(logic);
+  renderPins();
+  renderWires(logic);
+  if (!trial) gridEl.querySelector(`.comp[data-id="${drag.id}"]`)?.classList.add("invalid");
+}
+
 function updateDragPreview(clientX, clientY) {
   if (!drag) return;
   const world = worldFromEvent({ clientX, clientY });
@@ -1245,35 +1276,14 @@ function updateDragPreview(clientX, clientY) {
     if (dx === drag.dx && dy === drag.dy) return;
     drag.dx = dx;
     drag.dy = dy;
-    const trial = editor.translatedSelection(drag.ids, drag.wires, dx, dy);
-    drag.valid = !!trial || (!dx && !dy);
-    state = trial ?? editor.board;
-    selectedWires = new Set(trial ? drag.wires.map((key) => {
-      const edge = editor.board.wires.get(key);
-      return edge ? edgeKey({ ...edge, x: edge.x + dx, y: edge.y + dy }) : key;
-    }) : drag.wires);
-    const logic = trial ? evaluateBoard(trial) : editor.evaluation;
-    renderComponents(logic);
-    renderPins();
-    renderWires(logic);
-    return;
+  } else {
+    const nx = Math.round((world.x - drag.grabbedX) / CELL);
+    const ny = Math.round((world.y - drag.grabbedY) / CELL);
+    if (nx === drag.x && ny === drag.y) return;
+    drag.x = nx;
+    drag.y = ny;
   }
-  const rawX = (world.x - drag.grabbedX) / CELL;
-  const rawY = (world.y - drag.grabbedY) / CELL;
-  const nx = Math.round(rawX);
-  const ny = Math.round(rawY);
-  if (nx === drag.x && ny === drag.y) return;
-  drag.x = nx;
-  drag.y = ny;
-  const trial = editor.previewMove(drag.id, nx, ny);
-  drag.valid = !!trial;
-  state = trial ?? { ...editor.board, components: editor.board.components.map((item) =>
-    item.id === drag.id ? { ...item, x: nx, y: ny } : item) };
-  const logic = trial && trial !== editor.board ? evaluateBoard(trial) : editor.evaluation;
-  renderComponents(logic);
-  renderPins();
-  renderWires(logic);
-  if (!trial) gridEl.querySelector(`.comp[data-id="${drag.id}"]`)?.classList.add("invalid");
+  renderDragPreview();
 }
 
 canvasWrapEl.addEventListener("pointermove", (e) => {
@@ -1785,9 +1795,21 @@ function syncClockTimers() {
   }
 }
 
+function boardChanged(board) {
+  state = board;
+  syncClockTimers();
+  if (drag) {
+    // A clock or input update can arrive between pointer moves. Rebuild the
+    // preview at its current offset so the normal render cannot snap it back.
+    renderDragPreview();
+    renderProperties();
+    viewRenderers[tabs.active]?.();
+  } else render();
+}
+
 let editor = new BoardEditor({
   storage: getStorage(),
-  onChange: (board) => { state = board; syncClockTimers(); render(); },
+  onChange: boardChanged,
   onStorageError: (error) => {
     console.warn("Could not save board:", error);
     queueMicrotask(() => busStatus("Board changed, but browser storage is unavailable. Download a copy to keep it.", true));

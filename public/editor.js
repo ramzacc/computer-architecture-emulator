@@ -463,10 +463,12 @@ export class BoardEditor {
     const component = this.component(id);
     if (!component || component.t === "module") return false;
     const old = component.r ?? 0;
+    // isValidComponent already rejects wires inside the rotated body and
+    // mismatched pin widths. No existing wire needs sanitation after rotation.
     if (["constant", "input", "output"].includes(component.t))
-      return this.editComponent(component, { r: old === 2 ? 0 : 2 }, { sanitize: true });
+      return this.editComponent(component, { r: old === 2 ? 0 : 2 });
     for (let step = 1; step <= 3; step++) {
-      if (this.editComponent(component, { r: (old + step) % 4 }, { sanitize: true })) return true;
+      if (this.editComponent(component, { r: (old + step) % 4 })) return true;
     }
     return false;
   }
