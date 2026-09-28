@@ -1714,12 +1714,33 @@ document.getElementById("btn-download").addEventListener("click", () => {
 
 const fileInputEl = document.getElementById("file-input");
 const importScreenEl = document.getElementById("import-screen");
+const importTitleEl = document.getElementById("import-title");
 const importDetailEl = document.getElementById("import-detail");
 const importNameEl = document.getElementById("import-name");
 const importErrorEl = document.getElementById("import-error");
 const headerEl = document.querySelector(".view-header");
 const mainEl = document.querySelector("main");
 let importing = false;
+
+function showLoading(title, detail, name = "", focus = false) {
+  importTitleEl.textContent = title;
+  importDetailEl.textContent = detail;
+  importNameEl.textContent = name;
+  importScreenEl.hidden = false;
+  headerEl.inert = true;
+  mainEl.inert = true;
+  if (focus) importScreenEl.focus();
+}
+
+function hideLoading() {
+  importScreenEl.hidden = true;
+  headerEl.inert = false;
+  mainEl.inert = false;
+}
+
+function loadingPainted() {
+  return new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+}
 
 fileInputEl.addEventListener("change", async (event) => {
   const file = event.target.files[0];
@@ -1730,27 +1751,20 @@ fileInputEl.addEventListener("change", async (event) => {
   fileInputEl.disabled = true;
   importErrorEl.hidden = true;
   importErrorEl.textContent = "";
-  importDetailEl.textContent = "Reading file…";
-  importNameEl.textContent = file.name;
-  importScreenEl.hidden = false;
-  headerEl.inert = true;
-  mainEl.inert = true;
-  importScreenEl.focus();
+  showLoading("Importing file", "Reading file…", file.name, true);
   try {
     const text = await file.text();
     importDetailEl.textContent = "Validating document…";
     const board = await parseImport(text);
     importDetailEl.textContent = "Opening circuit…";
     // Let the updated progress message paint before evaluation and rendering.
-    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    await loadingPainted();
     loadBoard(board);
   } catch (error) {
     importErrorEl.textContent = `Could not import ${file.name}: ${error.message}`;
     importErrorEl.hidden = false;
   } finally {
-    importScreenEl.hidden = true;
-    headerEl.inert = false;
-    mainEl.inert = false;
+    hideLoading();
     fileInputEl.disabled = false;
     importing = false;
     fileInputEl.focus();
@@ -1821,25 +1835,32 @@ state = editor.board;
 
 renderPalette();
 syncPlacingCursor();
-let restored = null;
-try { restored = editor.loadSaved(); }
-catch (error) { console.warn("Saved document is invalid:", error); }
-if (restored) {
-  editor.replaceBoard(restored.board, { save: false });
-} else {
-  mainEl.inert = true;
-  let board;
-  try {
-    const response = await fetch(new URL("./examples/8-bit-computer.json", import.meta.url));
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    board = parseDocument(await response.text()).board;
-  } catch (error) {
-    console.warn("Could not load the default example:", error);
-    board = createBoard();
-    seedLayout(board);
-  } finally {
-    mainEl.inert = false;
+showLoading("Loading circuit", "Opening circuit…");
+try {
+  await loadingPainted();
+  let restored = null;
+  try { restored = editor.loadSaved(); }
+  catch (error) { console.warn("Saved document is invalid:", error); }
+  if (restored) {
+    editor.replaceBoard(restored.board, { save: false });
+  } else {
+    importDetailEl.textContent = "Loading default example…";
+    importNameEl.textContent = "8-bit computer";
+    let board;
+    try {
+      const response = await fetch(new URL("./examples/8-bit-computer.json", import.meta.url));
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      board = parseDocument(await response.text()).board;
+    } catch (error) {
+      console.warn("Could not load the default example:", error);
+      board = createBoard();
+      seedLayout(board);
+    }
+    importDetailEl.textContent = "Opening circuit…";
+    await loadingPainted();
+    editor.replaceBoard(board, { save: false });
   }
-  editor.replaceBoard(board, { save: false });
+  resetView();
+} finally {
+  hideLoading();
 }
-resetView();
