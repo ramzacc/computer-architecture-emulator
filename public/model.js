@@ -2,7 +2,7 @@ import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, 
 import { VALUE_FORMATS, validValueFormat } from "./value-format.js";
 
 export function createBoard() {
-  return { components: [], wires: new Map(), junctions: new Set(), monitor: { ids: [], formats: new Map(), breaks: new Set() } };
+  return { components: [], wires: new Map(), junctions: new Set(), monitor: { ids: [], formats: new Map(), breaks: new Set() }, program: null };
 }
 
 export function edgeKey({ o, x, y }) {
@@ -677,6 +677,13 @@ export function serialize(board) {
   const monitor = (board.monitor?.ids ?? []).filter((id) => componentIndexes.has(id)).map((id) => [
     componentIndexes.get(id), board.monitor.formats.get(id) ?? "binary", board.monitor.breaks.has(id),
   ]);
+  const program = board.program && {
+    ...Object.fromEntries(["rom", "pc", "run", "step", "resetPc", "resetRegisters"]
+      .map((key) => [key, componentIndexes.get(board.program[key]) ?? null])),
+    registers: (board.program.registers ?? []).map((id) => componentIndexes.get(id)).filter((index) => index !== undefined),
+    offset: board.program.offset ?? 0,
+    format: board.program.format ?? "hex",
+  };
   return JSON.stringify({
     components: board.components.map((component) => {
       if (!validComponentProperties(component))
@@ -697,6 +704,7 @@ export function serialize(board) {
       return [x, y];
     }),
     ...(monitor.length ? { monitor } : {}),
+    ...(program ? { program } : {}),
   });
 }
 
@@ -742,7 +750,7 @@ function coordinate(value, path) {
 // Parsing builds a complete board before callers replace the visible one.
 export function parseDocument(text, depth = 0) {
   const data = JSON.parse(text);
-  object(data, "Document", ["components", "wires", "junctions", "monitor"]);
+  object(data, "Document", ["components", "wires", "junctions", "monitor", "program"]);
   if (!Array.isArray(data.components)) throw new Error("Document.components must be an array.");
   if (!Array.isArray(data.wires)) throw new Error("Document.wires must be an array.");
   if (!Array.isArray(data.junctions))
@@ -823,6 +831,26 @@ export function parseDocument(text, depth = 0) {
       board.monitor.formats.set(component.id, format);
       if (newRow) board.monitor.breaks.add(component.id);
     }
+  }
+  if (data.program !== undefined) {
+    const config = data.program;
+    object(config, "Document.program", ["rom", "pc", "run", "step", "resetPc", "resetRegisters", "registers", "offset", "format"]);
+    const types = { rom: ["rom"], pc: ["tag"], run: ["switch", "clock"], step: ["button"], resetPc: ["button"], resetRegisters: ["button"] };
+    const program = {};
+    for (const [key, allowed] of Object.entries(types)) {
+      const index = config[key] ?? null;
+      if (index !== null && (!Number.isInteger(index) || !allowed.includes(board.components[index]?.t)))
+        throw new Error(`Document.program.${key} must refer to a ${allowed.join(" or ")}.`);
+      program[key] = index === null ? null : board.components[index].id;
+    }
+    if (!Array.isArray(config.registers) || config.registers.some((index) =>
+      !Number.isInteger(index) || board.components[index]?.t !== "tag") ||
+      new Set(config.registers).size !== config.registers.length)
+      throw new Error("Document.program.registers must refer to unique tags.");
+    if (!Number.isInteger(config.offset) || config.offset < 0 || config.offset > 65535)
+      throw new Error("Document.program.offset must be an address from 0 to 65535.");
+    if (!["hex", "binary"].includes(config.format)) throw new Error("Document.program.format must be hex or binary.");
+    board.program = { ...program, registers: config.registers.map((index) => board.components[index].id), offset: config.offset, format: config.format };
   }
   const blockedEdges = new Set();
   const pinSizes = new Map();

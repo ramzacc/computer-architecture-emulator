@@ -282,6 +282,13 @@ export class BoardEditor {
     return true;
   }
 
+  setProgramConfig(config) {
+    if (JSON.stringify(this.board.program) === JSON.stringify(config)) return false;
+    this.board.program = structuredClone(config);
+    this.commit();
+    return true;
+  }
+
   commitComponentEdit() {
     sanitizeWires(this.board);
     this.commit();

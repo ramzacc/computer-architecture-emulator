@@ -20,6 +20,7 @@
       <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
       <button id="tab-monitor" type="button" role="tab" aria-controls="monitor-view" aria-selected="false" tabindex="-1">Monitor</button>
       <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
+      <button id="tab-program" type="button" role="tab" aria-controls="program-view" aria-selected="false" tabindex="-1">Program</button>
       <button id="tab-module-layout" type="button" role="tab" aria-controls="module-layout-view" aria-selected="false" tabindex="-1">Module Layout</button>
     </div>
     <div id="module-navigation" class="module-navigation" hidden>
@@ -176,6 +177,51 @@
           </div>
         </div>
       </section>
+    </section>
+    <section id="program-view" class="program-view" role="tabpanel" aria-labelledby="tab-program" hidden>
+      <aside class="program-sidebar panel">
+        <h2>Program setup</h2>
+        <label class="property">ROM<select id="program-rom"></select></label>
+        <label class="property">PC tag<select id="program-pc"></select></label>
+        <label class="property">Run control (switch or clock)<select id="program-run"></select></label>
+        <label class="property">Manual step button<select id="program-step"></select></label>
+        <label class="property">PC reset button<select id="program-reset-pc"></select></label>
+        <label class="property">Registers reset button<select id="program-reset-registers"></select></label>
+        <h3>Register tags</h3>
+        <div id="program-register-options" class="program-register-options"></div>
+      </aside>
+      <div class="program-workspace">
+        <div class="program-toolbar">
+          <div class="program-transport" role="group" aria-label="Program controls">
+            <button id="program-play" type="button">▶ Play</button>
+            <button id="program-pause" type="button">Ⅱ Pause</button>
+            <button id="program-step-button" type="button">Step</button>
+            <button id="program-reset" type="button">Reset</button>
+          </div>
+          <div class="program-pc-readout">PC <output id="program-pc-value">—</output></div>
+        </div>
+        <p id="program-status" class="hint" role="status" aria-live="polite"></p>
+        <div class="program-content">
+          <section class="program-code" aria-labelledby="program-code-title">
+            <div class="program-section-header">
+              <h2 id="program-code-title">Instructions</h2>
+              <label>Format <select id="program-format"><option value="hex">Hex</option><option value="binary">Binary</option></select></label>
+            </div>
+            <div class="program-navigation">
+              <button id="program-prev" type="button">Previous</button>
+              <label>Start address <input id="program-offset" type="text" inputmode="text" spellcheck="false" aria-label="Start address in hexadecimal" /></label>
+              <button id="program-next" type="button">Next</button>
+              <label class="program-follow"><input id="program-follow" type="checkbox" checked /> Follow PC</label>
+            </div>
+            <div class="program-line-head"><span></span><span>ROM address</span><span id="program-word-heading">Instruction</span></div>
+            <div id="program-lines" class="program-lines" aria-label="Program instructions"></div>
+          </section>
+          <section class="program-registers" aria-labelledby="program-registers-title">
+            <h2 id="program-registers-title">Registers</h2>
+            <div id="program-register-values" class="program-register-values"></div>
+          </section>
+        </div>
+      </div>
     </section>
     <section id="module-layout-view" class="module-layout-view" role="tabpanel" aria-labelledby="tab-module-layout" hidden>
       <div id="module-layout" class="module-layout">
