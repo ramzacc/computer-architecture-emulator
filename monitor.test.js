@@ -48,6 +48,17 @@ test("monitor order, formats, and incomplete rows survive JSON save and load", (
   assert.deepEqual(JSON.parse(serialize(restored)).monitor, document.monitor);
 });
 
+test("a clock can be saved in the monitor layout", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "clock", t: "clock", x: 0, y: 0, label: "Main Clock", enable: false }), true);
+  board.monitor.ids.push("clock");
+  const document = JSON.parse(serialize(board));
+  assert.deepEqual(document.monitor, [[0, "binary", false]]);
+  const restored = parseDocument(JSON.stringify(document)).board;
+  assert.equal(restored.components[0].enable, false);
+  assert.deepEqual(restored.monitor.ids, ["c1"]);
+});
+
 test("old documents load without a monitor and malformed monitor entries are rejected", () => {
   const board = createBoard();
   assert.equal(addComponent(board, { id: "tag", t: "tag", x: 0, y: 0, label: "Signal" }), true);
