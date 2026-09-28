@@ -150,6 +150,16 @@ body {
 .module-navigation button { white-space: nowrap; padding: 6px 9px; }
 #module-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .theme-toggle { align-self: center; margin-bottom: 8px; font-size: 12px; padding: 6px 10px; }
+.header-actions { display: flex; align-items: center; gap: 8px; align-self: center; margin-bottom: 8px; }
+.header-actions .theme-toggle { margin-bottom: 0; }
+.project-menu { position: relative; z-index: 20; font-size: 12px; }
+.project-menu summary { display: block; padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--button); cursor: pointer; list-style: none; }
+.project-menu summary::-webkit-details-marker { display: none; }
+.project-menu summary:hover, .project-menu[open] summary { border-color: var(--button-hover-line); background: var(--button-hover); }
+.project-menu summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.project-menu-items { position: absolute; top: calc(100% + 5px); right: 0; width: 235px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 12px 28px rgba(0, 0, 0, .3); }
+.project-menu-items button { display: block; width: 100%; border: 0; text-align: left; }
+.project-menu-items .import-error { padding: 0 8px 6px; }
 
 h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0 0 12px; }
 
@@ -169,8 +179,7 @@ button:disabled { opacity: .4; cursor: default; border-color: var(--line); }
 .file-label { position: relative; }
 .file-label input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .file-label:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.file-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
-.file-actions > * { display: flex; align-items: center; justify-content: center; text-align: center; }
+.file-section button { width: 100%; }
 .import-error { margin: 9px 0 0; color: var(--status-error); overflow-wrap: anywhere; }
 .import-error[hidden], .import-screen[hidden] { display: none; }
 .import-screen {

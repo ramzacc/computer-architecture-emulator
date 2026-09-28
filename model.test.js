@@ -1,5 +1,6 @@
 import { assemble, disassemble } from "./public/assembly.js";
 import { restoreProgramSource } from "./public/program-source.js";
+import { parseProject } from "./public/project-file.js";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -969,7 +970,7 @@ test("descendant splitter order reverses branch bits and persists", () => {
 
 test("8-bit computer example decodes its ISA and writes only RA", () => {
   const text = readFileSync(new URL("./public/examples/8-bit-computer.json", import.meta.url), "utf8");
-  const { board } = parseDocument(text);
+  const { board } = parseProject(text);
   const byLabel = new Map(board.components.map((component) => [component.label, component]));
   const registerByLabel = new Map(board.components.filter((component) => component.t === "register")
     .map((component) => [component.label, component]));
@@ -1018,5 +1019,5 @@ test("8-bit computer example decodes its ISA and writes only RA", () => {
   assert.equal(running.states.get(counter.id).inputs[0], 1);
   assert.equal(running.states.get(registerByLabel.get("R2").id).inputs[1], 1);
   clock.enable = false;
-  assert.deepEqual(JSON.parse(serialize(board)), JSON.parse(text));
+  assert.deepEqual(JSON.parse(serialize(board)), JSON.parse(text).document);
 });

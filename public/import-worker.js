@@ -1,8 +1,8 @@
-import { parseDocument } from "./model.js";
+import { parseProject } from "./project-file.js";
 
 self.onmessage = ({ data }) => {
   try {
-    self.postMessage({ board: parseDocument(data).board });
+    self.postMessage(parseProject(data));
   } catch (error) {
     self.postMessage({ error: error instanceof Error ? error.message : String(error) });
   }
