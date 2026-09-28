@@ -1,6 +1,6 @@
 import { addressWidth, bitWidth } from "./components.js";
 import { formatValue } from "./value-format.js";
-import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, assignIsaCell } from "./assembly.js";
+import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, assignIsaCell, sourceLineAddresses } from "./assembly.js";
 
 const fields = { rom: "rom", pc: "tag", run: "clock", step: "button", resetPc: "button", resetRegisters: "button" };
 const names = { rom: "Program ROM", pc: "PC", run: "Main Clock", step: "Manual Clock", resetPc: "Reset PC", resetRegisters: "Reset Registers" };
@@ -273,22 +273,23 @@ export function createProgram({ getEditor }) {
   }
   function updateGutter() {
     const rom = activeRom(); if (!rom) return;
-    const count = sourceEl.value.split(/\r?\n/).length;
-    if (gutterEl.children.length !== count || gutterEl.dataset.rom !== rom.id || gutterEl.dataset.width !== String(addressWidth(rom))) {
-      const fragment = document.createDocumentFragment();
-      for (let address = 0; address < count; address++) {
-        const line = document.createElement("div"); line.textContent = formatAddress(address);
-        fragment.append(line);
-      }
-      gutterEl.replaceChildren(fragment); gutterEl.dataset.rom = rom.id; gutterEl.dataset.width = String(addressWidth(rom));
+    const addresses = sourceLineAddresses(sourceEl.value);
+    const key = JSON.stringify([rom.id, addressWidth(rom), addresses]);
+    if (gutterEl.dataset.key !== key) {
+      gutterEl.replaceChildren(...addresses.map((address) => {
+        const line = document.createElement("div");
+        line.textContent = address === null ? "" : formatAddress(address);
+        return line;
+      }));
+      gutterEl.dataset.key = key;
     }
     gutterEl.scrollTop = sourceEl.scrollTop;
   }
   function highlightPc(pc) {
-    const line = Number.isInteger(pc) && pc >= 0 && pc < gutterEl.children.length ? pc : null;
+    const line = Number.isInteger(pc) && pc >= 0 ? sourceLineAddresses(sourceEl.value).indexOf(pc) : -1;
     for (const child of gutterEl.children) child.classList.toggle("active", child === gutterEl.children[line]);
-    currentLineEl.hidden = line === null;
-    if (line === null) { lastPcLine = null; return; }
+    currentLineEl.hidden = line < 0;
+    if (line < 0) { lastPcLine = null; return; }
     const style = getComputedStyle(sourceEl);
     const lineHeight = Number.parseFloat(style.lineHeight);
     const paddingTop = Number.parseFloat(style.paddingTop);
