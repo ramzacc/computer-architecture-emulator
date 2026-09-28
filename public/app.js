@@ -1729,7 +1729,6 @@ function parseImport(text) {
 }
 
 const fileInputEl = document.getElementById("file-input");
-const projectMenuEl = document.getElementById("project-menu");
 const importButtonEl = document.getElementById("btn-import");
 const importScreenEl = document.getElementById("import-screen");
 const importTitleEl = document.getElementById("import-title");
@@ -1743,7 +1742,6 @@ let importing = false;
 function fileError(message) {
   importErrorEl.textContent = message;
   importErrorEl.hidden = !message;
-  if (message) projectMenuEl.open = true;
 }
 
 document.getElementById("btn-download").addEventListener("click", () => {
@@ -1760,19 +1758,12 @@ document.getElementById("btn-download").addEventListener("click", () => {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
     fileError("");
-    projectMenuEl.open = false;
   } catch (error) { fileError(`Could not save project: ${error.message}`); }
 });
 
 importButtonEl.addEventListener("click", () => {
   if (moduleStack.length) { fileError("Save & back from the module before importing a project."); return; }
   fileInputEl.click();
-});
-projectMenuEl.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") { projectMenuEl.open = false; projectMenuEl.querySelector("summary").focus(); }
-});
-document.addEventListener("pointerdown", (event) => {
-  if (!projectMenuEl.contains(event.target)) projectMenuEl.open = false;
 });
 
 function showLoading(title, detail, name = "", focus = false) {
@@ -1815,7 +1806,6 @@ fileInputEl.addEventListener("change", async (event) => {
     if (!window.confirm(`Import ${file.name}? This replaces the current project and its browser save.`)) return;
     showLoading("Importing project", "Opening circuit…", file.name);
     loadBoard(project.board, project.drafts);
-    projectMenuEl.open = false;
   } catch (error) {
     fileError(`Could not import ${file.name}: ${error.message}`);
   } finally {
