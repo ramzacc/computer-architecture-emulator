@@ -711,8 +711,11 @@ main > [role="tabpanel"][hidden] { display: none; }
 .isa-editor { overflow-y: auto; }
 .isa-rules { display: flex; flex-direction: column; gap: 12px; }
 .isa-card { min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--input); }
-.isa-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.isa-card-head input { min-width: 90px; width: min(240px, 100%); padding: 7px; font-weight: 700; text-transform: uppercase; }
+.isa-card-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.isa-card-head input { min-width: 90px; padding: 7px; }
+.isa-card-head input[data-action="keyword"] { width: min(240px, 100%); font-weight: 700; text-transform: uppercase; }
+.isa-card-head input[data-action="comment"] { flex: 1; min-width: 120px; max-width: 360px; font-size: 12px; }
+.isa-card-head button { margin-left: auto; }
 .isa-card-body { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); align-items: center; gap: 20px; min-width: 0; }
 .isa-card-controls { display: grid; align-content: center; gap: 10px; min-width: 0; }
 .isa-palette { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
