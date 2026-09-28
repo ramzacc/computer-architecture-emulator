@@ -869,9 +869,14 @@ test("8-bit computer example runs its ROM program and writes only RA", () => {
   const rom = byLabel.get("Program ROM");
   const counter = byLabel.get("Counter 1");
   const step = byLabel.get("Manual Clock").id;
+  const clock = byLabel.get("Main Clock");
   const result = byLabel.get("Result: 00 NOT, 01 SUM, 10 AND, 11 INC").id;
 
   assert.equal(board.components.filter((component) => component.t === "register").length, 8);
+  assert.equal(clock.enable, false);
+  assert.equal(byLabel.has("Clock Guard"), false);
+  assert.equal(byLabel.has("AND 1"), false);
+  assert.equal(board.monitor.ids.includes(clock.id), true);
   assert.equal(rom.data.length, 255);
   for (const [pc, instruction, destination, expected] of [
     [1, 0x97, 2, 0],
@@ -891,5 +896,11 @@ test("8-bit computer example runs its ROM program and writes only RA", () => {
       assert.equal(clock, Number(index === destination));
     }
   }
+  clock.enable = true;
+  const running = evaluateBoard(board, new Set(), new Set([clock.id]),
+    new Map(registers).set(counter.id, 1));
+  assert.equal(running.states.get(counter.id).inputs[0], 1);
+  assert.equal(running.states.get(registerByLabel.get("R2").id).inputs[1], 1);
+  clock.enable = false;
   assert.deepEqual(JSON.parse(serialize(board)), JSON.parse(text));
 });

@@ -50,7 +50,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
   }
 
   function items() {
-    return getEditor().board.components.filter((component) => ["tag", "button", "switch", "input", "output"].includes(component.t));
+    return getEditor().board.components.filter((component) => ["tag", "button", "switch", "clock", "input", "output"].includes(component.t));
   }
 
   function add(id, index = layout().ids.length, newRow = false) {
@@ -81,7 +81,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       button.draggable = true;
       button.dataset.id = item.id;
       button.textContent = item.label || item.t;
-      button.title = `${["tag", "input", "output"].includes(item.t) ? `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"} ${item.t}` : item.t === "button" ? "Button" : "Switch"} · Click or drag to monitor`;
+      button.title = `${["tag", "input", "output"].includes(item.t) ? `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"} ${item.t}` : item.t === "button" ? "Button" : item.t === "clock" ? "Clock" : "Switch"} · Click or drag to monitor`;
       signalsEl.append(button);
     }
   }
@@ -166,7 +166,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
         art.append(center);
         const status = document.createElement("span");
         status.className = "monitor-control-status";
-        status.textContent = item.t === "button" ? "Press" : "Off";
+        status.textContent = item.t === "button" ? "Press" : item.t === "clock" ? "Disabled" : "Off";
         control.append(art, status);
         control.setAttribute("aria-label", `${item.label || item.t} ${item.t}`);
         card.append(header, control);
@@ -197,10 +197,11 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
     for (const control of gridEl.querySelectorAll("[data-control]")) {
       const item = available.get(control.dataset.control);
       if (!item) continue;
-      const active = item.t === "button" ? editor.pressedButtons.has(item.id) : item.value === 1;
+      const active = item.t === "button" ? editor.pressedButtons.has(item.id) : item.t === "clock" ? item.enable !== false : item.value === 1;
       control.classList.toggle("active", active);
       control.setAttribute("aria-pressed", String(active));
-      control.querySelector(".monitor-control-status").textContent = item.t === "button" ? active ? "Pressed" : "Press" : active ? "On" : "Off";
+      control.querySelector(".monitor-control-status").textContent = item.t === "button" ? active ? "Pressed" : "Press" : item.t === "clock" ? active ? "Enabled" : "Disabled" : active ? "On" : "Off";
+      if (item.t === "clock") control.setAttribute("aria-label", `${active ? "Disable" : "Enable"} ${item.label || "Clock"}`);
     }
   }
 
@@ -273,8 +274,11 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
   });
   gridEl.addEventListener("click", (event) => {
     const control = event.target.closest("[data-control]");
-    if (control && getEditor().component(control.dataset.control)?.t === "switch")
-      getEditor().toggleSwitch(control.dataset.control);
+    if (control) {
+      const item = getEditor().component(control.dataset.control);
+      if (item?.t === "switch") getEditor().toggleSwitch(item.id);
+      if (item?.t === "clock") getEditor().setClockEnabled(item.id, item.enable === false);
+    }
     const bit = event.target.closest("[data-input-bit]");
     if (bit) getEditor().toggleInputBit(bit.dataset.inputId, Number(bit.dataset.inputBit));
   });

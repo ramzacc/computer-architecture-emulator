@@ -822,7 +822,7 @@ export function parseDocument(text, depth = 0) {
       if (!Array.isArray(raw) || raw.length !== 3) throw new Error(`${path} must be [component index, format, new row].`);
       const [componentIndex, format, newRow] = raw;
       const component = board.components[componentIndex];
-      if (!Number.isInteger(componentIndex) || !component || !["tag", "button", "switch", "input", "output"].includes(component.t) || seen.has(componentIndex))
+      if (!Number.isInteger(componentIndex) || !component || !["tag", "button", "switch", "clock", "input", "output"].includes(component.t) || seen.has(componentIndex))
         throw new Error(`${path} must refer to a unique monitorable component.`);
       if (!validValueFormat(format)) throw new Error(`${path} has an invalid value format.`);
       if (typeof newRow !== "boolean") throw new Error(`${path} new row must be a boolean.`);
@@ -835,7 +835,7 @@ export function parseDocument(text, depth = 0) {
   if (data.program !== undefined) {
     const config = data.program;
     object(config, "Document.program", ["rom", "pc", "run", "step", "resetPc", "resetRegisters", "registers", "offset", "format"]);
-    const types = { rom: ["rom"], pc: ["tag"], run: ["switch", "clock"], step: ["button"], resetPc: ["button"], resetRegisters: ["button"] };
+    const types = { rom: ["rom"], pc: ["tag"], run: ["clock"], step: ["button"], resetPc: ["button"], resetRegisters: ["button"] };
     const program = {};
     for (const [key, allowed] of Object.entries(types)) {
       const index = config[key] ?? null;
