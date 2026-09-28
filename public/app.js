@@ -1729,7 +1729,6 @@ function parseImport(text) {
 }
 
 const fileInputEl = document.getElementById("file-input");
-const projectMenuEl = document.getElementById("project-menu");
 const importButtonEl = document.getElementById("btn-import");
 const importScreenEl = document.getElementById("import-screen");
 const importTitleEl = document.getElementById("import-title");
@@ -1743,7 +1742,6 @@ let importing = false;
 function fileError(message) {
   importErrorEl.textContent = message;
   importErrorEl.hidden = !message;
-  if (message) projectMenuEl.open = true;
 }
 
 document.getElementById("btn-download").addEventListener("click", () => {
@@ -1760,42 +1758,12 @@ document.getElementById("btn-download").addEventListener("click", () => {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
     fileError("");
-    projectMenuEl.open = false;
   } catch (error) { fileError(`Could not save project: ${error.message}`); }
 });
 
 importButtonEl.addEventListener("click", () => {
   if (moduleStack.length) { fileError("Save & back from the module before importing a project."); return; }
   fileInputEl.click();
-});
-document.getElementById("btn-sorter-example").addEventListener("click", async () => {
-  if (moduleStack.length) { fileError("Save & back from the module before opening an example."); return; }
-  if (importing) return;
-  importing = true;
-  fileError("");
-  showLoading("Loading example", "Reading 8-register sorter…", "8-register sorter", true);
-  try {
-    const response = await fetch(new URL("./examples/odd-even-sorter.json", import.meta.url));
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const project = await parseImport(await response.text());
-    hideLoading();
-    if (!window.confirm("Open the 8-register sorter? This replaces the current project and its browser save.")) return;
-    showLoading("Opening example", "Opening circuit…", "8-register sorter");
-    await loadingPainted();
-    loadBoard(project.board, project.drafts);
-    projectMenuEl.open = false;
-  } catch (error) {
-    fileError(`Could not open sorter example: ${error.message}`);
-  } finally {
-    hideLoading();
-    importing = false;
-  }
-});
-projectMenuEl.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") { projectMenuEl.open = false; projectMenuEl.querySelector("summary").focus(); }
-});
-document.addEventListener("pointerdown", (event) => {
-  if (!projectMenuEl.contains(event.target)) projectMenuEl.open = false;
 });
 
 function showLoading(title, detail, name = "", focus = false) {
@@ -1838,7 +1806,6 @@ fileInputEl.addEventListener("change", async (event) => {
     if (!window.confirm(`Import ${file.name}? This replaces the current project and its browser save.`)) return;
     showLoading("Importing project", "Opening circuit…", file.name);
     loadBoard(project.board, project.drafts);
-    projectMenuEl.open = false;
   } catch (error) {
     fileError(`Could not import ${file.name}: ${error.message}`);
   } finally {
