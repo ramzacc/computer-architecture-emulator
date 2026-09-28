@@ -1,5 +1,6 @@
 import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, documentFields, modulePorts, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRam, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { VALUE_FORMATS, validValueFormat } from "./value-format.js";
+import { normalizeIsa, parseIsa } from "./assembly.js";
 
 export function createBoard() {
   return { components: [], wires: new Map(), junctions: new Set(), monitor: { ids: [], formats: new Map(), breaks: new Set() }, program: null };
@@ -688,6 +689,8 @@ export function serialize(board) {
     registers: (board.program.registers ?? []).map((id) => componentIndexes.get(id)).filter((index) => index !== undefined),
     offset: board.program.offset ?? 0,
     format: board.program.format ?? "hex",
+    ...(board.program.isa && Object.keys(board.program.isa).length ? { isa: Object.entries(board.program.isa)
+      .filter(([id]) => componentIndexes.has(id)).map(([id, source]) => [componentIndexes.get(id), source]) } : {}),
   };
   return JSON.stringify({
     components: board.components.map((component) => {
@@ -845,7 +848,7 @@ function parseDocumentData(data, depth) {
   }
   if (data.program !== undefined) {
     const config = data.program;
-    object(config, "Document.program", ["rom", "pc", "run", "step", "resetPc", "resetRegisters", "registers", "offset", "format"]);
+    object(config, "Document.program", ["rom", "pc", "run", "step", "resetPc", "resetRegisters", "registers", "offset", "format", "isa"]);
     const types = { rom: ["rom"], pc: ["tag"], run: ["clock"], step: ["button"], resetPc: ["button"], resetRegisters: ["button"] };
     const program = {};
     for (const [key, allowed] of Object.entries(types)) {
@@ -861,7 +864,22 @@ function parseDocumentData(data, depth) {
     if (!Number.isInteger(config.offset) || config.offset < 0 || config.offset > 65535)
       throw new Error("Document.program.offset must be an address from 0 to 65535.");
     if (!["hex", "binary"].includes(config.format)) throw new Error("Document.program.format must be hex or binary.");
-    board.program = { ...program, registers: config.registers.map((index) => board.components[index].id), offset: config.offset, format: config.format };
+    const isa = {};
+    if (config.isa !== undefined) {
+      if (!Array.isArray(config.isa)) throw new Error("Document.program.isa must be an array.");
+      for (const entry of config.isa) {
+        if (!Array.isArray(entry) || entry.length !== 2 || !Number.isInteger(entry[0]) ||
+            board.components[entry[0]]?.t !== "rom" || typeof entry[1] !== "string" || entry[1].length > 16000)
+          throw new Error("Document.program.isa must contain ROM indexes and rule text.");
+        const rom = board.components[entry[0]];
+        if (Object.hasOwn(isa, rom.id)) throw new Error("Document.program.isa contains a duplicate ROM.");
+        const source = normalizeIsa(entry[1], bitWidth(rom));
+        parseIsa(source, bitWidth(rom));
+        isa[rom.id] = source;
+      }
+    }
+    board.program = { ...program, registers: config.registers.map((index) => board.components[index].id), offset: config.offset, format: config.format,
+      ...(Object.keys(isa).length ? { isa } : {}) };
   }
   const blockedEdges = new Set();
   const pinSizes = new Map();

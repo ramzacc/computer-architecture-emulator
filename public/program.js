@@ -1,23 +1,11 @@
 import { addressWidth, bitWidth } from "./components.js";
 import { formatValue } from "./value-format.js";
+import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, assignIsaCell } from "./assembly.js";
 
-const PAGE_SIZE = 64;
 const fields = { rom: "rom", pc: "tag", run: "clock", step: "button", resetPc: "button", resetRegisters: "button" };
 const names = { rom: "Program ROM", pc: "PC", run: "Main Clock", step: "Manual Clock", resetPc: "Reset PC", resetRegisters: "Reset Registers" };
 const $ = (id) => document.getElementById(`program-${id}`);
-
-export function parseInstruction(text, format, width) {
-  const clean = text.trim().replaceAll("_", "");
-  if (!clean) return 0;
-  const digits = format === "binary" ? clean.replace(/^0b/i, "") : clean.replace(/^0x/i, "");
-  if (!(format === "binary" ? /^[01]+$/ : /^[0-9a-f]+$/i).test(digits)) return null;
-  const value = Number.parseInt(digits, format === "binary" ? 2 : 16);
-  return Number.isSafeInteger(value) && value < 2 ** width ? value : null;
-}
-
-export function instructionDigits(width, format) {
-  return format === "binary" ? width : Math.ceil(width / 4);
-}
+const operandName = (index) => index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
 
 export function createProgram({ getEditor }) {
   const selectEls = Object.fromEntries(Object.keys(fields).map((key) => [key, $(key === "resetPc" ? "reset-pc" : key === "resetRegisters" ? "reset-registers" : key)]));
@@ -25,20 +13,32 @@ export function createProgram({ getEditor }) {
   const addRegister = $("add-register");
   const registerEmpty = $("register-empty");
   const registerValues = $("register-values");
-  const linesEl = $("lines");
-  const offsetEl = $("offset");
   const formatEl = $("format");
   const statusEl = $("status");
+  const sourceEl = $("source");
+  const gutterEl = $("gutter");
+  const currentLineEl = $("current-line");
+  const assemblyNoteEl = $("assembly-note");
+  const assembleEl = $("assemble");
+  const reloadEl = $("reload-assembly");
+  const isaRomEl = document.getElementById("isa-rom");
+  const isaRulesEl = document.getElementById("isa-rules");
+  const isaAddEl = document.getElementById("isa-add");
+  const saveIsaEl = document.getElementById("isa-save");
+  const isaNoteEl = document.getElementById("isa-note");
+  const drafts = new Map();
+  const isaDrafts = new Map();
+  let draftBoard = null;
   let renderedEditor = null;
   let renderedComponents = "";
   let renderedConfig = "";
-  let renderedPage = "";
   let renderedRegisters = "";
   const previousRegisterValues = new Map();
   const registerHighlightTimers = new Map();
   let defaultConfig = null;
   let defaultBoard = null;
-  let followPc = true;
+  let renderedIsaRoms = "";
+  let lastPcLine = null;
 
   const components = () => getEditor().board.components;
   const component = (id) => components().find((item) => item.id === id);
@@ -61,15 +61,131 @@ export function createProgram({ getEditor }) {
     statusEl.classList.toggle("error", error);
   }
   function activeRom() { const item = component(config().rom); return item?.t === "rom" ? item : null; }
-  function maxAddress() { const rom = activeRom(); return rom ? 2 ** addressWidth(rom) - 1 : 0; }
+  function savedIsa(rom) { return config().isa?.[rom.id] ?? ""; }
+  function romKey(rom) { return JSON.stringify([rom.id, bitWidth(rom), addressWidth(rom), rom.data ?? [], savedIsa(rom)]); }
+  function isaRom() { return activeRom(); }
+  function isaDraft(rom) {
+    let draft = isaDrafts.get(rom.id);
+    if (!draft) {
+      draft = { rules: isaGrid(savedIsa(rom), bitWidth(rom)), saved: savedIsa(rom), dirty: false, selected: [] };
+      isaDrafts.set(rom.id, draft);
+    }
+    if (!draft.dirty && draft.saved !== savedIsa(rom)) {
+      draft.rules = isaGrid(savedIsa(rom), bitWidth(rom));
+      draft.saved = savedIsa(rom);
+    }
+    return draft;
+  }
+  function markIsaDirty(draft) { draft.dirty = true; isaNoteEl.textContent = "Unsaved ISA rules."; isaNoteEl.classList.remove("error"); }
+  function renderIsa() {
+    ensureBoard();
+    const roms = components().filter((item) => item.t === "rom");
+    const key = JSON.stringify(roms.map((item) => [item.id, item.label, bitWidth(item)]));
+    if (key !== renderedIsaRoms) {
+      renderedIsaRoms = key;
+      isaRomEl.replaceChildren(new Option("Select ROM…", ""), ...roms.map((item) =>
+        new Option(`${item.label || "ROM"} · ${bitWidth(item)} bits`, item.id)));
+    }
+    const rom = isaRom();
+    isaRomEl.value = rom?.id ?? "";
+    isaAddEl.disabled = !rom;
+    saveIsaEl.disabled = !rom;
+    isaRulesEl.replaceChildren();
+    if (!rom) {
+      isaNoteEl.textContent = roms.length ? "Select a ROM." : "Add a ROM on Canvas.";
+      return;
+    }
+    let draft;
+    try { draft = isaDraft(rom); }
+    catch (error) { isaNoteEl.textContent = error.message; isaNoteEl.classList.add("error"); return; }
+    isaNoteEl.textContent = draft.dirty ? "Unsaved ISA rules." : `${bitWidth(rom)}-bit ROM · rules saved.`;
+    isaNoteEl.classList.remove("error");
+    draft.rules.forEach((rule, ruleIndex) => {
+      const card = document.createElement("section");
+      card.className = "isa-card";
+      card.dataset.rule = String(ruleIndex);
+      const head = document.createElement("div"); head.className = "isa-card-head";
+      const keyword = document.createElement("input"); keyword.value = rule.keyword;
+      keyword.placeholder = "KEYWORD"; keyword.maxLength = 24; keyword.dataset.action = "keyword";
+      keyword.setAttribute("aria-label", `Instruction ${ruleIndex + 1} keyword`);
+      const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "Remove"; remove.dataset.action = "remove-rule";
+      head.append(keyword, remove); card.append(head);
+      const body = document.createElement("div"); body.className = "isa-card-body";
+      const controls = document.createElement("div"); controls.className = "isa-card-controls";
+      const operandList = document.createElement("div"); operandList.className = "isa-operand-list";
+      const palette = document.createElement("div"); palette.className = "isa-palette";
+      for (const [value, label] of rule.operands.map((operand, index) => [`operand:${index}`, `${operand.kind === "register" ? "Register" : "Value"} ${operandName(index)}`])) {
+        const button = document.createElement("button"); button.type = "button"; button.textContent = label;
+        button.dataset.action = "select"; button.dataset.value = value;
+        button.classList.toggle("selected", draft.selected[ruleIndex] === value);
+        button.setAttribute("aria-pressed", String(draft.selected[ruleIndex] === value));
+        palette.append(button);
+      }
+      const addRegister = document.createElement("button"); addRegister.type = "button"; addRegister.textContent = "+ Register"; addRegister.dataset.action = "add-register";
+      const addValue = document.createElement("button"); addValue.type = "button"; addValue.textContent = "+ Value"; addValue.dataset.action = "add-value";
+      palette.append(addRegister, addValue); controls.append(palette);
+      const grid = document.createElement("div"); grid.className = "isa-grid"; grid.setAttribute("role", "group"); grid.setAttribute("aria-label", `${rule.keyword || "Instruction"} bits`);
+      for (let bit = rule.cells.length - 1; bit >= 0; bit--) {
+        const cell = rule.cells[bit]; const button = document.createElement("button"); button.type = "button";
+        button.dataset.action = "cell"; button.dataset.bit = String(bit);
+        button.classList.add(cell === null ? "empty-cell" : typeof cell === "number" ? "operand-cell" : "fixed-cell");
+        const position = typeof cell === "number" ? rule.operands[cell]?.bits.indexOf(bit) ?? -1 : -1;
+        const label = cell === null ? "·" : typeof cell === "number" ? `${operandName(cell)}${rule.operands[cell].bits.length - position - 1}` : cell;
+        button.innerHTML = `<small>${bit}</small><strong>${label}</strong>`;
+        button.setAttribute("aria-label", `Bit ${bit}: ${typeof cell === "number" ? `${rule.operands[cell]?.kind} ${operandName(cell)} bit ${rule.operands[cell].bits.length - position - 1}` : cell ?? "unassigned"}`);
+        grid.append(button);
+      }
+      rule.operands.forEach((operand, operandIndex) => {
+        const row = document.createElement("div"); row.className = "isa-operand"; row.dataset.operand = String(operandIndex);
+        const kind = document.createElement("select"); kind.dataset.action = "kind"; kind.setAttribute("aria-label", `Operand ${operandIndex + 1} type`);
+        kind.replaceChildren(new Option("Register", "register"), new Option("Value", "value")); kind.value = operand.kind;
+        const name = document.createElement("span"); name.className = "isa-operand-name";
+        name.textContent = operandName(operandIndex);
+        const del = document.createElement("button"); del.type = "button"; del.textContent = "×"; del.dataset.action = "remove-operand"; del.setAttribute("aria-label", `Remove operand ${operandName(operandIndex)}`);
+        row.append(name, kind, del); operandList.append(row);
+      });
+      controls.append(operandList);
+      body.append(controls, grid);
+      card.append(body);
+      isaRulesEl.append(card);
+    });
+  }
+  function assemblyDraft(rom) {
+    if (!rom) return null;
+    let draft = drafts.get(rom.id);
+    if (!draft) {
+      draft = { text: disassemble(rom.data ?? [], bitWidth(rom), savedIsa(rom)), key: romKey(rom), dirty: false };
+      drafts.set(rom.id, draft);
+    }
+    return draft;
+  }
+  function updateAssembly() {
+    const rom = activeRom();
+    const draft = assemblyDraft(rom);
+    const locked = isPlaying();
+    sourceEl.disabled = !rom || locked;
+    assembleEl.disabled = !rom || locked || !draft?.dirty;
+    reloadEl.disabled = !rom || locked;
+    if (!rom) {
+      sourceEl.value = "";
+      gutterEl.replaceChildren(); currentLineEl.hidden = true;
+      assemblyNoteEl.textContent = "Link a ROM in Program setup.";
+      return;
+    }
+    const key = romKey(rom);
+    if (!draft.dirty && draft.key !== key) {
+      draft.text = disassemble(rom.data ?? [], bitWidth(rom), savedIsa(rom));
+      draft.key = key;
+    }
+    if (sourceEl.dataset.rom !== rom.id || sourceEl.value !== draft.text) sourceEl.value = draft.text;
+    sourceEl.dataset.rom = rom.id;
+    updateGutter();
+    assemblyNoteEl.textContent = draft.dirty
+      ? draft.key === key ? "Unsaved assembly edits." : "ROM or ISA rules changed since this draft. Assembling will replace ROM contents."
+      : "Assembly matches the linked ROM.";
+  }
   function formatAddress(address) {
     return `0x${address.toString(16).toUpperCase().padStart(Math.max(2, Math.ceil(addressWidth(activeRom() ?? { addressSize: 8 }) / 4)), "0")}`;
-  }
-  function pageOffset() {
-    const pc = pcValue();
-    return followPc && activeRom() && pc !== null
-      ? Math.min(Math.floor(pc / PAGE_SIZE) * PAGE_SIZE, Math.floor(maxAddress() / PAGE_SIZE) * PAGE_SIZE)
-      : Math.min(config().offset, maxAddress());
   }
   function updateSelectors() {
     for (const [key, type] of Object.entries(fields)) {
@@ -109,7 +225,6 @@ export function createProgram({ getEditor }) {
       registerOptions.append(row);
     }
     formatEl.value = config().format;
-    offsetEl.value = config().offset.toString(16).toUpperCase();
   }
   function updateRegisters(force = false) {
     const registers = config().registers.map(component).filter((item) => item?.t === "register");
@@ -152,69 +267,55 @@ export function createProgram({ getEditor }) {
     const tag = component(config().pc);
     return tag?.t === "tag" ? getEditor().evaluation.states.get(tag.id)?.value ?? 0 : null;
   }
+  function isPlaying() {
+    const run = component(config().run);
+    return run?.t === "clock" && run.enable !== false;
+  }
+  function updateGutter() {
+    const rom = activeRom(); if (!rom) return;
+    const count = sourceEl.value.split(/\r?\n/).length;
+    if (gutterEl.children.length !== count || gutterEl.dataset.rom !== rom.id || gutterEl.dataset.width !== String(addressWidth(rom))) {
+      const fragment = document.createDocumentFragment();
+      for (let address = 0; address < count; address++) {
+        const line = document.createElement("div"); line.textContent = formatAddress(address);
+        fragment.append(line);
+      }
+      gutterEl.replaceChildren(fragment); gutterEl.dataset.rom = rom.id; gutterEl.dataset.width = String(addressWidth(rom));
+    }
+    gutterEl.scrollTop = sourceEl.scrollTop;
+  }
+  function highlightPc(pc) {
+    const line = Number.isInteger(pc) && pc >= 0 && pc < gutterEl.children.length ? pc : null;
+    for (const child of gutterEl.children) child.classList.toggle("active", child === gutterEl.children[line]);
+    currentLineEl.hidden = line === null;
+    if (line === null) { lastPcLine = null; return; }
+    const style = getComputedStyle(sourceEl);
+    const lineHeight = Number.parseFloat(style.lineHeight);
+    const paddingTop = Number.parseFloat(style.paddingTop);
+    const top = paddingTop + line * lineHeight;
+    if (lastPcLine !== line && (top < sourceEl.scrollTop || top + lineHeight > sourceEl.scrollTop + sourceEl.clientHeight)) {
+      sourceEl.scrollTop = Math.max(0, top - sourceEl.clientHeight / 2);
+      gutterEl.scrollTop = sourceEl.scrollTop;
+    }
+    currentLineEl.style.top = `${top - sourceEl.scrollTop}px`;
+    currentLineEl.style.height = `${lineHeight}px`;
+    lastPcLine = line;
+  }
   function updatePc() {
     const pc = pcValue();
     $("pc-value").textContent = pc === null ? "—" : formatAddress(pc);
-    for (const row of linesEl.querySelectorAll(".program-line[data-address]")) {
-      const current = Number(row.dataset.address) === pc;
-      row.classList.toggle("current", current);
-      row.querySelector("[data-marker]").textContent = current ? "▶" : "";
-    }
     const run = component(config().run);
-    const playing = run?.t === "clock" && run.enable !== false;
-    $("play").disabled = run?.t !== "clock" || playing;
+    const playing = isPlaying();
+    const dirty = assemblyDraft(activeRom())?.dirty;
+    $("play").disabled = run?.t !== "clock" || playing || dirty;
     $("pause").disabled = run?.t !== "clock" || !playing;
-    $("step-button").disabled = component(config().step)?.t !== "button";
+    $("step-button").disabled = component(config().step)?.t !== "button" || playing || dirty;
+    highlightPc(pc);
     $("reset").disabled = ![config().resetPc, config().resetRegisters].every((id) => component(id)?.t === "button");
-  }
-  function renderLines(force = false) {
-    const rom = activeRom();
-    const offset = pageOffset();
-    const key = rom ? `${rom.id}:${bitWidth(rom)}:${addressWidth(rom)}:${offset}:${config().format}:${JSON.stringify(rom.data)}` : "none";
-    if (!force && key === renderedPage) return;
-    renderedPage = key;
-    linesEl.replaceChildren();
-    $("prev").disabled = !rom || offset === 0;
-    $("next").disabled = !rom || offset + PAGE_SIZE > maxAddress();
-    offsetEl.disabled = !rom;
-    if (!rom) {
-      $("word-heading").textContent = "Instruction";
-      linesEl.textContent = "Link a ROM to edit instructions.";
-      return;
-    }
-    const words = new Map(rom.data ?? []);
-    const width = bitWidth(rom);
-    const digits = instructionDigits(width, config().format);
-    $("word-heading").textContent = `${config().format === "binary" ? "Binary" : "Hex"} instruction · ${width} bits`;
-    for (let address = offset; address <= Math.min(maxAddress(), offset + PAGE_SIZE - 1); address++) {
-      const row = document.createElement("div");
-      row.className = "program-line";
-      row.dataset.address = String(address);
-      const marker = document.createElement("span");
-      marker.dataset.marker = "";
-      marker.className = "program-line-marker";
-      const addressEl = document.createElement("span");
-      addressEl.textContent = formatAddress(address);
-      const input = document.createElement("input");
-      input.type = "text";
-      input.inputMode = "text";
-      input.spellcheck = false;
-      input.autocomplete = "off";
-      input.dataset.address = String(address);
-      input.size = digits;
-      input.maxLength = digits * 2 + 2;
-      input.style.setProperty("--instruction-width", `${Math.max(6, digits + 2)}ch`);
-      input.setAttribute("aria-label", `${width}-bit ${config().format} instruction at ${formatAddress(address)}`);
-      const value = words.get(address) ?? 0;
-      input.value = value.toString(config().format === "binary" ? 2 : 16).toUpperCase()
-        .padStart(digits, "0");
-      row.append(marker, addressEl, input);
-      linesEl.append(row);
-    }
-    updatePc();
   }
   function render() {
     const editor = getEditor();
+    ensureBoard();
     const key = JSON.stringify(editor.board.components.map((item) => [item.id, item.t, item.label]));
     const configKey = JSON.stringify(config());
     if (renderedEditor !== editor || renderedComponents !== key || renderedConfig !== configKey) {
@@ -222,17 +323,101 @@ export function createProgram({ getEditor }) {
       renderedEditor = editor;
       renderedComponents = key;
       renderedConfig = configKey;
-      renderedPage = "";
       renderedRegisters = "";
       updateSelectors();
     }
-    if (document.activeElement !== offsetEl) offsetEl.value = pageOffset().toString(16).toUpperCase();
     formatEl.value = config().format;
-    renderLines();
+    updateAssembly();
     updateRegisters();
     updatePc();
   }
   for (const key of Object.keys(fields)) selectEls[key].addEventListener("change", () => setConfig({ [key]: selectEls[key].value || null }));
+  isaRomEl.addEventListener("change", () => { setConfig({ rom: isaRomEl.value || null }); renderIsa(); });
+  isaAddEl.addEventListener("click", () => {
+    const rom = isaRom(); if (!rom) return;
+    const draft = isaDraft(rom);
+    draft.rules.push({ keyword: "", cells: Array(bitWidth(rom)).fill(null), operands: [] });
+    markIsaDirty(draft); renderIsa();
+    isaRulesEl.lastElementChild?.querySelector("input")?.focus();
+  });
+  isaRulesEl.addEventListener("input", (event) => {
+    if (event.target.dataset.action !== "keyword") return;
+    const draft = isaDraft(isaRom());
+    draft.rules[Number(event.target.closest("[data-rule]").dataset.rule)].keyword = event.target.value.toUpperCase();
+    markIsaDirty(draft);
+  });
+  isaRulesEl.addEventListener("change", (event) => {
+    if (event.target.dataset.action !== "kind") return;
+    const draft = isaDraft(isaRom()); const card = event.target.closest("[data-rule]");
+    draft.rules[Number(card.dataset.rule)].operands[Number(event.target.closest("[data-operand]").dataset.operand)].kind = event.target.value;
+    markIsaDirty(draft); renderIsa();
+  });
+  isaRulesEl.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action]"); if (!button) return;
+    const rom = isaRom(); if (!rom) return;
+    const draft = isaDraft(rom); const ruleIndex = Number(button.closest("[data-rule]").dataset.rule);
+    const rule = draft.rules[ruleIndex]; const action = button.dataset.action;
+    if (action === "select") { draft.selected[ruleIndex] = draft.selected[ruleIndex] === button.dataset.value ? null : button.dataset.value; renderIsa(); return; }
+    if (action === "remove-rule") { draft.rules.splice(ruleIndex, 1); draft.selected.splice(ruleIndex, 1); }
+    else if (action === "add-register" || action === "add-value") {
+      rule.operands.push({ kind: action === "add-register" ? "register" : "value", bits: [] });
+      draft.selected[ruleIndex] = `operand:${rule.operands.length - 1}`;
+    } else if (action === "cell") {
+      const bit = Number(button.dataset.bit); const selected = draft.selected[ruleIndex] ?? null;
+      assignIsaCell(rule, selected, bit);
+    } else {
+      const operandIndex = Number(button.closest("[data-operand]").dataset.operand);
+      if (action === "remove-operand") {
+        rule.cells = rule.cells.map((cell) => cell === operandIndex ? null : typeof cell === "number" && cell > operandIndex ? cell - 1 : cell);
+        rule.operands.splice(operandIndex, 1); draft.selected[ruleIndex] = null;
+      }
+    }
+    markIsaDirty(draft); renderIsa();
+  });
+  saveIsaEl.addEventListener("click", () => {
+    const rom = isaRom(); if (!rom) return;
+    const draft = isaDraft(rom); const source = serializeIsaGrid(draft.rules);
+    try {
+      parseIsa(source, bitWidth(rom));
+      const isa = { ...(config().isa ?? {}) };
+      if (draft.rules.length) isa[rom.id] = source; else delete isa[rom.id];
+      draft.dirty = false; draft.saved = isa[rom.id] ?? "";
+      if (draft.saved !== savedIsa(rom)) setConfig({ isa });
+      renderIsa(); isaNoteEl.textContent = "ISA saved.";
+    } catch (error) { isaNoteEl.textContent = error.message; isaNoteEl.classList.add("error"); }
+  });
+  sourceEl.addEventListener("scroll", () => { gutterEl.scrollTop = sourceEl.scrollTop; highlightPc(pcValue()); });
+  sourceEl.addEventListener("input", () => {
+    const rom = activeRom();
+    if (!rom) return;
+    if (isPlaying()) return;
+    const draft = assemblyDraft(rom);
+    draft.text = sourceEl.value;
+    draft.dirty = true;
+    updateAssembly(); updatePc();
+  });
+  assembleEl.addEventListener("click", () => {
+    const rom = activeRom();
+    if (!rom || isPlaying()) return;
+    const draft = assemblyDraft(rom);
+    try {
+      const entries = assemble(draft.text, addressWidth(rom), bitWidth(rom), savedIsa(rom));
+      if (JSON.stringify(entries) !== JSON.stringify(rom.data ?? [])) {
+        if (!getEditor().setRomData(rom.id, entries)) throw new Error("ROM write could not be applied to the circuit.");
+      }
+      draft.key = romKey(rom);
+      draft.dirty = false;
+      render();
+      status(`Assembled ${entries.length} nonzero words to ROM.`);
+    } catch (error) { status(error.message, true); }
+  });
+  reloadEl.addEventListener("click", () => {
+    const rom = activeRom();
+    if (!rom || isPlaying()) return;
+    drafts.delete(rom.id);
+    updateAssembly();
+    status("Disassembled the current ROM contents.");
+  });
   addRegister.addEventListener("click", () => {
     const selected = config().registers.filter((id) => component(id)?.t === "register");
     const available = components().find((item) => item.t === "register" && !selected.includes(item.id));
@@ -254,56 +439,9 @@ export function createProgram({ getEditor }) {
     registers.splice(Number(remove.dataset.index), 1);
     setConfig({ registers });
   });
-  formatEl.addEventListener("change", () => { renderedPage = ""; setConfig({ format: formatEl.value }); });
-  function setOffset(value) {
-    followPc = false;
-    $("follow").checked = false;
-    if (!activeRom() || !/^(?:0x)?[0-9a-f]+$/i.test(value.trim())) { status("Enter a hexadecimal ROM address.", true); return; }
-    const address = Number.parseInt(value.trim().replace(/^0x/i, ""), 16);
-    if (address > maxAddress()) { status("Address exceeds the linked ROM.", true); return; }
-    renderedPage = "";
-    setConfig({ offset: address });
-    status("");
-  }
-  offsetEl.addEventListener("change", () => setOffset(offsetEl.value));
-  offsetEl.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); offsetEl.blur(); } });
-  $("prev").addEventListener("click", () => setOffset(Math.max(0, pageOffset() - PAGE_SIZE).toString(16)));
-  $("next").addEventListener("click", () => setOffset(Math.min(maxAddress(), pageOffset() + PAGE_SIZE).toString(16)));
-  $("follow").addEventListener("change", () => { followPc = $("follow").checked; renderedPage = ""; render(); });
-  linesEl.addEventListener("change", (event) => {
-    const input = event.target.closest("input[data-address]");
-    if (!input) return;
-    const rom = activeRom();
-    if (!rom) return;
-    const value = parseInstruction(input.value, config().format, bitWidth(rom));
-    if (value === null) { status(`Use a ${bitWidth(rom)}-bit ${config().format} instruction.`, true); input.setAttribute("aria-invalid", "true"); return; }
-    input.removeAttribute("aria-invalid");
-    const entries = new Map(rom.data ?? []);
-    const address = Number(input.dataset.address);
-    if (value) entries.set(address, value); else entries.delete(address);
-    const sorted = [...entries].sort((a, b) => a[0] - b[0]);
-    if (JSON.stringify(sorted) !== JSON.stringify(rom.data ?? [])) {
-      const previousKey = renderedPage;
-      renderedPage = `${rom.id}:${bitWidth(rom)}:${addressWidth(rom)}:${pageOffset()}:${config().format}:${JSON.stringify(sorted)}`;
-      if (!getEditor().setRomData(rom.id, sorted)) {
-        renderedPage = previousKey;
-        status("ROM write could not be applied to the circuit.", true);
-        return;
-      }
-    }
-    input.value = value.toString(config().format === "binary" ? 2 : 16).toUpperCase()
-      .padStart(instructionDigits(bitWidth(rom), config().format), "0");
-    status(`Saved ${formatAddress(address)} to ROM.`);
-  });
-  linesEl.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.target.tagName !== "INPUT") return;
-    event.preventDefault();
-    const address = Number(event.target.dataset.address);
-    event.target.dispatchEvent(new Event("change", { bubbles: true }));
-    const next = linesEl.querySelector(`input[data-address="${address + 1}"]`);
-    next?.focus(); next?.select();
-  });
+  formatEl.addEventListener("change", () => setConfig({ format: formatEl.value }));
   function run(enable) {
+    if (enable && assemblyDraft(activeRom())?.dirty) { status("Assemble your draft before Play.", true); return; }
     const item = component(config().run);
     if (item?.t !== "clock") { status("Link a clock in Program setup.", true); return; }
     const changed = (item.enable !== false) === enable || getEditor().setClockEnabled(item.id, enable);
@@ -320,18 +458,28 @@ export function createProgram({ getEditor }) {
     return selected.length > 0 && ok;
   }
   $("step-button").addEventListener("click", () => {
+    if (assemblyDraft(activeRom())?.dirty) { status("Assemble your draft before Step.", true); return; }
     const ok = pulse([config().step]);
     status(ok ? "Stepped." : "Step button could not be pressed.", !ok);
+    updatePc();
   });
   $("reset").addEventListener("click", () => {
     const ok = pulse([config().resetPc, config().resetRegisters]);
     status(ok ? "PC and registers reset." : "Reset controls could not be pressed.", !ok);
   });
-  return { render, reset() {
+  function ensureBoard() {
+    const board = getEditor().board;
+    if (draftBoard === board) return;
+    drafts.clear(); isaDrafts.clear(); draftBoard = board;
+    sourceEl.dataset.rom = "";
+    renderedIsaRoms = "";
+  }
+  return { render, renderIsa, reset() {
     for (const timer of registerHighlightTimers.values()) clearTimeout(timer);
     registerHighlightTimers.clear();
     previousRegisterValues.clear();
-    renderedEditor = null; renderedComponents = ""; renderedConfig = ""; renderedPage = "";
-    defaultBoard = null; followPc = true; $("follow").checked = true;
+    renderedEditor = null; renderedComponents = ""; renderedConfig = ""; renderedIsaRoms = "";
+    drafts.clear(); isaDrafts.clear(); draftBoard = null; sourceEl.dataset.rom = "";
+    defaultBoard = null;
   } };
 }

@@ -145,6 +145,7 @@ const viewRenderers = {
   "canvas-view": applyView,
   "monitor-view": monitor.render,
   "rom-view": renderRomTab,
+  "isa-view": program.renderIsa,
   "program-view": program.render,
   "module-layout-view": renderModuleLayout,
 };
@@ -600,7 +601,14 @@ function romEntries(component) {
   return draft.entries;
 }
 
+function romLocked(component) {
+  if (!component || state.program?.rom !== component.id) return false;
+  const run = state.components.find((item) => item.id === state.program.run);
+  return run?.t === "clock" && run.enable !== false;
+}
+
 function editRomEntry(component, address, value) {
+  if (romLocked(component)) return;
   if (!romDrafts.has(component.id)) romDrafts.set(component.id, {
     entries: new Map(component.data ?? []), addressSize: addressWidth(component), dataSize: bitWidth(component),
   });
@@ -649,7 +657,7 @@ function renderRomRows(force = false) {
   }
   const count = 2 ** addressWidth(component);
   romPageStart = Math.min(romPageStart, Math.floor((count - 1) / ROM_PAGE_SIZE) * ROM_PAGE_SIZE);
-  const key = `${component.id}:${addressWidth(component)}:${bitWidth(component)}:${romPageStart}`;
+  const key = `${component.id}:${addressWidth(component)}:${bitWidth(component)}:${romPageStart}:${romLocked(component)}`;
   if (!force && key === romRenderedKey) return;
   romRenderedKey = key;
   const end = Math.min(romPageStart + ROM_PAGE_SIZE, count);
@@ -678,6 +686,7 @@ function renderRomRows(force = false) {
       label.textContent = addressLabel(address, addressWidth(component));
       const input = document.createElement("input");
       input.type = "text";
+      input.disabled = romLocked(component);
       input.inputMode = "text";
       input.spellcheck = false;
       input.autocomplete = "off";
@@ -733,8 +742,8 @@ function renderRomTab() {
   if (!ready) romStatus("");
   romWidthsEl.textContent = ready ? `${addressWidth(component)}-bit address · ${bitWidth(component)}-bit data` : "";
   romWidthsEl.hidden = !ready;
-  romSaveEl.disabled = !ready;
-  romImportEl.disabled = !ready;
+  romSaveEl.disabled = !ready || romLocked(component);
+  romImportEl.disabled = !ready || romLocked(component);
   romExportEl.disabled = !ready;
   romJumpEl.disabled = !ready;
   romGoEl.disabled = !ready;
@@ -778,7 +787,7 @@ romGoEl.addEventListener("click", () => {
 
 romSaveEl.addEventListener("click", () => {
   const component = romTarget();
-  if (!component) return;
+  if (!component || romLocked(component)) return;
   try {
     const entries = [...romEntries(component)].sort((a, b) => a[0] - b[0]);
     if (JSON.stringify(entries) !== JSON.stringify(component.data ?? []) && !editor.setRomData(component.id, entries))
@@ -792,10 +801,10 @@ romImportEl.addEventListener("change", async () => {
   const file = romImportEl.files[0];
   romImportEl.value = "";
   const component = romTarget();
-  if (!file || !component) return;
+  if (!file || !component || romLocked(component)) return;
   try {
     const contents = await file.text();
-    if (romTarget() !== component) return;
+    if (romTarget() !== component || romLocked(component)) return;
     const entries = parseRomFile(contents, addressWidth(component), bitWidth(component));
     romDrafts.set(component.id, { entries: new Map(entries), addressSize: addressWidth(component), dataSize: bitWidth(component) });
     renderRomRows(true);

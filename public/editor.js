@@ -304,6 +304,9 @@ export class BoardEditor {
       }
       return false;
     }
+    if (component.t === "rom" && changes.size !== undefined && changes.size !== previous.size && this.board.program?.isa?.[component.id]) {
+      delete this.board.program.isa[component.id];
+    }
     if (sanitize) this.commitComponentEdit();
     else this.commit(captureEdges);
     return true;

@@ -660,7 +660,7 @@ main > [role="tabpanel"][hidden] { display: none; }
 .program-sidebar h2, .program-sidebar h3 { margin: 0; }
 .program-sidebar h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .program-sidebar .property { display: grid; gap: 5px; }
-.program-sidebar select, .program-section-header select, .program-navigation input { width: 100%; min-width: 0; padding: 7px 9px; color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 5px; }
+.program-sidebar select { width: 100%; min-width: 0; padding: 7px 9px; color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 5px; }
 .program-register-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .program-register-heading button { padding: 4px 8px; font-size: 12px; }
 .program-register-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
@@ -683,25 +683,57 @@ main > [role="tabpanel"][hidden] { display: none; }
 .program-section-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .program-section-header h2, .program-registers h2 { margin: 0; font-size: 18px; text-transform: none; letter-spacing: normal; color: var(--text); }
 .program-section-header label { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
-.program-section-header select { width: 95px; }
-.program-navigation { display: flex; align-items: end; gap: 8px; margin: 12px 0; }
-.program-navigation label { flex: 0 1 145px; display: grid; gap: 4px; font-size: 11px; color: var(--muted); }
-.program-navigation input { font: 14px ui-monospace, monospace; }
-.program-navigation .program-follow { display: flex; flex: 0 0 auto; align-items: center; gap: 5px; padding-bottom: 8px; white-space: nowrap; }
-.program-navigation .program-follow input { width: auto; }
-.program-line-head, .program-line { display: grid; grid-template-columns: 22px minmax(95px, 130px) minmax(0, 1fr); align-items: center; gap: 8px; }
-.program-line-head { padding: 7px 10px; color: var(--muted); background: var(--button); border: 1px solid var(--line); border-bottom: 0; border-radius: 6px 6px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; }
-.program-lines { flex: 1; min-height: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: 0 0 6px 6px; background: var(--input); }
-.program-line { padding: 4px 10px; border-bottom: 1px solid var(--line); color: var(--muted); font: 13px ui-monospace, monospace; }
-.program-line:last-child { border-bottom: 0; }
-.program-line:nth-child(even) { background: var(--panel); }
-.program-line.current { background: var(--selection-fill); color: var(--text); box-shadow: inset 3px 0 var(--accent); }
-.program-line-marker { color: var(--accent); }
-.program-line input { width: min(100%, var(--instruction-width)); min-width: 0; padding: 5px 8px; color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 4px; font: 14px ui-monospace, monospace; }
-.program-line input[aria-invalid="true"] { border-color: var(--status-error); }
+.program-assembly { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 10px; margin-top: 12px; }
+.program-assembly .hint { margin: 0; line-height: 1.5; }
+.program-assembly code { color: var(--selected-value); }
+.program-assembly textarea { flex: 1; min-height: 240px; width: 100%; resize: none; padding: 14px 16px; color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 6px; font: 14px/1.6 ui-monospace, monospace; tab-size: 2; }
+.program-assembly textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.program-assembly-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#program-assembly-note { flex: 1; }
 .program-register-values { display: grid; align-content: start; gap: 6px; overflow-y: auto; margin-top: 14px; }
 .program-register-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--input); }
 .program-register-row.updated { border-color: var(--accent); background: var(--selection-fill); box-shadow: inset 3px 0 var(--accent); }
 .program-register-row output { color: var(--selected-value); font: 700 13px ui-monospace, monospace; overflow-wrap: anywhere; text-align: right; }
 .program-register-row.updated output { color: var(--accent); }
 @media (max-width: 950px) { .program-content { grid-template-columns: minmax(0, 1fr); } .program-registers { max-height: 200px; } }
+
+/* ISA workspace */
+.isa-view { display: flex; min-width: 0; min-height: 0; }
+.isa-workspace { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; padding: 22px; gap: 18px; }
+.isa-heading { display: flex; align-items: start; justify-content: space-between; gap: 18px; }
+.isa-heading h2 { margin: 0 0 6px; }
+.isa-heading p { margin: 0; }
+.isa-heading label { display: grid; gap: 5px; min-width: 220px; color: var(--muted); font-size: 12px; }
+.isa-heading select { min-width: 0; padding: 8px; color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 5px; }
+.isa-editor { display: flex; flex-direction: column; gap: 10px; min-height: 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.isa-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+#isa-note.error { color: var(--status-error); }
+.isa-editor { overflow-y: auto; }
+.isa-rules { display: flex; flex-direction: column; gap: 12px; }
+.isa-card { min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--input); }
+.isa-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.isa-card-head input { min-width: 90px; width: min(240px, 100%); padding: 7px; font-weight: 700; text-transform: uppercase; }
+.isa-card-body { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); align-items: center; gap: 20px; min-width: 0; }
+.isa-card-controls { display: grid; align-content: center; gap: 10px; min-width: 0; }
+.isa-palette { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.isa-palette button.selected { border-color: var(--accent); background: var(--selection-fill); color: var(--accent); }
+.isa-operand-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.isa-operand { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.isa-operand select { padding: 5px; }
+.isa-operand-name { width: 18px; font-weight: 700; color: var(--accent); }
+.isa-grid { display: flex; justify-content: safe center; gap: 5px; min-width: 0; overflow-x: auto; padding-bottom: 5px; }
+.isa-grid button { display: grid; flex: 1 0 42px; max-width: 96px; min-height: 52px; gap: 3px; justify-items: center; padding: 5px 2px; font: 12px ui-monospace, monospace; }
+.isa-grid button.operand-cell { border-color: var(--button-hover-line); background: var(--selection-fill); }
+.isa-grid button.empty-cell strong { color: var(--muted); }
+.isa-grid button:hover { border-color: var(--accent); }
+.isa-grid small { color: var(--muted); }
+.isa-grid strong { font-size: 14px; }
+@media (max-width: 800px) { .isa-card-body { grid-template-columns: minmax(0, 1fr); gap: 14px; } .isa-grid { justify-content: start; } }
+.program-source-wrap { position: relative; display: flex; flex: 1; min-height: 240px; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: var(--input); }
+.program-source-wrap textarea { position: relative; z-index: 2; flex: 1; min-width: 0; min-height: 0; border: 0; border-radius: 0; background: transparent; padding: 14px 16px 14px 8px; resize: none; white-space: pre; overflow: auto; }
+.program-gutter { flex: 0 0 66px; overflow: hidden; padding: 14px 7px; border-right: 1px solid var(--line); color: var(--muted); font: 14px/1.6 ui-monospace, monospace; text-align: right; white-space: pre; }
+.program-gutter > div { height: 22.4px; }
+.program-gutter > div.active { color: var(--accent); font-weight: 700; }
+.program-current-line { position: absolute; z-index: 1; left: 66px; right: 0; background: var(--selection-fill); border-left: 2px solid var(--accent); pointer-events: none; }
+.program-registers-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.program-registers-heading select { max-width: 100px; }

@@ -20,6 +20,7 @@
       <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
       <button id="tab-monitor" type="button" role="tab" aria-controls="monitor-view" aria-selected="false" tabindex="-1">Monitor</button>
       <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
+      <button id="tab-isa" type="button" role="tab" aria-controls="isa-view" aria-selected="false" tabindex="-1">ISA</button>
       <button id="tab-program" type="button" role="tab" aria-controls="program-view" aria-selected="false" tabindex="-1">Program</button>
       <button id="tab-module-layout" type="button" role="tab" aria-controls="module-layout-view" aria-selected="false" tabindex="-1">Module Layout</button>
     </div>
@@ -178,6 +179,19 @@
         </div>
       </section>
     </section>
+    <section id="isa-view" class="isa-view" role="tabpanel" aria-labelledby="tab-isa" hidden>
+      <div class="isa-workspace">
+        <div class="isa-heading">
+          <h2>Instruction set</h2>
+          <label>Program ROM <select id="isa-rom" aria-label="ROM for ISA rules and Program"></select></label>
+        </div>
+        <div class="isa-editor">
+          <div class="isa-actions"><button id="isa-add" type="button">+ Instruction</button><button id="isa-save" type="button">Save ISA</button><span id="isa-note" class="hint" role="status"></span></div>
+          <p class="hint">Click bits to cycle 0 → 1 → empty. Select a Register or Value to fill empty bits; select it again to stop. Click an operand bit to remove it. First assigned bit is highest.</p>
+          <div id="isa-rules" class="isa-rules"></div>
+        </div>
+      </div>
+    </section>
     <section id="program-view" class="program-view" role="tabpanel" aria-labelledby="tab-program" hidden>
       <aside class="program-sidebar panel">
         <h2>Program setup</h2>
@@ -210,21 +224,15 @@
         <p id="program-status" class="hint" role="status" aria-live="polite"></p>
         <div class="program-content">
           <section class="program-code" aria-labelledby="program-code-title">
-            <div class="program-section-header">
-              <h2 id="program-code-title">Instructions</h2>
-              <label>Format <select id="program-format"><option value="hex">Hex</option><option value="binary">Binary</option></select></label>
+            <div class="program-section-header"><h2 id="program-code-title">Assembly</h2></div>
+            <div id="program-assembly" class="program-assembly">
+              <p class="hint">One line per address · R7 is a Register · 5, 0x5, 0b101 are Values · ; starts a comment.</p>
+              <div class="program-source-wrap"><div id="program-gutter" class="program-gutter" aria-hidden="true"></div><div id="program-current-line" class="program-current-line" aria-hidden="true"></div><textarea id="program-source" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Assembly source" placeholder="Link a ROM in Program setup, then write assembly here."></textarea></div>
+              <div class="program-assembly-actions"><button id="program-assemble" type="button">Assemble to ROM</button><button id="program-reload-assembly" type="button">Disassemble ROM</button><span id="program-assembly-note" class="hint"></span></div>
             </div>
-            <div class="program-navigation">
-              <button id="program-prev" type="button">Previous</button>
-              <label>Start address <input id="program-offset" type="text" inputmode="text" spellcheck="false" aria-label="Start address in hexadecimal" /></label>
-              <button id="program-next" type="button">Next</button>
-              <label class="program-follow"><input id="program-follow" type="checkbox" checked /> Follow PC</label>
-            </div>
-            <div class="program-line-head"><span></span><span>ROM address</span><span id="program-word-heading">Instruction</span></div>
-            <div id="program-lines" class="program-lines" aria-label="Program instructions"></div>
           </section>
           <section class="program-registers" aria-labelledby="program-registers-title">
-            <h2 id="program-registers-title">Registers</h2>
+            <div class="program-registers-heading"><h2 id="program-registers-title">Registers</h2><select id="program-format" aria-label="Register display format"><option value="hex">Hex</option><option value="binary">Binary</option></select></div>
             <div id="program-register-values" class="program-register-values"></div>
           </section>
         </div>
