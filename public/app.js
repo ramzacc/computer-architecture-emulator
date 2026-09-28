@@ -1768,6 +1768,29 @@ importButtonEl.addEventListener("click", () => {
   if (moduleStack.length) { fileError("Save & back from the module before importing a project."); return; }
   fileInputEl.click();
 });
+document.getElementById("btn-sorter-example").addEventListener("click", async () => {
+  if (moduleStack.length) { fileError("Save & back from the module before opening an example."); return; }
+  if (importing) return;
+  importing = true;
+  fileError("");
+  showLoading("Loading example", "Reading 8-register sorter…", "8-register sorter", true);
+  try {
+    const response = await fetch(new URL("./examples/odd-even-sorter.json", import.meta.url));
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const project = await parseImport(await response.text());
+    hideLoading();
+    if (!window.confirm("Open the 8-register sorter? This replaces the current project and its browser save.")) return;
+    showLoading("Opening example", "Opening circuit…", "8-register sorter");
+    await loadingPainted();
+    loadBoard(project.board, project.drafts);
+    projectMenuEl.open = false;
+  } catch (error) {
+    fileError(`Could not open sorter example: ${error.message}`);
+  } finally {
+    hideLoading();
+    importing = false;
+  }
+});
 projectMenuEl.addEventListener("keydown", (event) => {
   if (event.key === "Escape") { projectMenuEl.open = false; projectMenuEl.querySelector("summary").focus(); }
 });
