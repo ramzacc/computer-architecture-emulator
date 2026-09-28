@@ -1829,6 +1829,7 @@ function syncClockTimers() {
 
 function boardChanged(board) {
   state = board;
+  program.checkBreakpoint();
   syncClockTimers();
   if (drag) {
     // A clock or input update can arrive between pointer moves. Rebuild the

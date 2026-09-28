@@ -209,18 +209,26 @@ function sourceOperand(token) {
   return { kind: "value", value: number(token) };
 }
 
+export function sourceLineAddresses(source) {
+  let address = 0;
+  return source.split(/\r?\n/).map((original) =>
+    original.split(";", 1)[0].trim() ? address++ : null);
+}
+
 export function assemble(source, addressBits, wordBits, isa = "") {
   const rules = parseIsa(isa, wordBits);
   const entries = new Map();
   const capacity = 2 ** addressBits;
+  const addresses = sourceLineAddresses(source);
   for (const [index, original] of source.split(/\r?\n/).entries()) {
     const line = original.split(";", 1)[0].trim();
-    if (index >= capacity) throw new Error(`Line ${index + 1}: instruction exceeds ROM address space.`);
     if (!line) continue;
+    const address = addresses[index];
+    if (address >= capacity) throw new Error(`Line ${index + 1}: instruction exceeds ROM address space.`);
     const [command, ...tokens] = line.split(/[\s,]+/).filter(Boolean);
     const name = command.toUpperCase();
     const fail = (message) => { throw new Error(`Line ${index + 1}: ${message}`); };
-    if (name === ".ORG") fail(".org is unavailable; each physical line has one ROM address.");
+    if (name === ".ORG") fail(".org is unavailable; use explicit .word 0 instructions to reserve addresses.");
     let value;
     if (name === ".WORD") {
       value = tokens.length === 1 ? number(tokens[0]) : NaN;
@@ -235,7 +243,7 @@ export function assemble(source, addressBits, wordBits, isa = "") {
       if (!rule) fail(`operands do not match ${name} or do not fit its bit fields.`);
       value = encode(rule, operands.map((operand) => operand.value));
     }
-    entries.set(index, value);
+    entries.set(address, value);
   }
   return [...entries].filter(([, value]) => value !== 0).sort((a, b) => a[0] - b[0]);
 }
@@ -263,7 +271,7 @@ export function disassemble(data, wordBits, isa = "") {
   }
   for (const [address, value] of sorted) {
     if (value === 0) continue;
-    while (next < address) { lines.push(""); next++; }
+    while (next < address) { lines.push(`.word 0x${"0".repeat(Math.ceil(wordBits / 4))}`); next++; }
     lines.push(rules.map((rule) => decode(rule, value)).find((item) => item !== null)
       ?? `.word 0x${value.toString(16).toUpperCase().padStart(Math.ceil(wordBits / 4), "0")}`);
     next = address + 1;

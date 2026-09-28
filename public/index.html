@@ -218,6 +218,7 @@
             <button id="program-pause" type="button">Ⅱ Pause</button>
             <button id="program-step-button" type="button">Step</button>
             <button id="program-reset" type="button">Reset</button>
+            <button id="program-clear-breakpoints" type="button">Clear breakpoints</button>
           </div>
           <div class="program-pc-readout">PC <output id="program-pc-value">—</output></div>
         </div>
@@ -226,8 +227,8 @@
           <section class="program-code" aria-labelledby="program-code-title">
             <div class="program-section-header"><h2 id="program-code-title">Assembly</h2></div>
             <div id="program-assembly" class="program-assembly">
-              <p class="hint">One line per address · R7 is a Register · 5, 0x5, 0b101 are Values · ; starts a comment.</p>
-              <div class="program-source-wrap"><div id="program-gutter" class="program-gutter" aria-hidden="true"></div><div id="program-current-line" class="program-current-line" aria-hidden="true"></div><textarea id="program-source" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Assembly source" placeholder="Link a ROM in Program setup, then write assembly here."></textarea></div>
+              <p class="hint">Each instruction uses one address; blank and comment lines are skipped · R7 is a Register · 5, 0x5, 0b101 are Values · ; starts a comment.</p>
+              <div class="program-source-wrap"><div id="program-gutter" class="program-gutter" aria-label="Assembly addresses and breakpoints"></div><div id="program-current-line" class="program-current-line" aria-hidden="true"></div><div class="program-source-pane"><pre id="program-syntax" class="program-syntax" aria-hidden="true"></pre><textarea id="program-source" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Assembly source" placeholder="Link a ROM in Program setup, then write assembly here."></textarea></div></div>
               <div class="program-assembly-actions"><button id="program-assemble" type="button">Assemble to ROM</button><button id="program-reload-assembly" type="button">Disassemble ROM</button><span id="program-assembly-note" class="hint"></span></div>
             </div>
           </section>

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, normalizeIsa, assignIsaCell } from "./public/assembly.js";
+import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, normalizeIsa, assignIsaCell, sourceLineAddresses } from "./public/assembly.js";
 
 const sampleIsa = `NOT | op 7-6=00 | address 5-4-3 | address 2-1-0
 ADD | op 7-6=01 | address 5-4-3 | address 2-1-0
@@ -37,7 +37,7 @@ test("noncontiguous opcode and operand tuples and remaining bits round trip", ()
 test("raw words and sparse ROM remain representable", () => {
   const data = [[1, 0x12], [17, 0xABCD], [255, 0xFFFF]];
   assert.deepEqual(assemble(disassemble(data, 16), 8, 16), data);
-  assert.deepEqual(assemble("\n; reserved\n.word 0b1010\n.word 0", 8, 8), [[2, 10]]);
+  assert.deepEqual(assemble("\n; comment\n.word 0b1010\n.word 0", 8, 8), [[0, 10]]);
 });
 
 test("invalid mappings and source do not produce a ROM image", () => {
@@ -68,10 +68,13 @@ test("keyword variants may differ by Register and Value signature", () => {
 
 
 
-test("physical lines reserve addresses and sparse ROM disassembles to blank lines", () => {
+test("blank and comment lines do not reserve addresses; sparse ROM uses explicit zero words", () => {
   const isa = "JMP | op 7=1 | value 6-5-4-3-2-1-0";
-  assert.deepEqual(assemble("; comment\n\nJMP 3\n.word 0\n.word 0x4", 8, 8, isa), [[2, 0x83], [4, 4]]);
-  assert.equal(disassemble([[2, 0x83], [4, 4]], 8, isa), ".word 0x00\n\nJMP 0x3\n\n.word 0x04");
+  assert.deepEqual(sourceLineAddresses("; comment\n\nJMP 3\n.word 0\n.word 0x4"), [null, null, 0, 1, 2]);
+  assert.deepEqual(assemble("; comment\n\nJMP 3\n.word 0\n.word 0x4", 8, 8, isa), [[0, 0x83], [2, 4]]);
+  assert.deepEqual(assemble("\n; comment\n.word 1\n\n.word 2", 1, 8), [[0, 1], [1, 2]]);
+  assert.throws(() => assemble(".word 1\n\n.word 2\n.word 3", 1, 8), /Line 4: instruction exceeds ROM address space/);
+  assert.equal(disassemble([[2, 0x83], [4, 4]], 8, isa), ".word 0x00\n.word 0x00\nJMP 0x3\n.word 0x00\n.word 0x04");
   assert.deepEqual(assemble(disassemble([[2, 0x83], [4, 4]], 8, isa), 8, 8, isa), [[2, 0x83], [4, 4]]);
 });
 
