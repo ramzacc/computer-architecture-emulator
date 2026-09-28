@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { BoardEditor } from "./public/editor.js";
 import { assemble } from "./public/assembly.js";
-import { captureProgramSource, restoreProgramSource } from "./public/program-source.js";
+import { captureProgramSource, reconcileProgramSource, restoreProgramSource, validProgramSource } from "./public/program-source.js";
 import { parseDocument, serialize } from "./public/model.js";
 
 const isa = "ADD | op 7-6=01 | register 5-4-3 | value 2-1-0";
@@ -73,11 +73,56 @@ test("comment-only changes save even when ROM bytes do not change", () => {
     ".word 1 ; second");
 });
 
+test("shrinking a ROM address space drops source that no longer fits", () => {
+  const editor = new BoardEditor({ storage: { setItem() {} } });
+  const rom = editor.place("rom", 0, 0);
+  editor.saveProgramSource(rom.id, [[0, 1]], ".word 1\n.word 0\n.word 0\n.word 0\n.word 0");
+  assert.equal(editor.board.program.sources[rom.id].length, 5);
+  assert.equal(editor.resizeMemoryAddress(rom.id, 2), true);
+  assert.equal(editor.board.program.sources[rom.id], undefined);
+  assert.equal(restoreProgramSource({ length: 1 }, [[0, 1]], 2, 8), ".word 0x01");
+});
+
 test("canonical source adds no Program payload", () => {
   const editor = new BoardEditor({ storage: { setItem() {} } });
   const rom = editor.place("rom", 0, 0);
   editor.saveProgramSource(rom.id, [[0, 1]], ".word 0x01");
   assert.equal(JSON.parse(serialize(editor.board)).program.sources, undefined);
+});
+
+test("Program annotation validation enforces comment and override slots, order, and extent", () => {
+  assert.equal(validProgramSource({ length: 0 }, 8), true);
+  assert.equal(validProgramSource({ length: 2, before: [[0, "; header"], [2, ""]], overrides: [[0, "NOP"], [1, ".word 1"]] }, 8), true);
+  assert.equal(validProgramSource({ length: 256 }, 8), true);
+  for (const source of [
+    null, [], { length: 0, extra: 1 }, { length: -1 }, { length: 257 },
+    { length: 1, before: [[0, "NOP"]] },
+    { length: 1, overrides: [[0, "; comment"]] },
+    { length: 2, before: [[1, "; a"], [0, "; b"]] },
+    { length: 2, overrides: [[0, "a"], [0, "b"]] },
+    { length: 1, overrides: [[1, "a"]] },
+    { length: 1, before: [[0, 0]] },
+    { length: 1, before: [[0, "a\nb"]] },
+  ]) assert.equal(validProgramSource(source, 8), false, JSON.stringify(source));
+});
+
+test("reconcile keeps matching overrides, drops stale ones, and extends along ROM words", () => {
+  const isa = "ADD | op 7-6=01 | register 5-4-3 | value 2-1-0";
+  assert.equal(reconcileProgramSource(null, [[0, 0x51]], 8, 8, isa), null);
+  const source = { length: 3, before: [[0, "; header"]], overrides: [[0, "ADD R2 1 ; inline"], [2, "ADD R1 2"]] };
+  assert.deepEqual(reconcileProgramSource(source, [[0, 0x51]], 8, 8, isa),
+    { length: 3, before: [[0, "; header"]], overrides: [[0, "ADD R2 1 ; inline"]] });
+  assert.deepEqual(reconcileProgramSource({ length: 0 }, [[5, 0x51]], 8, 8, isa), { length: 6 });
+  assert.deepEqual(reconcileProgramSource({ length: 2 }, [[0, 0], [1, 0]], 8, 8, isa), { length: 2 });
+});
+
+test("restoreProgramSource rejects invalid annotations and ignores overrides that no longer match", () => {
+  const isa = "ADD | op 7-6=01 | register 5-4-3 | value 2-1-0";
+  assert.throws(() => restoreProgramSource({ length: 1, before: [[0, "NOP"]] }, [[0, 0]], 8, 8), /Invalid Program source/);
+  assert.equal(restoreProgramSource({ length: 1, overrides: [[0, "ADD R2 1"]] }, [[0, 0x50]], 8, 8, isa),
+    "ADD R2 0x0");
+  assert.equal(restoreProgramSource({ length: 2, before: [[0, "; header"], [2, "; trailing"]] }, [[0, 0x51]], 8, 8, isa),
+    "; header\nADD R2 0x1\n.word 0x00\n; trailing");
 });
 
 test("changing ISA drops line overrides that no longer assemble", () => {

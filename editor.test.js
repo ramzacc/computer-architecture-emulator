@@ -161,6 +161,20 @@ test('successful edits render and save once, while rejected edits do neither', (
   assert.equal(ctx.renders, ctx.saves);
 });
 
+test('resizing a free bus commits once and rejects invalid or unchanged widths', () => {
+  const ctx = setup();
+  const { editor } = ctx;
+  assert.equal(editor.addWire({ o: 'H', x: 0, y: 1, size: 1 }), true);
+  assert.equal(ctx.saves, 1);
+  assert.equal(editor.resizeWire('H:0,1', 4), true);
+  assert.equal(editor.board.wires.get('H:0,1').size, 4);
+  assert.equal(ctx.saves, 2);
+  assert.equal(editor.resizeWire('H:0,1', 4), false);
+  assert.equal(editor.resizeWire('H:0,1', 33), false);
+  assert.equal(editor.resizeWire('H:9,9', 4), false);
+  assert.equal(ctx.saves, 2);
+});
+
 test('undo and redo restore committed board edits and saved state', () => {
   const ctx = setup();
   const { editor, data } = ctx;

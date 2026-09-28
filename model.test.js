@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { dimsOf, moduleFaceParts, pinsFor, spec } from "./public/components.js";
-import { addComponent, addWireEdge, canPlaceEdge, computeNets, createBoard,
-  edgeKey, edgePlacementError, evaluateBoard, isValidComponent, parseDocument, resizeNet,
-  sanitizeWires, serialize, wireRoute } from "./public/model.js";
+import { addComponent, addWireEdge, buttonsInBoard, canPlaceEdge, clocksInBoard, computeNets, createBoard,
+  edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netInfoByEdgeKey, parseDocument, resizeNet,
+  sanitizeWires, serialize, storedInBoard, wireRoute } from "./public/model.js";
 
 test("modules expose named ports and carry parent inputs through nested circuitry", () => {
   const inner = createBoard();
@@ -636,6 +636,92 @@ test("two's complement, unsigned comparator, and logical shifts evaluate buses",
 test("NOR and XNOR complement their results at the selected width", () => {
   assert.deepEqual(wiredBlock("nor", 4, [0b0101, 0b0011]).outputValues(), [0b1000]);
   assert.deepEqual(wiredBlock("xnor", 4, [0b0101, 0b0011]).outputValues(), [0b1001]);
+});
+
+test("every two-input gate applies its truth table at any width", () => {
+  const mask = (size) => size === 32 ? 0xffffffff : 2 ** size - 1;
+  const cases = [
+    ["and", (a, b) => a & b],
+    ["or", (a, b) => a | b],
+    ["xor", (a, b) => a ^ b],
+    ["nand", (a, b) => ~(a & b)],
+    ["nor", (a, b) => ~(a | b)],
+    ["xnor", (a, b) => ~(a ^ b)],
+  ];
+  const inputs = {
+    1: [[0, 0], [0, 1], [1, 0], [1, 1]],
+    4: [[0, 0], [0b0101, 0b0011], [0b1111, 0b0001], [0b1010, 0b1010]],
+  };
+  for (const [type, apply] of cases) {
+    for (const size of [1, 4]) {
+      for (const [a, b] of inputs[size]) {
+        assert.deepEqual(wiredBlock(type, size, [a, b]).outputValues(), [(apply(a, b) & mask(size)) >>> 0],
+          `${type} ${size}: ${a} ${b}`);
+      }
+    }
+  }
+  for (const size of [1, 4]) {
+    for (const a of [0, mask(size)]) {
+      assert.deepEqual(wiredBlock("not", size, [a]).outputValues(), [(~a & mask(size)) >>> 0], `not ${size}: ${a}`);
+    }
+  }
+});
+
+test("adder, comparator, and shifts stay correct at their width boundaries", () => {
+  const adder = wiredBlock("adder", 4, [7, 7, 1]);
+  assert.deepEqual(adder.outputValues(), [0, 15]);
+  adder.sources[0].value = 15;
+  adder.sources[1].value = 1;
+  adder.sources[2].value = 0;
+  assert.deepEqual(adder.outputValues(), [1, 0]);
+
+  const comparator = wiredBlock("comparator", 4, [5, 5]);
+  assert.deepEqual(comparator.outputValues(), [0, 1, 0]);
+  comparator.sources[1].value = 0;
+  assert.deepEqual(comparator.outputValues(), [0, 0, 1]);
+
+  const shl = wiredBlock("shl", 8, [1, 1]);
+  assert.deepEqual(shl.outputValues(), [2]);
+  shl.sources[1].value = 8;
+  assert.deepEqual(shl.outputValues(), [0]);
+  const shr = wiredBlock("shr", 8, [0x80, 7]);
+  assert.deepEqual(shr.outputValues(), [1]);
+  shr.sources[1].value = 8;
+  assert.deepEqual(shr.outputValues(), [0]);
+});
+
+test("a selector outside the channel range drives no output", () => {
+  const mux = wiredBlock("mux", 4, [1, 2, 4, 8, 3], 4);
+  assert.deepEqual(mux.outputValues(), [8]);
+  mux.sources[4].value = 9;
+  assert.deepEqual(mux.outputValues(), [0]);
+
+  const demux = wiredBlock("demux", 4, [9, 0], 4);
+  assert.deepEqual(demux.outputValues(), [9, 0, 0, 0]);
+  demux.sources[1].value = 9;
+  assert.deepEqual(demux.outputValues(), [0, 0, 0, 0]);
+});
+
+test("clock, button, and stored parts are found through nested modules", () => {
+  const inner = createBoard();
+  for (const [id, t, x] of [["c1", "clock", 0], ["c2", "button", 4], ["c3", "register", 8], ["c4", "led", 12]])
+    assert.equal(addComponent(inner, { id, t, x, y: 0, label: id }), true);
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "m", t: "module", x: 0, y: 0, module: JSON.parse(serialize(inner)) }), true);
+  assert.equal(addComponent(board, { id: "top", t: "clock", x: 10, y: 0 }), true);
+  assert.deepEqual([...clocksInBoard(board).keys()], ["m/c1", "top"]);
+  assert.deepEqual([...buttonsInBoard(board).keys()], ["m/c2"]);
+  assert.deepEqual([...storedInBoard(board).keys()], ["m/c3"]);
+});
+
+test("netInfoByEdgeKey reports the value, size, and net id for every edge", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "p", t: "constant", value: 1, x: 0, y: 1, r: 2 }), true);
+  assert.equal(addComponent(board, { id: "l", t: "led", x: 1, y: 3, r: 0 }), true);
+  assert.equal(addWireEdge(board, { o: "V", x: 2, y: 2, size: 1 }), true);
+  const info = netInfoByEdgeKey(board);
+  assert.deepEqual([...info.entries()], [["V:2,2", { on: true, value: 1, size: 1, netId: "V:2,2" }]]);
+  assert.deepEqual(netInfoByEdgeKey(createBoard()), new Map());
 });
 
 test("each output of a multi-output block participates in short-circuit checks", () => {
