@@ -50,7 +50,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
   }
 
   function items() {
-    return getEditor().board.components.filter((component) => ["tag", "button", "switch", "clock", "input", "output"].includes(component.t));
+    return getEditor().board.components.filter((component) => ["tag", "button", "switch", "clock", "input", "output", "register"].includes(component.t));
   }
 
   function add(id, index = layout().ids.length, newRow = false) {
@@ -76,6 +76,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
     workspaceEl.hidden = available.length === 0;
     const groups = [
       { title: "Tags and outputs", items: available.filter((item) => ["tag", "output"].includes(item.t)) },
+      { title: "Registers", items: available.filter((item) => item.t === "register") },
       { title: "Controls", items: available.filter((item) => ["input", "button", "switch", "clock"].includes(item.t)) },
     ];
     for (const group of groups) {
@@ -92,7 +93,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
         button.draggable = true;
         button.dataset.id = item.id;
         button.textContent = item.label || item.t;
-        button.title = `${["tag", "input", "output"].includes(item.t) ? `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"} ${item.t}` : item.t === "button" ? "Button" : item.t === "clock" ? "Clock" : "Switch"} · Click or drag to monitor`;
+        button.title = `${["tag", "input", "output", "register"].includes(item.t) ? `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"} ${item.t}` : item.t === "button" ? "Button" : item.t === "clock" ? "Clock" : "Switch"} · Click or drag to monitor`;
         section.append(button);
       }
       signalsEl.append(section);
@@ -130,7 +131,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       remove.title = "Remove from monitor";
       remove.textContent = "×";
       header.append(name, remove);
-      if (["tag", "input", "output"].includes(item.t)) {
+      if (["tag", "input", "output", "register"].includes(item.t)) {
         const value = document.createElement("output");
         value.className = "monitor-value";
         value.dataset.value = id;

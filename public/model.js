@@ -822,7 +822,7 @@ export function parseDocument(text, depth = 0) {
       if (!Array.isArray(raw) || raw.length !== 3) throw new Error(`${path} must be [component index, format, new row].`);
       const [componentIndex, format, newRow] = raw;
       const component = board.components[componentIndex];
-      if (!Number.isInteger(componentIndex) || !component || !["tag", "button", "switch", "clock", "input", "output"].includes(component.t) || seen.has(componentIndex))
+      if (!Number.isInteger(componentIndex) || !component || !["tag", "button", "switch", "clock", "input", "output", "register"].includes(component.t) || seen.has(componentIndex))
         throw new Error(`${path} must refer to a unique monitorable component.`);
       if (!validValueFormat(format)) throw new Error(`${path} has an invalid value format.`);
       if (typeof newRow !== "boolean") throw new Error(`${path} new row must be a boolean.`);
