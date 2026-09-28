@@ -716,18 +716,28 @@ main > [role="tabpanel"][hidden] { display: none; }
 .isa-card-body { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); align-items: center; gap: 20px; min-width: 0; }
 .isa-card-controls { display: grid; align-content: center; gap: 10px; min-width: 0; }
 .isa-palette { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.isa-palette button.selected { border-color: var(--accent); background: var(--selection-fill); color: var(--accent); }
+.isa-palette button.isa-operand-color { border-color: hsl(var(--isa-hue) 45% 52%); background: hsl(var(--isa-hue) 38% 27%); color: #fff; }
+.isa-palette button.isa-operand-color:hover, .isa-palette button.isa-operand-color.selected { background: hsl(var(--isa-hue) 42% 34%); }
+.isa-palette button.selected { outline: 2px solid var(--text); outline-offset: 2px; }
 .isa-operand-list { display: flex; gap: 6px; flex-wrap: wrap; }
 .isa-operand { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .isa-operand select { padding: 5px; }
-.isa-operand-name { width: 18px; font-weight: 700; color: var(--accent); }
+.isa-operand-name { width: 18px; font-weight: 700; color: hsl(var(--isa-hue) 62% 72%); }
 .isa-grid { display: flex; justify-content: safe center; gap: 5px; min-width: 0; overflow-x: auto; padding-bottom: 5px; }
 .isa-grid button { display: grid; flex: 1 0 42px; max-width: 96px; min-height: 52px; gap: 3px; justify-items: center; padding: 5px 2px; font: 12px ui-monospace, monospace; }
-.isa-grid button.operand-cell { border-color: var(--button-hover-line); background: var(--selection-fill); }
+.isa-grid button.fixed-cell { border-color: #b4773e; background: #604029; color: #fff; }
+.isa-grid button.operand-cell { border-color: hsl(var(--isa-hue) 45% 52%); background: hsl(var(--isa-hue) 38% 27%); color: #fff; }
+.isa-grid button.empty-cell { border-color: var(--line); background: var(--button); color: var(--muted); }
 .isa-grid button.empty-cell strong { color: var(--muted); }
 .isa-grid button:hover { border-color: var(--accent); }
-.isa-grid small { color: var(--muted); }
+.isa-grid small { opacity: .75; }
 .isa-grid strong { font-size: 14px; }
+:root[data-theme="light"] .isa-grid button.fixed-cell { border-color: #a66a30; background: #f3dbbf; color: #4a2d14; }
+:root[data-theme="light"] .isa-grid button.operand-cell,
+:root[data-theme="light"] .isa-palette button.isa-operand-color { border-color: hsl(var(--isa-hue) 49% 49%); background: hsl(var(--isa-hue) 65% 87%); color: #19282c; }
+:root[data-theme="light"] .isa-palette button.isa-operand-color:hover,
+:root[data-theme="light"] .isa-palette button.isa-operand-color.selected { background: hsl(var(--isa-hue) 65% 81%); }
+:root[data-theme="light"] .isa-operand-name { color: hsl(var(--isa-hue) 62% 32%); }
 @media (max-width: 800px) { .isa-card-body { grid-template-columns: minmax(0, 1fr); gap: 14px; } .isa-grid { justify-content: start; } }
 .program-source-wrap { position: relative; display: flex; flex: 1; min-height: 240px; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: var(--input); }
 .program-source-wrap textarea { position: relative; z-index: 2; flex: 1; min-width: 0; min-height: 0; border: 0; border-radius: 0; background: transparent; padding: 14px 16px 14px 8px; resize: none; white-space: pre; overflow: auto; }
