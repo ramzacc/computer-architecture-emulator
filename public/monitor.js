@@ -25,7 +25,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
   const layouts = new WeakMap();
   let draggingId = null;
   let renderedScope = null;
-  let renderedTags = "";
+  let renderedItems = "";
 
   function layout() {
     const editor = getEditor();
@@ -33,12 +33,12 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
     return layouts.get(editor);
   }
 
-  function tags() {
-    return getEditor().board.components.filter((component) => component.t === "tag");
+  function items() {
+    return getEditor().board.components.filter((component) => ["tag", "button", "switch"].includes(component.t));
   }
 
   function add(id, index = layout().ids.length) {
-    if (!tags().some((tag) => tag.id === id)) return;
+    if (!items().some((item) => item.id === id)) return;
     const ids = layout().ids;
     const previous = ids.indexOf(id);
     if (previous !== -1) ids.splice(previous, 1);
@@ -51,20 +51,20 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
     signalsEl.replaceChildren();
     noTagsEl.hidden = available.length > 0;
     workspaceEl.hidden = available.length === 0;
-    for (const tag of available) {
+    for (const item of available) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "monitor-signal";
       button.draggable = true;
-      button.dataset.id = tag.id;
-      button.textContent = tag.label || "Tag";
-      button.title = `${bitWidth(tag)} bit${bitWidth(tag) === 1 ? "" : "s"} · Click or drag to monitor`;
+      button.dataset.id = item.id;
+      button.textContent = item.label || item.t;
+      button.title = `${item.t === "tag" ? `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"} tag` : item.t === "button" ? "Button" : "Switch"} · Click or drag to monitor`;
       signalsEl.append(button);
     }
   }
 
   function renderCards() {
-    const available = new Map(tags().map((tag) => [tag.id, tag]));
+    const available = new Map(items().map((item) => [item.id, item]));
     const { ids, formats } = layout();
     for (let index = ids.length - 1; index >= 0; index--) if (!available.has(ids[index])) {
       formats.delete(ids[index]);
@@ -75,7 +75,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
     gridEl.classList.toggle("is-empty", ids.length === 0);
     if (!ids.length) gridEl.append(emptyEl);
     for (const id of ids) {
-      const tag = available.get(id);
+      const item = available.get(id);
       const card = document.createElement("article");
       card.className = "monitor-card";
       card.dataset.id = id;
@@ -83,34 +83,45 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       const header = document.createElement("div");
       header.className = "monitor-card-header";
       const name = document.createElement("h3");
-      name.textContent = tag.label || "Tag";
+      name.textContent = item.label || item.t;
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "monitor-remove";
       remove.dataset.remove = id;
-      remove.setAttribute("aria-label", `Remove ${tag.label || "Tag"} from monitor`);
+      remove.setAttribute("aria-label", `Remove ${item.label || item.t} from monitor`);
       remove.title = "Remove from monitor";
       remove.textContent = "×";
       header.append(name, remove);
-      const value = document.createElement("output");
-      value.className = "monitor-value";
-      value.dataset.value = id;
-      const footer = document.createElement("div");
-      footer.className = "monitor-card-footer";
-      const width = document.createElement("span");
-      width.textContent = `${bitWidth(tag)} bit${bitWidth(tag) === 1 ? "" : "s"}`;
-      const select = document.createElement("select");
-      select.dataset.format = id;
-      select.setAttribute("aria-label", `${tag.label || "Tag"} value format`);
-      for (const [format, label] of [["binary", "Binary"], ["hex", "Hex"], ["decimal", "Decimal"]]) {
-        const option = document.createElement("option");
-        option.value = format;
-        option.textContent = label;
-        select.append(option);
+      if (item.t === "tag") {
+        const value = document.createElement("output");
+        value.className = "monitor-value";
+        value.dataset.value = id;
+        const footer = document.createElement("div");
+        footer.className = "monitor-card-footer";
+        const width = document.createElement("span");
+        width.textContent = `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"}`;
+        const select = document.createElement("select");
+        select.dataset.format = id;
+        select.setAttribute("aria-label", `${item.label || "Tag"} value format`);
+        for (const [format, label] of [["binary", "Binary"], ["hex", "Hex"], ["decimal", "Decimal"]]) {
+          const option = document.createElement("option");
+          option.value = format;
+          option.textContent = label;
+          select.append(option);
+        }
+        select.value = formats.get(id) ?? "binary";
+        footer.append(width, select);
+        card.append(header, value, footer);
+      } else {
+        const control = document.createElement("button");
+        control.type = "button";
+        control.className = "monitor-control";
+        control.draggable = false;
+        control.dataset.control = id;
+        control.textContent = item.t === "button" ? "Press" : "Off";
+        control.setAttribute("aria-label", `${item.label || item.t} ${item.t}`);
+        card.append(header, control);
       }
-      select.value = formats.get(id) ?? "binary";
-      footer.append(width, select);
-      card.append(header, value, footer);
       gridEl.append(card);
     }
     updateValues();
@@ -118,22 +129,30 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
 
   function updateValues() {
     const editor = getEditor();
-    const available = new Map(tags().map((tag) => [tag.id, tag]));
+    const available = new Map(items().map((item) => [item.id, item]));
     for (const value of gridEl.querySelectorAll("[data-value]")) {
-      const tag = available.get(value.dataset.value);
-      if (!tag) continue;
-      const current = editor.evaluation.states.get(tag.id)?.value ?? 0;
-      value.textContent = formatValue(current, bitWidth(tag), layout().formats.get(tag.id) ?? "binary");
+      const item = available.get(value.dataset.value);
+      if (!item) continue;
+      const current = editor.evaluation.states.get(item.id)?.value ?? 0;
+      value.textContent = formatValue(current, bitWidth(item), layout().formats.get(item.id) ?? "binary");
+    }
+    for (const control of gridEl.querySelectorAll("[data-control]")) {
+      const item = available.get(control.dataset.control);
+      if (!item) continue;
+      const active = item.t === "button" ? editor.pressedButtons.has(item.id) : item.value === 1;
+      control.classList.toggle("active", active);
+      control.setAttribute("aria-pressed", String(active));
+      control.textContent = item.t === "button" ? active ? "Pressed" : "Press" : active ? "On" : "Off";
     }
   }
 
   function render() {
     const editor = getEditor();
-    const available = tags();
-    const key = JSON.stringify(available.map((tag) => [tag.id, tag.label, bitWidth(tag)]));
-    if (renderedScope !== editor || renderedTags !== key) {
+    const available = items();
+    const key = JSON.stringify(available.map((item) => [item.id, item.t, item.label, bitWidth(item)]));
+    if (renderedScope !== editor || renderedItems !== key) {
       renderedScope = editor;
-      renderedTags = key;
+      renderedItems = key;
       renderSignals(available);
       renderCards();
     } else updateValues();
@@ -176,10 +195,39 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
     layout().formats.set(select.dataset.format, select.value);
     updateValues();
   });
+  gridEl.addEventListener("click", (event) => {
+    const control = event.target.closest("[data-control]");
+    if (control && getEditor().component(control.dataset.control)?.t === "switch")
+      getEditor().toggleSwitch(control.dataset.control);
+  });
+  gridEl.addEventListener("pointerdown", (event) => {
+    const control = event.target.closest("[data-control]");
+    if (!control || event.button !== 0 || getEditor().component(control.dataset.control)?.t !== "button") return;
+    control.setPointerCapture(event.pointerId);
+    getEditor().setButtonPressed(control.dataset.control, true);
+  });
+  function releaseButton(event) {
+    const control = event.target.closest("[data-control]");
+    if (control && getEditor().component(control.dataset.control)?.t === "button")
+      getEditor().setButtonPressed(control.dataset.control, false);
+  }
+  gridEl.addEventListener("pointerup", releaseButton);
+  gridEl.addEventListener("pointercancel", releaseButton);
+  gridEl.addEventListener("lostpointercapture", releaseButton);
+  gridEl.addEventListener("keydown", (event) => {
+    const control = event.target.closest("[data-control]");
+    if (control && (event.key === " " || event.key === "Enter") && !event.repeat &&
+        getEditor().component(control.dataset.control)?.t === "button")
+      getEditor().setButtonPressed(control.dataset.control, true);
+  });
+  gridEl.addEventListener("keyup", (event) => {
+    if (event.key === " " || event.key === "Enter") releaseButton(event);
+  });
+  gridEl.addEventListener("focusout", releaseButton);
 
   for (const source of [signalsEl, gridEl]) {
     source.addEventListener("dragstart", (event) => {
-      const item = event.target.closest("[data-id]");
+      const item = event.target.closest(".monitor-signal, .monitor-card");
       if (!item) return;
       draggingId = item.dataset.id;
       event.dataTransfer.effectAllowed = "move";

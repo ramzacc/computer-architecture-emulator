@@ -236,6 +236,8 @@ main > [role="tabpanel"][hidden] { display: none; }
 .monitor-card-header h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; font-size: 14px; }
 .monitor-remove { padding: 0 6px; border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; }
 .monitor-remove:hover { color: var(--text); background: var(--button-hover); }
+.monitor-control { display: block; width: 100%; margin-top: 18px; padding: 12px; cursor: pointer; }
+.monitor-control.active { border-color: var(--accent); background: var(--selection-fill); color: var(--text); }
 .monitor-value { display: block; overflow-wrap: anywhere; margin: 18px 0; color: var(--selected-value); font: 600 clamp(20px, 2.5vw, 32px)/1.2 ui-monospace, monospace; }
 .monitor-card-footer { color: var(--muted); font-size: 12px; }
 .monitor-card-footer select { padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--input); color: var(--text); font: inherit; }
