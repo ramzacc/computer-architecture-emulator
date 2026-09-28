@@ -64,9 +64,6 @@ export function serializeProject(board, drafts = {}) {
 
 export function parseProject(text) {
   const data = JSON.parse(text);
-  // Files exported before project v1 contained the board directly.
-  if (data?.version === undefined && data?.components !== undefined)
-    return { ...parseDocument(text), drafts: { rom: [], isa: [], assembly: [], breakpoints: [] }, legacy: true };
   object(data, "Project", ["format", "version", "document", "drafts"]);
   if (data.format !== PROJECT_FORMAT) throw new Error("File is not a Computer Architecture project.");
   if (data.version !== PROJECT_VERSION) throw new Error(`Unsupported project version ${String(data.version)}.`);

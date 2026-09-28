@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { addComponent, createBoard, parseDocument, serialize } from "./public/model.js";
+import { addComponent, createBoard, serialize } from "./public/model.js";
 import { parseProject, serializeProject } from "./public/project-file.js";
 
 function example() {
@@ -25,10 +25,8 @@ test("v1 project round trips the full board and pending ROM, ISA, and assembly d
     assembly: [["c1", "unfinished source"]], breakpoints: [["c1", [2, 5]]] });
 });
 
-test("legacy board files import and unsupported or malformed project files fail", () => {
+test("unsupported or malformed project files fail", () => {
   const board = example();
-  assert.equal(parseProject(serialize(board)).legacy, true);
-  assert.equal(serialize(parseDocument(serialize(board)).board), serialize(board));
   const base = JSON.parse(serializeProject(board));
   for (const changed of [
     { ...base, version: 2 },

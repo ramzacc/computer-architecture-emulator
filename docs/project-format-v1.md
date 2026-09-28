@@ -27,6 +27,6 @@ Each `drafts` value is an array of `[componentIndex, value]` pairs. The index re
 | `assembly` | Source string | Text pending **Save to ROM**, including incomplete source |
 | `breakpoints` | Array of ROM addresses | Program breakpoints |
 
-Import rejects an unknown project format or version, invalid document, invalid draft, duplicate ROM draft, or unknown field. Export uses the same validator. An older unversioned circuit document is accepted as a legacy import and receives empty drafts. Re-exporting it writes v1.
+Import rejects an unknown project format or version, invalid document, invalid draft, duplicate ROM draft, or unknown field. Export uses the same validator.
 
 Simulation state such as current clock phase, register and RAM values is runtime state and starts fresh when a project is opened.
