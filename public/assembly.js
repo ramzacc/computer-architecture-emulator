@@ -186,13 +186,21 @@ export function isaGrid(source, wordBits) {
 export function serializeIsaGrid(rules) { return JSON.stringify({ version: 2, rules }); }
 
 export function assignIsaCell(rule, selection, bit) {
-  const operandIndex = /^operand:(\d+)$/.exec(selection);
+  const operandIndex = selection === null ? null : /^operand:(\d+)$/.exec(selection);
   if (!Number.isInteger(bit) || bit < 0 || bit >= rule.cells.length ||
-      !(["0", "1", "clear"].includes(selection) || (operandIndex && rule.operands[Number(operandIndex[1])])))
+      (selection !== null && !rule.operands[Number(operandIndex?.[1])]))
     throw new Error("Invalid ISA cell selection.");
-  for (const operand of rule.operands) operand.bits = operand.bits.filter((item) => item !== bit);
-  rule.cells[bit] = selection === "clear" ? null : operandIndex ? Number(operandIndex[1]) : selection;
-  if (operandIndex) rule.operands[Number(operandIndex[1])].bits.push(bit);
+  const current = rule.cells[bit];
+  if (typeof current === "number") {
+    rule.operands[current].bits = rule.operands[current].bits.filter((item) => item !== bit);
+    rule.cells[bit] = null;
+  } else if (current === "0") rule.cells[bit] = "1";
+  else if (current === "1") rule.cells[bit] = null;
+  else if (operandIndex) {
+    const index = Number(operandIndex[1]);
+    rule.cells[bit] = index;
+    rule.operands[index].bits.push(bit);
+  } else rule.cells[bit] = "0";
 }
 
 function sourceOperand(token) {
@@ -246,7 +254,14 @@ export function disassemble(data, wordBits, isa = "") {
   const rules = parseIsa(isa, wordBits);
   const lines = [];
   let next = 0;
-  for (const [address, value] of [...data].sort((a, b) => a[0] - b[0])) {
+  const sorted = [...data].sort((a, b) => a[0] - b[0]);
+  const firstNonzero = sorted.find(([, value]) => value !== 0);
+  if ((firstNonzero && firstNonzero[0] > 0) || sorted.some(([address, value]) => address === 0 && value === 0)) {
+    lines.push(rules.map((rule) => decode(rule, 0)).find((item) => item !== null)
+      ?? `.word 0x${"0".repeat(Math.ceil(wordBits / 4))}`);
+    next = 1;
+  }
+  for (const [address, value] of sorted) {
     if (value === 0) continue;
     while (next < address) { lines.push(""); next++; }
     lines.push(rules.map((rule) => decode(rule, value)).find((item) => item !== null)

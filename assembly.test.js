@@ -71,7 +71,7 @@ test("keyword variants may differ by Register and Value signature", () => {
 test("physical lines reserve addresses and sparse ROM disassembles to blank lines", () => {
   const isa = "JMP | op 7=1 | value 6-5-4-3-2-1-0";
   assert.deepEqual(assemble("; comment\n\nJMP 3\n.word 0\n.word 0x4", 8, 8, isa), [[2, 0x83], [4, 4]]);
-  assert.equal(disassemble([[2, 0x83], [4, 4]], 8, isa), "\n\nJMP 0x3\n\n.word 0x04");
+  assert.equal(disassemble([[2, 0x83], [4, 4]], 8, isa), ".word 0x00\n\nJMP 0x3\n\n.word 0x04");
   assert.deepEqual(assemble(disassemble([[2, 0x83], [4, 4]], 8, isa), 8, 8, isa), [[2, 0x83], [4, 4]]);
 });
 
@@ -89,19 +89,27 @@ test("visual rules reject unassigned operands and inconsistent cells", () => {
   assert.throws(() => parseIsa(wrong, 8), /disagree/);
 });
 
-test("visual ISA selectors keep literal 0/1 distinct from operands A/B", () => {
+test("ISA cells cycle 0, 1, empty and remove assigned operand bits", () => {
   const rule = { keyword: "AND", cells: Array(8).fill(null), operands: [
     { kind: "register", bits: [] }, { kind: "register", bits: [] },
   ] };
-  assignIsaCell(rule, "1", 7);
-  assignIsaCell(rule, "0", 6);
+  assignIsaCell(rule, null, 7);
+  assert.equal(rule.cells[7], "0");
+  assignIsaCell(rule, null, 7);
+  assert.equal(rule.cells[7], "1");
+  assignIsaCell(rule, null, 7);
+  assert.equal(rule.cells[7], null);
+  assignIsaCell(rule, null, 7);
+  assignIsaCell(rule, null, 7);
+  assignIsaCell(rule, null, 6);
   for (const bit of [5, 4, 3]) assignIsaCell(rule, "operand:0", bit);
   for (const bit of [2, 1, 0]) assignIsaCell(rule, "operand:1", bit);
   assert.deepEqual(rule.cells, [1, 1, 1, 0, 0, 0, "0", "1"]);
   assert.deepEqual(rule.operands.map((operand) => operand.bits), [[5, 4, 3], [2, 1, 0]]);
-  const isa = serializeIsaGrid([rule]);
-  assert.deepEqual(assemble("AND R2 R7", 8, 8, isa), [[0, 0x97]]);
-  assignIsaCell(rule, "0", 5);
+  assert.deepEqual(assemble("AND R2 R7", 8, 8, serializeIsaGrid([rule])), [[0, 0x97]]);
+  assignIsaCell(rule, "operand:0", 5);
   assert.deepEqual(rule.operands[0].bits, [4, 3]);
-  assert.equal(rule.cells[5], "0");
+  assert.equal(rule.cells[5], null);
+  assignIsaCell(rule, "operand:0", 5);
+  assert.deepEqual(rule.operands[0].bits, [4, 3, 5]);
 });

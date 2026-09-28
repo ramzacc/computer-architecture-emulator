@@ -709,7 +709,7 @@ main > [role="tabpanel"][hidden] { display: none; }
 .isa-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 #isa-note.error { color: var(--status-error); }
 .isa-editor { overflow-y: auto; }
-.isa-rules { display: grid; align-content: start; gap: 12px; }
+.isa-rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); align-content: start; align-items: start; gap: 12px; }
 .isa-card { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--input); }
 .isa-card-head, .isa-palette, .isa-operand { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 9px; }
 .isa-card-head { justify-content: space-between; }
@@ -720,9 +720,8 @@ main > [role="tabpanel"][hidden] { display: none; }
 .isa-grid small { color: var(--muted); }
 .isa-grid strong { font-size: 14px; }
 .isa-operand select { padding: 5px; }
-.isa-order { display: flex; gap: 4px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
-.isa-order > span { display: flex; align-items: center; gap: 2px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 4px; }
-.isa-order button { padding: 1px 3px; }
+.isa-operand { margin-bottom: 0; }
+.isa-operand-name { width: 18px; font-weight: 700; color: var(--accent); }
 .program-source-wrap { position: relative; display: flex; flex: 1; min-height: 240px; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: var(--input); }
 .program-source-wrap textarea { position: relative; z-index: 2; flex: 1; min-width: 0; min-height: 0; border: 0; border-radius: 0; background: transparent; padding: 14px 16px 14px 8px; resize: none; white-space: pre; overflow: auto; }
 .program-gutter { flex: 0 0 66px; overflow: hidden; padding: 14px 7px; border-right: 1px solid var(--line); color: var(--muted); font: 14px/1.6 ui-monospace, monospace; text-align: right; white-space: pre; }
