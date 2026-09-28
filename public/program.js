@@ -32,6 +32,8 @@ export function createProgram({ getEditor }) {
   let renderedConfig = "";
   let renderedPage = "";
   let renderedRegisters = "";
+  const previousRegisterValues = new Map();
+  const registerHighlightTimers = new Map();
   let defaultConfig = null;
   let defaultBoard = null;
   let followPc = true;
@@ -94,6 +96,8 @@ export function createProgram({ getEditor }) {
     const tags = config().registers.map(component).filter((item) => item?.t === "tag");
     const key = JSON.stringify(tags.map((item) => [item.id, item.label, bitWidth(item)]));
     if (force || key !== renderedRegisters) {
+      for (const timer of registerHighlightTimers.values()) clearTimeout(timer);
+      registerHighlightTimers.clear();
       registerValues.replaceChildren();
       renderedRegisters = key;
       if (!tags.length) registerValues.textContent = "Select register tags in Program setup.";
@@ -110,7 +114,19 @@ export function createProgram({ getEditor }) {
     }
     for (const output of registerValues.querySelectorAll("[data-tag]")) {
       const tag = component(output.dataset.tag);
-      output.textContent = formatValue(getEditor().evaluation.states.get(tag.id)?.value ?? 0, bitWidth(tag), config().format);
+      const value = getEditor().evaluation.states.get(tag.id)?.value ?? 0;
+      const previous = previousRegisterValues.get(tag.id);
+      if (previous !== undefined && previous !== value) {
+        const row = output.parentElement;
+        clearTimeout(registerHighlightTimers.get(tag.id));
+        row.classList.add("updated");
+        registerHighlightTimers.set(tag.id, setTimeout(() => {
+          row.classList.remove("updated");
+          registerHighlightTimers.delete(tag.id);
+        }, 1200));
+      }
+      previousRegisterValues.set(tag.id, value);
+      output.textContent = formatValue(value, bitWidth(tag), config().format);
     }
   }
   function pcValue() {
@@ -183,6 +199,7 @@ export function createProgram({ getEditor }) {
     const key = JSON.stringify(editor.board.components.map((item) => [item.id, item.t, item.label]));
     const configKey = JSON.stringify(config());
     if (renderedEditor !== editor || renderedComponents !== key || renderedConfig !== configKey) {
+      if (renderedEditor !== editor) previousRegisterValues.clear();
       renderedEditor = editor;
       renderedComponents = key;
       renderedConfig = configKey;
@@ -273,5 +290,11 @@ export function createProgram({ getEditor }) {
     const ok = pulse([config().resetPc, config().resetRegisters]);
     status(ok ? "PC and registers reset." : "Reset controls could not be pressed.", !ok);
   });
-  return { render, reset() { renderedEditor = null; renderedComponents = ""; renderedConfig = ""; renderedPage = ""; defaultBoard = null; followPc = true; $("follow").checked = true; } };
+  return { render, reset() {
+    for (const timer of registerHighlightTimers.values()) clearTimeout(timer);
+    registerHighlightTimers.clear();
+    previousRegisterValues.clear();
+    renderedEditor = null; renderedComponents = ""; renderedConfig = ""; renderedPage = "";
+    defaultBoard = null; followPc = true; $("follow").checked = true;
+  } };
 }
