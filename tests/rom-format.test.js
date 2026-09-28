@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseRomFile, serializeRomFile, validHexWord } from "./public/rom-format.js";
-import { BoardEditor } from "./public/editor.js";
-import { parseDocument } from "./public/model.js";
+import { parseRomFile, serializeRomFile, validHexWord } from "../public/rom-format.js";
+import { BoardEditor } from "../public/editor.js";
+import { parseDocument } from "../public/model.js";
 
 test("ROM text files pack ordered words into a single hex string", () => {
   assert.equal(serializeRomFile([[2, 0xA5], [0, 0xFF]], 8, 8), "FF00A5");

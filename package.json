@@ -5,8 +5,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "preview": "wrangler preview",
-    "test": "node --test",
-    "check": "for file in public/*.js *.test.js; do node --check \"$file\" || exit; done"
+    "test": "node --test tests/*.js",
+    "check": "for file in public/*.js tests/*.test.js; do node --check \"$file\" || exit; done"
   },
   "devDependencies": {
     "wrangler": "^4.137.0"

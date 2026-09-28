@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dimsOf, pinsFor, spec } from "./public/components.js";
-import { addComponent, addWireEdge, createBoard, evaluateBoard, parseDocument, serialize } from "./public/model.js";
-import { BoardEditor } from "./public/editor.js";
-import { createRenderer } from "./public/renderer.js";
+import { dimsOf, pinsFor, spec } from "../public/components.js";
+import { addComponent, addWireEdge, createBoard, evaluateBoard, parseDocument, serialize } from "../public/model.js";
+import { BoardEditor } from "../public/editor.js";
+import { createRenderer } from "../public/renderer.js";
 
 test("input bits drive a matching output, with a tile per bit and two pin sides", () => {
   const board = createBoard();

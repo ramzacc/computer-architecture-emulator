@@ -1929,7 +1929,7 @@ try {
     importNameEl.textContent = "8-bit computer";
     let board;
     try {
-      const response = await fetch(new URL("./examples/8-bit-computer.json", import.meta.url));
+      const response = await fetch(new URL("../examples/8-bit-computer.json", import.meta.url));
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       board = parseProject(await response.text()).board;
     } catch (error) {

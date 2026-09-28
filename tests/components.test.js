@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { MAX_PLEXER_CHANNELS, addressWidth, bitWidth, channelCount, dimsFor, documentFields,
   isSizable, normalizeRotation, selectWidth, spec, validBitWidth, validChannelCount,
   validClockFrequency, validConstant, validRam, validRom, validRomAddressWidth, validRomWidth,
-  validSplitterOrder } from "./public/components.js";
+  validSplitterOrder } from "../public/components.js";
 
 test("rotation normalizes negatives and fractions into zero through three", () => {
   assert.deepEqual([-5, -1, 0, 1, 2, 3, 4, 5, 2.9, "3", null, undefined, NaN].map(normalizeRotation),

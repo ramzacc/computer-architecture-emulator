@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { addComponent, createBoard, serialize } from "./public/model.js";
-import { parseProject, serializeProject } from "./public/project-file.js";
+import { addComponent, createBoard, serialize } from "../public/model.js";
+import { parseProject, serializeProject } from "../public/project-file.js";
 
 function example() {
   const board = createBoard();

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BoardEditor } from './public/editor.js';
-import { parseDocument, serialize } from './public/model.js';
-import { serializeIsaGrid, assemble } from './public/assembly.js';
+import { BoardEditor } from '../public/editor.js';
+import { parseDocument, serialize } from '../public/model.js';
+import { serializeIsaGrid, assemble } from '../public/assembly.js';
 
 test('program bindings survive save and load and reject invalid signal types', () => {
   const editor = new BoardEditor({ storage: { setItem() {} } });

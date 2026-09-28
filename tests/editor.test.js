@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { BoardEditor, STORAGE_KEY } from './public/editor.js';
-import { dimsOf, pinsFor, spec } from './public/components.js';
-import { edgeKey, parseDocument, serialize } from './public/model.js';
-import { createRenderer, wireTitle } from './public/renderer.js';
-import { formatValue, parseValue } from './public/value-format.js';
+import { BoardEditor, STORAGE_KEY } from '../public/editor.js';
+import { dimsOf, pinsFor, spec } from '../public/components.js';
+import { edgeKey, parseDocument, serialize } from '../public/model.js';
+import { createRenderer, wireTitle } from '../public/renderer.js';
+import { formatValue, parseValue } from '../public/value-format.js';
 
 function setup() {
   const data = new Map();
@@ -21,7 +21,7 @@ function setup() {
 
 test('registers inside separate wrapper instances capture and retain their values', () => {
   const { editor } = setup();
-  editor.importText(readFileSync(new URL('./fixtures/register-wrappers.json', import.meta.url), 'utf8'));
+  editor.importText(readFileSync(new URL('../fixtures/register-wrappers.json', import.meta.url), 'utf8'));
   assert.deepEqual([...editor.registerValues.values()], [0, 0, 0, 0]);
   assert.equal(editor.setButtonPressed('c7', true), true);
   assert.deepEqual([...editor.registerValues.values()], [124, 0, 0, 0]);
@@ -29,7 +29,7 @@ test('registers inside separate wrapper instances capture and retain their value
   assert.equal(editor.setButtonPressed('c7', false), true);
   assert.equal(editor.evaluation.states.get('c6').value, 124);
   assert.equal(editor.registerValues.get('c1/c8'), 124);
-  editor.importText(readFileSync(new URL('./fixtures/register-wrappers.json', import.meta.url), 'utf8'));
+  editor.importText(readFileSync(new URL('../fixtures/register-wrappers.json', import.meta.url), 'utf8'));
   assert.deepEqual([...editor.registerValues.values()], [0, 0, 0, 0]);
 });
 

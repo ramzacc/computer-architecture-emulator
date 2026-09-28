@@ -1,13 +1,13 @@
-import { assemble, disassemble } from "./public/assembly.js";
-import { restoreProgramSource } from "./public/program-source.js";
-import { parseProject } from "./public/project-file.js";
+import { assemble, disassemble } from "../public/assembly.js";
+import { restoreProgramSource } from "../public/program-source.js";
+import { parseProject } from "../public/project-file.js";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dimsOf, moduleFaceParts, pinsFor, spec } from "./public/components.js";
+import { dimsOf, moduleFaceParts, pinsFor, spec } from "../public/components.js";
 import { addComponent, addWireEdge, buttonsInBoard, canPlaceEdge, clocksInBoard, computeNets, createBoard,
   edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netInfoByEdgeKey, parseDocument, resizeNet,
-  sanitizeWires, serialize, storedInBoard, wireRoute } from "./public/model.js";
+  sanitizeWires, serialize, storedInBoard, wireRoute } from "../public/model.js";
 
 test("modules expose named ports and carry parent inputs through nested circuitry", () => {
   const inner = createBoard();
@@ -969,7 +969,7 @@ test("descendant splitter order reverses branch bits and persists", () => {
 
 
 test("8-bit computer example decodes its ISA and writes only RA", () => {
-  const text = readFileSync(new URL("./public/examples/8-bit-computer.json", import.meta.url), "utf8");
+  const text = readFileSync(new URL("../examples/8-bit-computer.json", import.meta.url), "utf8");
   const { board } = parseProject(text);
   const byLabel = new Map(board.components.map((component) => [component.label, component]));
   const registerByLabel = new Map(board.components.filter((component) => component.t === "register")

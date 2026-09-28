@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseProject } from './public/project-file.js';
-import { BoardEditor } from './public/editor.js';
+import { parseProject } from '../public/project-file.js';
+import { BoardEditor } from '../public/editor.js';
 
-const projectText = readFileSync(new URL('./public/examples/odd-even-sorter.json', import.meta.url), 'utf8');
+const projectText = readFileSync(new URL('../examples/odd-even-sorter.json', import.meta.url), 'utf8');
 
 function openSorter() {
   const { board } = parseProject(projectText);

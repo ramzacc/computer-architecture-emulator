@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BoardEditor } from "./public/editor.js";
-import { assemble } from "./public/assembly.js";
-import { captureProgramSource, reconcileProgramSource, restoreProgramSource, validProgramSource } from "./public/program-source.js";
-import { parseDocument, serialize } from "./public/model.js";
+import { BoardEditor } from "../public/editor.js";
+import { assemble } from "../public/assembly.js";
+import { captureProgramSource, reconcileProgramSource, restoreProgramSource, validProgramSource } from "../public/program-source.js";
+import { parseDocument, serialize } from "../public/model.js";
 
 const isa = "ADD | op 7-6=01 | register 5-4-3 | value 2-1-0";
 
