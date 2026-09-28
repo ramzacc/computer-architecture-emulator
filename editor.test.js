@@ -1007,6 +1007,19 @@ test('wire crossing junctions toggle, save, and move with their net', () => {
   assert.equal(editor.evaluation.nets.size, 3);
 });
 
+test('extending a wire branch to four arms preserves the connection and undo', () => {
+  const { editor } = setup();
+  assert.equal(editor.addWireRoute({ x: 0, y: 1 }, { x: 2, y: 1 }, 1).error, null);
+  assert.equal(editor.addWireRoute({ x: 1, y: 1 }, { x: 1, y: 2 }, 1).error, null);
+  assert.equal(editor.evaluation.nets.size, 1);
+  assert.equal(editor.addWireRoute({ x: 1, y: -1 }, { x: 1, y: 1 }, 1).error, null);
+  assert.deepEqual(editor.board.junctions, new Set(['1,1']));
+  assert.equal(editor.evaluation.nets.size, 1);
+  assert.equal(editor.undo(), true);
+  assert.deepEqual(editor.board.junctions, new Set());
+  assert.equal(editor.evaluation.nets.size, 1);
+});
+
 test('copy and paste preserve component properties and relative positions', () => {
   const ctx = setup();
   const { editor } = ctx;

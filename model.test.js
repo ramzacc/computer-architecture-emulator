@@ -325,11 +325,28 @@ test("orthogonal crossings stay separate, while explicit junctions join them", (
   assert.throws(() => parseDocument(withoutJunctions), /junctions/);
 });
 
+test("extending a connected three-way branch into a cross keeps its junction", () => {
+  const board = createBoard();
+  for (const edge of [
+    { o: "H", x: 0, y: 1 }, { o: "H", x: 1, y: 1 },
+    { o: "V", x: 1, y: 1 },
+  ]) assert.equal(addWireEdge(board, edge), true);
+  assert.equal(computeNets(board).size, 1);
+  const extension = wireRoute(board, { x: 1, y: -1 }, { x: 1, y: 1 }, 1);
+  assert.equal(extension.error, null);
+  assert.deepEqual(extension.junctions, ["1,1"]);
+  for (const edge of extension.edges) board.wires.set(edgeKey(edge), edge);
+  for (const key of extension.junctions) board.junctions.add(key);
+  assert.equal(computeNets(board).size, 1);
+  assert.deepEqual(parseDocument(serialize(board)).board.junctions, new Set(["1,1"]));
+});
+
 test("a whole route can cross a different width wire without joining it", () => {
   const board = createBoard();
   for (const x of [0, 1]) assert.equal(addWireEdge(board, { o: "H", x, y: 1, size: 1 }), true);
   const route = wireRoute(board, { x: 1, y: 0 }, { x: 1, y: 2 }, 2);
   assert.equal(route.error, null);
+  assert.deepEqual(route.junctions, []);
   for (const edge of route.edges) board.wires.set(edgeKey(edge), edge);
   assert.equal(computeNets(board).size, 2);
   assert.deepEqual([...computeNets(board).values()].map((net) => net.size).sort(), [1, 2]);
