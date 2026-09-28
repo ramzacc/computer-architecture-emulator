@@ -2,7 +2,7 @@ import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, 
 import { VALUE_FORMATS, validValueFormat } from "./value-format.js";
 
 export function createBoard() {
-  return { components: [], wires: new Map(), junctions: new Set() };
+  return { components: [], wires: new Map(), junctions: new Set(), monitor: { ids: [], formats: new Map(), breaks: new Set() } };
 }
 
 export function edgeKey({ o, x, y }) {
@@ -673,6 +673,10 @@ function documentValue(component, field) {
 
 export function serialize(board) {
   const labels = new Set();
+  const componentIndexes = new Map(board.components.map((component, index) => [component.id, index]));
+  const monitor = (board.monitor?.ids ?? []).filter((id) => componentIndexes.has(id)).map((id) => [
+    componentIndexes.get(id), board.monitor.formats.get(id) ?? "binary", board.monitor.breaks.has(id),
+  ]);
   return JSON.stringify({
     components: board.components.map((component) => {
       if (!validComponentProperties(component))
@@ -692,6 +696,7 @@ export function serialize(board) {
         throw new Error("Cannot serialize invalid junction.");
       return [x, y];
     }),
+    ...(monitor.length ? { monitor } : {}),
   });
 }
 
@@ -737,7 +742,7 @@ function coordinate(value, path) {
 // Parsing builds a complete board before callers replace the visible one.
 export function parseDocument(text, depth = 0) {
   const data = JSON.parse(text);
-  object(data, "Document", ["components", "wires", "junctions"]);
+  object(data, "Document", ["components", "wires", "junctions", "monitor"]);
   if (!Array.isArray(data.components)) throw new Error("Document.components must be an array.");
   if (!Array.isArray(data.wires)) throw new Error("Document.wires must be an array.");
   if (!Array.isArray(data.junctions))
@@ -800,6 +805,24 @@ export function parseDocument(text, depth = 0) {
       occupied.add(key);
     }
     board.components.push(component);
+  }
+  if (data.monitor !== undefined) {
+    if (!Array.isArray(data.monitor)) throw new Error("Document.monitor must be an array.");
+    const seen = new Set();
+    for (const [index, raw] of data.monitor.entries()) {
+      const path = `monitor[${index}]`;
+      if (!Array.isArray(raw) || raw.length !== 3) throw new Error(`${path} must be [component index, format, new row].`);
+      const [componentIndex, format, newRow] = raw;
+      const component = board.components[componentIndex];
+      if (!Number.isInteger(componentIndex) || !component || !["tag", "button", "switch", "input", "output"].includes(component.t) || seen.has(componentIndex))
+        throw new Error(`${path} must refer to a unique monitorable component.`);
+      if (!validValueFormat(format)) throw new Error(`${path} has an invalid value format.`);
+      if (typeof newRow !== "boolean") throw new Error(`${path} new row must be a boolean.`);
+      seen.add(componentIndex);
+      board.monitor.ids.push(component.id);
+      board.monitor.formats.set(component.id, format);
+      if (newRow) board.monitor.breaks.add(component.id);
+    }
   }
   const blockedEdges = new Set();
   const pinSizes = new Map();

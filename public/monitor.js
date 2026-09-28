@@ -22,15 +22,18 @@ export function insertionIndex(rects, x, y) {
 }
 
 export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gridEl, emptyEl }) {
-  const layouts = new WeakMap();
   let draggingId = null;
   let renderedScope = null;
   let renderedItems = "";
+  let renderedLayout = "";
 
   function layout() {
-    const editor = getEditor();
-    if (!layouts.has(editor)) layouts.set(editor, { ids: [], formats: new Map() });
-    return layouts.get(editor);
+    return getEditor().board.monitor;
+  }
+
+  function layoutKey() {
+    const { ids, formats, breaks } = layout();
+    return JSON.stringify(ids.map((id) => [id, formats.get(id), breaks.has(id)]));
   }
 
   function items() {
@@ -45,6 +48,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
     if (previous !== -1 && previous < index) index--;
     ids.splice(index, 0, id);
     renderCards();
+    getEditor().save();
   }
 
   function renderSignals(available) {
@@ -65,25 +69,36 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
 
   function renderCards() {
     const available = new Map(items().map((item) => [item.id, item]));
-    const { ids, formats } = layout();
+    const { ids, formats, breaks } = layout();
     for (let index = ids.length - 1; index >= 0; index--) if (!available.has(ids[index])) {
       formats.delete(ids[index]);
+      breaks.delete(ids[index]);
       ids.splice(index, 1);
     }
     gridEl.replaceChildren();
     emptyEl.hidden = ids.length > 0;
     gridEl.classList.toggle("is-empty", ids.length === 0);
     if (!ids.length) gridEl.append(emptyEl);
-    for (const id of ids) {
+    for (const [index, id] of ids.entries()) {
       const item = available.get(id);
       const card = document.createElement("article");
       card.className = "monitor-card";
+      card.classList.toggle("new-row", breaks.has(id));
       card.dataset.id = id;
       card.draggable = true;
       const header = document.createElement("div");
       header.className = "monitor-card-header";
       const name = document.createElement("h3");
       name.textContent = item.label || item.t;
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "monitor-row-break";
+      row.dataset.rowBreak = id;
+      row.disabled = index === 0;
+      row.setAttribute("aria-label", `${breaks.has(id) ? "Join previous row" : "Start new row"} for ${item.label || item.t}`);
+      row.setAttribute("aria-pressed", String(breaks.has(id)));
+      row.title = breaks.has(id) ? "Join previous row" : "Start new row";
+      row.textContent = "↵";
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "monitor-remove";
@@ -91,7 +106,10 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       remove.setAttribute("aria-label", `Remove ${item.label || item.t} from monitor`);
       remove.title = "Remove from monitor";
       remove.textContent = "×";
-      header.append(name, remove);
+      const actions = document.createElement("div");
+      actions.className = "monitor-card-actions";
+      actions.append(row, remove);
+      header.append(name, actions);
       if (["tag", "input", "output"].includes(item.t)) {
         const value = document.createElement("output");
         value.className = "monitor-value";
@@ -131,15 +149,25 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
         const control = document.createElement("button");
         control.type = "button";
         control.className = "monitor-control";
+        control.classList.add(item.t === "button" ? "monitor-push-button" : "monitor-switch");
         control.draggable = false;
         control.dataset.control = id;
-        control.textContent = item.t === "button" ? "Press" : "Off";
+        const art = document.createElement("span");
+        art.className = "monitor-control-art";
+        const center = document.createElement("span");
+        center.className = "monitor-control-center";
+        art.append(center);
+        const status = document.createElement("span");
+        status.className = "monitor-control-status";
+        status.textContent = item.t === "button" ? "Press" : "Off";
+        control.append(art, status);
         control.setAttribute("aria-label", `${item.label || item.t} ${item.t}`);
         card.append(header, control);
       }
       gridEl.append(card);
     }
     updateValues();
+    renderedLayout = layoutKey();
   }
 
   function updateValues() {
@@ -165,7 +193,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       const active = item.t === "button" ? editor.pressedButtons.has(item.id) : item.value === 1;
       control.classList.toggle("active", active);
       control.setAttribute("aria-pressed", String(active));
-      control.textContent = item.t === "button" ? active ? "Pressed" : "Press" : active ? "On" : "Off";
+      control.querySelector(".monitor-control-status").textContent = item.t === "button" ? active ? "Pressed" : "Press" : active ? "On" : "Off";
     }
   }
 
@@ -178,7 +206,8 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       renderedItems = key;
       renderSignals(available);
       renderCards();
-    } else updateValues();
+    } else if (renderedLayout !== layoutKey()) renderCards();
+    else updateValues();
   }
 
   function dropPosition(event) {
@@ -207,16 +236,29 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
   gridEl.addEventListener("click", (event) => {
     const button = event.target.closest("[data-remove]");
     if (!button) return;
-    const { ids, formats } = layout();
+    const { ids, formats, breaks } = layout();
     ids.splice(ids.indexOf(button.dataset.remove), 1);
     formats.delete(button.dataset.remove);
+    breaks.delete(button.dataset.remove);
     renderCards();
+    getEditor().save();
+  });
+  gridEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-row-break]");
+    if (!button) return;
+    const breaks = layout().breaks;
+    if (breaks.has(button.dataset.rowBreak)) breaks.delete(button.dataset.rowBreak);
+    else breaks.add(button.dataset.rowBreak);
+    renderCards();
+    getEditor().save();
   });
   gridEl.addEventListener("change", (event) => {
     const select = event.target.closest("[data-format]");
     if (!select || !validValueFormat(select.value)) return;
     layout().formats.set(select.dataset.format, select.value);
     updateValues();
+    renderedLayout = layoutKey();
+    getEditor().save();
   });
   gridEl.addEventListener("click", (event) => {
     const control = event.target.closest("[data-control]");
@@ -252,7 +294,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
 
   for (const source of [signalsEl, gridEl]) {
     source.addEventListener("dragstart", (event) => {
-      if (event.target.closest(".monitor-control, .monitor-bits, .monitor-remove, select")) {
+      if (event.target.closest(".monitor-control, .monitor-bits, .monitor-remove, .monitor-row-break, select")) {
         event.preventDefault();
         return;
       }
@@ -282,5 +324,5 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
     clearDropCue();
   });
 
-  return { render, reset() { layouts.delete(getEditor()); renderedScope = null; } };
+  return { render, reset() { renderedScope = null; renderedLayout = ""; } };
 }
