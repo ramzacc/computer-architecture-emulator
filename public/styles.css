@@ -693,5 +693,7 @@ main > [role="tabpanel"][hidden] { display: none; }
 .program-line input[aria-invalid="true"] { border-color: var(--status-error); }
 .program-register-values { display: grid; align-content: start; gap: 6px; overflow-y: auto; margin-top: 14px; }
 .program-register-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--input); }
+.program-register-row.updated { border-color: var(--accent); background: var(--selection-fill); box-shadow: inset 3px 0 var(--accent); }
 .program-register-row output { color: var(--selected-value); font: 700 13px ui-monospace, monospace; overflow-wrap: anywhere; text-align: right; }
+.program-register-row.updated output { color: var(--accent); }
 @media (max-width: 950px) { .program-content { grid-template-columns: minmax(0, 1fr); } .program-registers { max-height: 200px; } }
