@@ -334,6 +334,18 @@ export function buttonsInBoard(board, prefix = "", depth = 0) {
   return buttons;
 }
 
+export function storedInBoard(board, prefix = "", depth = 0) {
+  const stored = new Map();
+  for (const component of board.components) {
+    const path = `${prefix}${component.id}`;
+    if (["register", "counter", "ram"].includes(component.t)) stored.set(path, component);
+    if (component.t === "module" && depth < 8)
+      for (const [id, part] of storedInBoard(innerBoard(component.module, depth + 1), `${path}/`, depth + 1))
+        stored.set(id, part);
+  }
+  return stored;
+}
+
 function blockOutputs(kind, inputs, size, channels = 2) {
   const mask = bitMask(size) >>> 0;
   const [a = 0, b = 0, control = 0] = inputs;
@@ -395,7 +407,7 @@ function buildUnionFind(board) {
 // Solve the board to a fixed point: nets carry a value, each component's
 // output (or LED) follows from its inputs. Oscillating feedback is reported
 // to callers so edits can reject it.
-export function evaluateBoard(board, pressedButtons = new Set(), highClocks = new Set(), registerValues = new Map(), ramValues = new Map(), injectedInputs = new Map(), depth = 0) {
+export function evaluateBoard(board, pressedButtons = new Set(), highClocks = new Set(), registerValues = new Map(), ramValues = new Map(), injectedInputs = new Map(), depth = 0, path = "") {
   const { find, atPoint } = buildUnionFind(board);
   const nets = new Map();
   for (const edge of board.wires.values()) {
@@ -420,7 +432,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       clockEnabled: component.enable !== false,
       register: !!entry.register,
       counter: !!entry.counter,
-      storedValue: (registerValues.get(component.id) ?? 0) & bitMask(bitWidth(component)),
+      storedValue: (registerValues.get(`${path}${component.id}`) ?? 0) & bitMask(bitWidth(component)),
       constant: !!(entry.constant || entry.input),
       constantValue: component.value ?? 0,
       injectedValue: injectedInputs.get(component.id),
@@ -428,7 +440,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       rom: !!entry.rom,
       romData: entry.rom ? new Map(component.data ?? []) : null,
       ram: !!entry.ram,
-      ramData: entry.ram ? ramValues.get(component.id) ?? new Map() : null,
+      ramData: entry.ram ? ramValues.get(`${path}${component.id}`) ?? new Map() : null,
       addressSize: entry.rom || entry.ram ? addressWidth(component) : 0,
       output: !!entry.output,
       debug: !!entry.debug,
@@ -486,7 +498,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       .map((id) => id.slice(prefix.length)));
     const innerClocks = new Set([...highClocks].filter((id) => id.startsWith(prefix))
       .map((id) => id.slice(prefix.length)));
-    const result = evaluateBoard(inner, innerButtons, innerClocks, new Map(), new Map(), inputs, depth + 1);
+    const result = evaluateBoard(inner, innerButtons, innerClocks, registerValues, ramValues, inputs, depth + 1, `${path}${part.id}/`);
     return { outputs: ports.filter((port) => port.role === "out")
       .map((port) => result.states.get(port.id)?.value ?? 0), states: result.states };
   };
