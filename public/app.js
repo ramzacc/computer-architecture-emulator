@@ -145,6 +145,7 @@ const viewRenderers = {
   "canvas-view": applyView,
   "monitor-view": monitor.render,
   "rom-view": renderRomTab,
+  "isa-view": program.renderIsa,
   "program-view": program.render,
   "module-layout-view": renderModuleLayout,
 };

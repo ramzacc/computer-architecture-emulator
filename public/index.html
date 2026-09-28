@@ -20,6 +20,7 @@
       <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
       <button id="tab-monitor" type="button" role="tab" aria-controls="monitor-view" aria-selected="false" tabindex="-1">Monitor</button>
       <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
+      <button id="tab-isa" type="button" role="tab" aria-controls="isa-view" aria-selected="false" tabindex="-1">ISA</button>
       <button id="tab-program" type="button" role="tab" aria-controls="program-view" aria-selected="false" tabindex="-1">Program</button>
       <button id="tab-module-layout" type="button" role="tab" aria-controls="module-layout-view" aria-selected="false" tabindex="-1">Module Layout</button>
     </div>
@@ -178,6 +179,31 @@
         </div>
       </section>
     </section>
+    <section id="isa-view" class="isa-view" role="tabpanel" aria-labelledby="tab-isa" hidden>
+      <div class="isa-workspace">
+        <div class="isa-heading">
+          <div><h2>Instruction set</h2><p class="hint">Define how each keyword and its numeric operands map into a linked ROM word.</p></div>
+          <label>Program ROM <select id="isa-rom" aria-label="ROM for ISA rules and Program"></select></label>
+        </div>
+        <div class="isa-content">
+          <div class="isa-editor">
+            <label for="isa-source">Encoding rules</label>
+            <textarea id="isa-source" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="ADD | op 7-6=01 | address 5-4-3 | address 2-1-0"></textarea>
+            <div class="isa-actions"><button id="isa-save" type="button">Save ISA rules</button><span id="isa-note" class="hint" role="status"></span></div>
+          </div>
+          <aside class="isa-help">
+            <h3>Rule format</h3>
+            <pre>ADD | op 7-6=01 | address 5-4-3 | address 2-1-0
+LDI | op 7-6-5=110 | address 4-3 | immediate 2-1-0
+JMP | op 7-6=10 | address *</pre>
+            <p>Bit 0 is the least significant bit. In each list, the first position receives the operand’s highest bit. A <code>*</code> operand receives all unused bits from high to low. Unassigned bits are zero.</p>
+            <p>Positions can be scattered: <code>MIX | op 0-3-5=101 | immediate 1-4-6 | address *</code>.</p>
+            <p>Each <code>address</code> or <code>immediate</code> clause adds one numeric operand in that order. For the first rule, write <code>ADD 2 1</code> in Program. Numbers can be decimal, <code>0x</code> hex, or <code>0b</code> binary.</p>
+            <p>Separate clauses with <code>|</code>. Use <code>;</code> for comments. Rules for different instructions must have distinct encodings.</p>
+          </aside>
+        </div>
+      </div>
+    </section>
     <section id="program-view" class="program-view" role="tabpanel" aria-labelledby="tab-program" hidden>
       <aside class="program-sidebar panel">
         <h2>Program setup</h2>
@@ -187,6 +213,7 @@
         <label class="property">Manual clock button<select id="program-step"></select></label>
         <label class="property">PC reset button<select id="program-reset-pc"></select></label>
         <label class="property">Registers reset button<select id="program-reset-registers"></select></label>
+        <label class="property">Register display<select id="program-format"><option value="hex">Hex</option><option value="binary">Binary</option></select></label>
         <div class="program-register-heading">
           <h3>Register tracking</h3>
           <button id="program-add-register" type="button" aria-label="Add register tracking">+ Add</button>
@@ -210,18 +237,12 @@
         <p id="program-status" class="hint" role="status" aria-live="polite"></p>
         <div class="program-content">
           <section class="program-code" aria-labelledby="program-code-title">
-            <div class="program-section-header">
-              <h2 id="program-code-title">Instructions</h2>
-              <label>Format <select id="program-format"><option value="hex">Hex</option><option value="binary">Binary</option></select></label>
+            <div class="program-section-header"><h2 id="program-code-title">Assembly</h2></div>
+            <div id="program-assembly" class="program-assembly">
+              <p class="hint">Write <code>KEYWORD number number …</code> using the linked ROM’s <strong>ISA</strong> rules. Each line uses one address. Use <code>.org 0x10</code> to move; semicolons start comments. Unmatched ROM values appear as <code>.word</code>.</p>
+              <textarea id="program-source" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Assembly source" placeholder="Link a ROM in Program setup, then write assembly here."></textarea>
+              <div class="program-assembly-actions"><button id="program-assemble" type="button">Assemble to ROM</button><button id="program-reload-assembly" type="button">Disassemble ROM</button><span id="program-assembly-note" class="hint"></span></div>
             </div>
-            <div class="program-navigation">
-              <button id="program-prev" type="button">Previous</button>
-              <label>Start address <input id="program-offset" type="text" inputmode="text" spellcheck="false" aria-label="Start address in hexadecimal" /></label>
-              <button id="program-next" type="button">Next</button>
-              <label class="program-follow"><input id="program-follow" type="checkbox" checked /> Follow PC</label>
-            </div>
-            <div class="program-line-head"><span></span><span>ROM address</span><span id="program-word-heading">Instruction</span></div>
-            <div id="program-lines" class="program-lines" aria-label="Program instructions"></div>
           </section>
           <section class="program-registers" aria-labelledby="program-registers-title">
             <h2 id="program-registers-title">Registers</h2>

@@ -1,0 +1,51 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { assemble, disassemble, parseIsa } from "./public/assembly.js";
+
+const sampleIsa = `NOT | op 7-6=00 | address 5-4-3 | address 2-1-0
+ADD | op 7-6=01 | address 5-4-3 | address 2-1-0
+AND | op 7-6=10 | address 5-4-3 | address 2-1-0
+INC | op 7-6=11 | address 5-4-3 | address 2-1-0`;
+
+test("keyword and numeric operands map through explicit bit positions", () => {
+  assert.deepEqual(assemble("ADD 2 1\nAND 2 7\nINC 1 0", 8, 8, sampleIsa), [
+    [0, 0x51], [1, 0x97], [2, 0xC8],
+  ]);
+  assert.equal(disassemble([[0, 0x51], [1, 0x97], [2, 0xC8]], 8, sampleIsa),
+    "ADD 0x2 0x1\nAND 0x2 0x7\nINC 0x1 0x0");
+});
+
+test("the ISA tab's example rules can be saved together", () => {
+  assert.equal(parseIsa(`ADD | op 7-6=01 | address 5-4-3 | address 2-1-0
+LDI | op 7-6-5=110 | address 4-3 | immediate 2-1-0
+JMP | op 7-6=10 | address *`, 8).length, 3);
+});
+
+test("noncontiguous opcode and operand tuples and remaining bits round trip", () => {
+  const isa = "MOVE | op 0-3-5=101 | immediate 1-4-6 | address *";
+  const data = assemble("MOVE 5 2", 8, 8, isa);
+  assert.deepEqual(data, [[0, 0xE3]]);
+  assert.deepEqual(assemble("MOVE 5 2", 8, 8,
+    "MOVE | op 0,3,5=101 | immediate 1,4,6 | address *"), data);
+  assert.deepEqual(assemble(disassemble(data, 8, isa), 8, 8, isa), data);
+  const wide = "LDI | op 15-14-13-12=1010 | address 11-10-9-8 | immediate 7-6-5-4-3-2-1-0\nJMP | op 15-14-13-12=1100 | address *";
+  const words = assemble("LDI 3 0x42\nJMP 0x321", 8, 16, wide);
+  assert.deepEqual(words, [[0, 0xA342], [1, 0xC321]]);
+  assert.deepEqual(assemble(disassemble(words, 16, wide), 8, 16, wide), words);
+});
+
+test("raw words and sparse ROM remain representable", () => {
+  const data = [[1, 0x12], [17, 0xABCD], [255, 0xFFFF]];
+  assert.deepEqual(assemble(disassemble(data, 16), 8, 16), data);
+  assert.deepEqual(assemble(".org 0x10\n.word 0b1010 ; comment\n.word 0", 8, 8), [[16, 10]]);
+});
+
+test("invalid mappings and source do not produce a ROM image", () => {
+  assert.throws(() => parseIsa("BAD | op 7-6=01 | address 7-6-5-4-3-2-1-0", 8), /assigned twice/);
+  assert.throws(() => parseIsa("A | op 7-6-5-4-3-2-1-0=00000000\nB | op 7-6-5-4-3-2-1-0=00000000", 8), /overlaps/);
+  assert.throws(() => parseIsa("BAD | op 0-3-5=10", 8), /3 binary digits/);
+  assert.throws(() => assemble("ADD 8 1", 8, 8, sampleIsa), /Line 1/);
+  assert.throws(() => assemble(".org 0x100\n.word 1", 8, 8), /Line 1/);
+  assert.throws(() => assemble(".word 0x100", 8, 8), /Line 1/);
+  assert.throws(() => assemble(".word 1\n.org 0\n.word 2", 8, 8), /written twice/);
+});

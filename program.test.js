@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BoardEditor } from './public/editor.js';
 import { parseDocument, serialize } from './public/model.js';
-import { instructionDigits, parseInstruction } from './public/program.js';
 
 test('program bindings survive save and load and reject invalid signal types', () => {
   const editor = new BoardEditor({ storage: { setItem() {} } });
@@ -35,30 +34,37 @@ test('program bindings survive save and load and reject invalid signal types', (
   assert.throws(() => parseDocument(JSON.stringify(document)), /program.run/);
 });
 
-test('instruction input accepts bounded binary and hex words', () => {
-  assert.equal(parseInstruction('0xAF', 'hex', 8), 175);
-  assert.equal(parseInstruction('1010_0101', 'binary', 8), 165);
-  assert.equal(parseInstruction('', 'hex', 8), 0);
-  assert.equal(parseInstruction('100000000', 'binary', 8), null);
-  assert.equal(parseInstruction('GG', 'hex', 8), null);
-  for (const width of [8, 16, 32]) {
-    assert.equal(instructionDigits(width, 'hex'), width / 4);
-    assert.equal(instructionDigits(width, 'binary'), width);
-    const maximum = 2 ** width - 1;
-    assert.equal(parseInstruction(maximum.toString(16), 'hex', width), maximum);
-    assert.equal(parseInstruction(maximum.toString(2), 'binary', width), maximum);
-    assert.equal(parseInstruction((2 ** width).toString(16), 'hex', width), null);
-    assert.equal(parseInstruction((2 ** width).toString(2), 'binary', width), null);
-  }
-});
-
 test('a ROM accepts one complete word per address at 8, 16, and 32 bits', () => {
   const editor = new BoardEditor({ storage: { setItem() {} } });
   const rom = editor.place('rom', 0, 0);
   for (const width of [8, 16, 32]) {
     if (width !== 8) assert.equal(editor.resizeComponent(rom.id, width), true);
-    const word = parseInstruction('F'.repeat(width / 4), 'hex', width);
+    const word = 2 ** width - 1;
     assert.equal(editor.setRomData(rom.id, [[3, word]]), true);
     assert.deepEqual(editor.component(rom.id).data, [[3, word]]);
   }
+});
+
+test('per-ROM ISA rules survive save and load', () => {
+  const editor = new BoardEditor({ storage: { setItem() {} } });
+  const first = editor.place('rom', 0, 0);
+  const second = editor.place('rom', 8, 0);
+  editor.setProgramConfig({ rom: first.id, pc: null, run: null, step: null,
+    resetPc: null, resetRegisters: null, registers: [], offset: 0, format: 'hex',
+    isa: { [first.id]: 'ADD | op 7-6=01 | address 5-4-3 | address 2-1-0', [second.id]: 'JMP | op 7-6=10 | address *' } });
+  const saved = serialize(editor.board);
+  assert.deepEqual(parseDocument(saved).board.program.isa, {
+    [first.id]: 'ADD | op 7-6=01 | address 5-4-3 | address 2-1-0', [second.id]: 'JMP | op 7-6=10 | address *',
+  });
+  const invalid = JSON.parse(saved);
+  invalid.program.isa[0][1] = 'BAD = 000';
+  assert.throws(() => parseDocument(JSON.stringify(invalid)), /ISA line 1/);
+  const legacy = JSON.parse(saved);
+  legacy.program.isa[0][1] = 'ADD Rd, Rs = 01dddsss';
+  assert.equal(parseDocument(JSON.stringify(legacy)).board.program.isa[first.id],
+    'ADD | op 7-6=01 | address 5-4-3 | address 2-1-0');
+  assert.equal(editor.resizeComponent(first.id, 16), true);
+  assert.equal(editor.board.program.isa[first.id], undefined);
+  assert.equal(editor.board.program.isa[second.id], 'JMP | op 7-6=10 | address *');
+  assert.doesNotThrow(() => parseDocument(serialize(editor.board)));
 });
