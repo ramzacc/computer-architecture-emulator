@@ -16,28 +16,27 @@
     </div>
   </section>
   <header class="view-header">
-    <div class="view-tabs" role="tablist" aria-label="Views">
-      <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
-      <button id="tab-module-layout" type="button" role="tab" aria-controls="module-layout-view" aria-selected="false" tabindex="-1">Module Layout</button>
-      <button id="tab-monitor" type="button" role="tab" aria-controls="monitor-view" aria-selected="false" tabindex="-1">Monitor</button>
-      <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
-      <button id="tab-isa" type="button" role="tab" aria-controls="isa-view" aria-selected="false" tabindex="-1">ISA</button>
-      <button id="tab-program" type="button" role="tab" aria-controls="program-view" aria-selected="false" tabindex="-1">Program</button>
+    <div class="header-left">
+      <div class="view-tabs" role="tablist" aria-label="Views">
+        <button id="tab-canvas" type="button" role="tab" aria-controls="canvas-view" aria-selected="true">Canvas</button>
+        <button id="tab-module-layout" type="button" role="tab" aria-controls="module-layout-view" aria-selected="false" tabindex="-1">Module Layout</button>
+        <button id="tab-monitor" type="button" role="tab" aria-controls="monitor-view" aria-selected="false" tabindex="-1">Monitor</button>
+        <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
+        <button id="tab-isa" type="button" role="tab" aria-controls="isa-view" aria-selected="false" tabindex="-1">ISA</button>
+        <button id="tab-program" type="button" role="tab" aria-controls="program-view" aria-selected="false" tabindex="-1">Program</button>
+      </div>
+      <div id="module-navigation" class="module-navigation" hidden>
+        <button id="module-back" type="button">← Save &amp; back</button>
+        <span id="module-path" aria-live="polite"></span>
+      </div>
     </div>
-    <div id="module-navigation" class="module-navigation" hidden>
-      <button id="module-back" type="button">← Save &amp; back</button>
-      <span id="module-path" aria-live="polite"></span>
+    <div class="project-actions">
+      <button id="btn-download" type="button" aria-label="Save project to file">Save</button>
+      <button id="btn-import" type="button" aria-label="Import project from file">Import</button>
+      <input id="file-input" type="file" accept="application/json,.json" hidden />
+      <p id="import-error" class="import-error" role="alert" hidden></p>
     </div>
     <div class="header-actions">
-      <details id="project-menu" class="project-menu">
-        <summary>File</summary>
-        <div class="project-menu-items">
-          <button id="btn-download" type="button">Save project to file</button>
-          <button id="btn-import" type="button">Import project from file</button>
-          <input id="file-input" type="file" accept="application/json,.json" hidden />
-          <p id="import-error" class="import-error" role="alert" hidden></p>
-        </div>
-      </details>
       <button id="btn-theme" class="theme-toggle" type="button">Theme</button>
     </div>
   </header>

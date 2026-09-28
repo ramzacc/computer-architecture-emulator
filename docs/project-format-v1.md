@@ -1,6 +1,6 @@
 # Project file format v1
 
-The **File → Save project to file** action writes UTF-8 JSON. **File → Import project from file** validates the complete file before replacing the open project.
+The **Save** button writes UTF-8 JSON. **Import** validates the complete file before replacing the open project.
 
 ```json
 {
