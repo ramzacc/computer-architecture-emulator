@@ -79,73 +79,73 @@ export function createProgram({ getEditor }) {
       select.replaceChildren(new Option("Select…", ""), ...allowed.map((item) => new Option(item.label || item.t, item.id)));
       select.value = allowed.some((item) => item.id === current) ? current : "";
     }
-    const tags = components().filter((item) => item.t === "tag");
-    const selected = config().registers.filter((id) => tags.some((tag) => tag.id === id));
+    const registers = components().filter((item) => item.t === "register");
+    const selected = config().registers.filter((id) => registers.some((register) => register.id === id));
     registerOptions.replaceChildren();
     registerEmpty.hidden = selected.length > 0;
-    registerEmpty.textContent = tags.length ? "No registers tracked yet." : "Add a tag on Canvas, then link it here.";
-    addRegister.disabled = selected.length >= tags.length;
+    registerEmpty.textContent = registers.length ? "No registers tracked yet." : "Add a register on Canvas, then link it here.";
+    addRegister.disabled = selected.length >= registers.length;
     for (const [index, id] of selected.entries()) {
       const row = document.createElement("tr");
-      const tagCell = document.createElement("td");
+      const registerCell = document.createElement("td");
       const select = document.createElement("select");
-      select.setAttribute("aria-label", `Tracked register ${index + 1} tag`);
+      select.setAttribute("aria-label", `Tracked register ${index + 1}`);
       select.dataset.index = String(index);
-      select.replaceChildren(...tags.map((tag) => {
-        const option = new Option(tag.label || "Tag", tag.id);
-        option.disabled = tag.id !== id && selected.includes(tag.id);
+      select.replaceChildren(...registers.map((register) => {
+        const option = new Option(register.label || "Register", register.id);
+        option.disabled = register.id !== id && selected.includes(register.id);
         return option;
       }));
       select.value = id;
-      tagCell.append(select);
+      registerCell.append(select);
       const removeCell = document.createElement("td");
       const remove = document.createElement("button");
       remove.type = "button";
       remove.dataset.index = String(index);
-      remove.setAttribute("aria-label", `Remove tracked register ${tags.find((tag) => tag.id === id)?.label || index + 1}`);
+      remove.setAttribute("aria-label", `Remove tracked register ${registers.find((register) => register.id === id)?.label || index + 1}`);
       remove.textContent = "×";
       removeCell.append(remove);
-      row.append(tagCell, removeCell);
+      row.append(registerCell, removeCell);
       registerOptions.append(row);
     }
     formatEl.value = config().format;
     offsetEl.value = config().offset.toString(16).toUpperCase();
   }
   function updateRegisters(force = false) {
-    const tags = config().registers.map(component).filter((item) => item?.t === "tag");
-    const key = JSON.stringify(tags.map((item) => [item.id, item.label, bitWidth(item)]));
+    const registers = config().registers.map(component).filter((item) => item?.t === "register");
+    const key = JSON.stringify(registers.map((item) => [item.id, item.label, bitWidth(item)]));
     if (force || key !== renderedRegisters) {
       for (const timer of registerHighlightTimers.values()) clearTimeout(timer);
       registerHighlightTimers.clear();
       registerValues.replaceChildren();
       renderedRegisters = key;
-      if (!tags.length) registerValues.textContent = "Add register tracking in Program setup.";
-      for (const tag of tags) {
+      if (!registers.length) registerValues.textContent = "Add register tracking in Program setup.";
+      for (const register of registers) {
         const row = document.createElement("div");
         row.className = "program-register-row";
         const name = document.createElement("span");
-        name.textContent = tag.label || "Tag";
+        name.textContent = register.label || "Register";
         const value = document.createElement("output");
-        value.dataset.tag = tag.id;
+        value.dataset.register = register.id;
         row.append(name, value);
         registerValues.append(row);
       }
     }
-    for (const output of registerValues.querySelectorAll("[data-tag]")) {
-      const tag = component(output.dataset.tag);
-      const value = getEditor().evaluation.states.get(tag.id)?.value ?? 0;
-      const previous = previousRegisterValues.get(tag.id);
+    for (const output of registerValues.querySelectorAll("[data-register]")) {
+      const register = component(output.dataset.register);
+      const value = getEditor().evaluation.states.get(register.id)?.value ?? 0;
+      const previous = previousRegisterValues.get(register.id);
       if (previous !== undefined && previous !== value) {
         const row = output.parentElement;
-        clearTimeout(registerHighlightTimers.get(tag.id));
+        clearTimeout(registerHighlightTimers.get(register.id));
         row.classList.add("updated");
-        registerHighlightTimers.set(tag.id, setTimeout(() => {
+        registerHighlightTimers.set(register.id, setTimeout(() => {
           row.classList.remove("updated");
-          registerHighlightTimers.delete(tag.id);
+          registerHighlightTimers.delete(register.id);
         }, 1200));
       }
-      previousRegisterValues.set(tag.id, value);
-      output.textContent = formatValue(value, bitWidth(tag), config().format);
+      previousRegisterValues.set(register.id, value);
+      output.textContent = formatValue(value, bitWidth(register), config().format);
     }
   }
   function pcValue() {
@@ -234,23 +234,23 @@ export function createProgram({ getEditor }) {
   }
   for (const key of Object.keys(fields)) selectEls[key].addEventListener("change", () => setConfig({ [key]: selectEls[key].value || null }));
   addRegister.addEventListener("click", () => {
-    const selected = config().registers.filter((id) => component(id)?.t === "tag");
-    const available = components().find((item) => item.t === "tag" && !selected.includes(item.id));
+    const selected = config().registers.filter((id) => component(id)?.t === "register");
+    const available = components().find((item) => item.t === "register" && !selected.includes(item.id));
     if (available) setConfig({ registers: [...selected, available.id] });
   });
   registerOptions.addEventListener("change", (event) => {
     const select = event.target.closest("select[data-index]");
     if (!select) return;
-    const registers = config().registers.filter((id) => component(id)?.t === "tag");
+    const registers = config().registers.filter((id) => component(id)?.t === "register");
     const index = Number(select.dataset.index);
-    if (component(select.value)?.t !== "tag" || registers.includes(select.value)) return;
+    if (component(select.value)?.t !== "register" || registers.includes(select.value)) return;
     registers[index] = select.value;
     setConfig({ registers });
   });
   registerOptions.addEventListener("click", (event) => {
     const remove = event.target.closest("button[data-index]");
     if (!remove) return;
-    const registers = config().registers.filter((id) => component(id)?.t === "tag");
+    const registers = config().registers.filter((id) => component(id)?.t === "register");
     registers.splice(Number(remove.dataset.index), 1);
     setConfig({ registers });
   });

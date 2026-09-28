@@ -59,6 +59,18 @@ test("a clock can be saved in the monitor layout", () => {
   assert.deepEqual(restored.monitor.ids, ["c1"]);
 });
 
+test("a register can be saved in the monitor layout", () => {
+  const board = createBoard();
+  assert.equal(addComponent(board, { id: "register", t: "register", x: 0, y: 0, label: "Accumulator", size: 8 }), true);
+  board.monitor.ids.push("register");
+  board.monitor.formats.set("register", "hex");
+  const document = JSON.parse(serialize(board));
+  assert.deepEqual(document.monitor, [[0, "hex", false]]);
+  const restored = parseDocument(JSON.stringify(document)).board;
+  assert.deepEqual(restored.monitor.ids, ["c1"]);
+  assert.equal(restored.monitor.formats.get("c1"), "hex");
+});
+
 test("old documents load without a monitor and malformed monitor entries are rejected", () => {
   const board = createBoard();
   assert.equal(addComponent(board, { id: "tag", t: "tag", x: 0, y: 0, label: "Signal" }), true);
