@@ -844,9 +844,9 @@ export function parseDocument(text, depth = 0) {
       program[key] = index === null ? null : board.components[index].id;
     }
     if (!Array.isArray(config.registers) || config.registers.some((index) =>
-      !Number.isInteger(index) || board.components[index]?.t !== "tag") ||
+      !Number.isInteger(index) || board.components[index]?.t !== "register") ||
       new Set(config.registers).size !== config.registers.length)
-      throw new Error("Document.program.registers must refer to unique tags.");
+      throw new Error("Document.program.registers must refer to unique registers.");
     if (!Number.isInteger(config.offset) || config.offset < 0 || config.offset > 65535)
       throw new Error("Document.program.offset must be an address from 0 to 65535.");
     if (!["hex", "binary"].includes(config.format)) throw new Error("Document.program.format must be hex or binary.");
