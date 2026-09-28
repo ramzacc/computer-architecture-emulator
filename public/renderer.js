@@ -206,7 +206,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       ports(pins, 160, 160, partAccent(s)) + portLabels(pins, 160, 160), s, 0);
   }
 
-  function chipArt(c, s) {
+  function chipArt(c, s, value = 0) {
     const d = dimsOf({ ...c, r: 0 });
     const w = d.w * U, h = d.h * U;
     const rotated = dimsOf(c), rw = rotated.w * U, rh = rotated.h * U;
@@ -235,7 +235,9 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     const symbolSize = rw === 80 ? 20 : isCompact ? 22 : 25;
     const smallLabel = rw <= 120 && title.length >= 11 ? 8 : title.length > 11 ? 9 : 10;
     const romName = c.t === "rom" && c.label?.trim();
-    const glyph = textAt(rw / 2, glyphY, romName ? displayName(c, "ROM", 16) : glyphs[s.shape], romName ? 14 : symbolSize, ink, 650);
+    const registerValue = bitWidth(c) <= 8 ? String(value >>> 0) : `0x${(value >>> 0).toString(16).toUpperCase()}`;
+    const glyph = textAt(rw / 2, glyphY, s.register ? `Q: ${registerValue}` : romName ? displayName(c, "ROM", 16) : glyphs[s.shape],
+      s.register ? (registerValue.length > 8 ? 11 : 18) : romName ? 14 : symbolSize, ink, 650);
     const negation = ["nand", "nor", "xnor"].includes(s.shape)
       ? `<circle cx="${rw / 2 + (rw === 80 ? 19 : 31)}" cy="${glyphY - 1}" r="3" fill="${partAccent(s)}"/>` : "";
     const channel = ["mux", "demux"].includes(s.shape)
@@ -314,7 +316,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
     if (s.shape === "led") return ledArt(c, s);
     if (s.shape === "sevenseg") return sevenSegArt(c, s, inputs);
     if (s.shape === "debugdisplay") return debugDisplayArt(c, s, value);
-    return chipArt(c, s);
+    return chipArt(c, s, value);
   }
 
   function renderComponents(logic = getEvaluation()) {

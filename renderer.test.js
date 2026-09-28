@@ -12,6 +12,14 @@ test("ROM canvas art shows its label safely", () => {
   assert.doesNotMatch(art, /Boot <code>/);
 });
 
+test("register canvas art shows its stored output and side reset port", () => {
+  const { componentArt } = createRenderer(null, () => null, () => null, () => null, () => null);
+  const register = { t: "register", x: 0, y: 0, r: 0, size: 4 };
+  assert.match(componentArt(register, spec("register"), 0), /Q: 0/);
+  assert.match(componentArt(register, spec("register"), 9), /Q: 9/);
+  assert.match(componentArt(register, spec("register"), 9), /RESET/);
+});
+
 test("tag canvas art keeps a 4x2 face and escaped label at every pin direction", () => {
   const { componentArt } = createRenderer(null, () => null, () => null, () => null, () => null);
   for (const r of [0, 1, 2, 3]) {
