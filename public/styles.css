@@ -658,8 +658,15 @@ main > [role="tabpanel"][hidden] { display: none; }
 .program-sidebar h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .program-sidebar .property { display: grid; gap: 5px; }
 .program-sidebar select, .program-section-header select, .program-navigation input { width: 100%; min-width: 0; padding: 7px 9px; color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 5px; }
-.program-register-options { display: grid; gap: 3px; max-height: 240px; overflow-y: auto; }
-.program-register-options label { display: flex; align-items: center; gap: 7px; padding: 4px 0; font-size: 13px; }
+.program-register-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.program-register-heading button { padding: 4px 8px; font-size: 12px; }
+.program-register-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+.program-register-table th { padding: 5px 3px; color: var(--muted); text-align: left; font-weight: 600; border-bottom: 1px solid var(--line); }
+.program-register-table th:last-child, .program-register-table td:last-child { width: 58px; text-align: right; }
+.program-register-table td { padding: 5px 3px; border-bottom: 1px solid var(--line); }
+.program-register-table select { width: 100%; }
+.program-register-table button { padding: 4px 8px; }
+#program-register-empty { margin: 0; }
 .program-workspace { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; padding: 18px 22px; gap: 10px; }
 .program-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap; }
 .program-transport { display: flex; gap: 7px; flex-wrap: wrap; }

@@ -22,6 +22,8 @@ export function instructionDigits(width, format) {
 export function createProgram({ getEditor }) {
   const selectEls = Object.fromEntries(Object.keys(fields).map((key) => [key, $(key === "resetPc" ? "reset-pc" : key === "resetRegisters" ? "reset-registers" : key)]));
   const registerOptions = $("register-options");
+  const addRegister = $("add-register");
+  const registerEmpty = $("register-empty");
   const registerValues = $("register-values");
   const linesEl = $("lines");
   const offsetEl = $("offset");
@@ -47,7 +49,7 @@ export function createProgram({ getEditor }) {
       defaultBoard = board;
       defaultConfig = Object.fromEntries(Object.keys(fields).map((key) =>
         [key, components().find((item) => item.label === names[key] && [].concat(fields[key]).includes(item.t))?.id ?? null]));
-      defaultConfig.registers = components().filter((item) => item.t === "tag" && /^R\d+$/i.test(item.label)).map((item) => item.id);
+      defaultConfig.registers = [];
       defaultConfig.offset = 0;
       defaultConfig.format = "hex";
     }
@@ -77,17 +79,34 @@ export function createProgram({ getEditor }) {
       select.replaceChildren(new Option("Select…", ""), ...allowed.map((item) => new Option(item.label || item.t, item.id)));
       select.value = allowed.some((item) => item.id === current) ? current : "";
     }
-    registerOptions.replaceChildren();
     const tags = components().filter((item) => item.t === "tag");
-    if (!tags.length) registerOptions.textContent = "Add tags on Canvas to watch registers.";
-    for (const tag of tags) {
-      const label = document.createElement("label");
-      const check = document.createElement("input");
-      check.type = "checkbox";
-      check.value = tag.id;
-      check.checked = config().registers.includes(tag.id);
-      label.append(check, document.createTextNode(tag.label || "Tag"));
-      registerOptions.append(label);
+    const selected = config().registers.filter((id) => tags.some((tag) => tag.id === id));
+    registerOptions.replaceChildren();
+    registerEmpty.hidden = selected.length > 0;
+    registerEmpty.textContent = tags.length ? "No registers tracked yet." : "Add a tag on Canvas, then link it here.";
+    addRegister.disabled = selected.length >= tags.length;
+    for (const [index, id] of selected.entries()) {
+      const row = document.createElement("tr");
+      const tagCell = document.createElement("td");
+      const select = document.createElement("select");
+      select.setAttribute("aria-label", `Tracked register ${index + 1} tag`);
+      select.dataset.index = String(index);
+      select.replaceChildren(...tags.map((tag) => {
+        const option = new Option(tag.label || "Tag", tag.id);
+        option.disabled = tag.id !== id && selected.includes(tag.id);
+        return option;
+      }));
+      select.value = id;
+      tagCell.append(select);
+      const removeCell = document.createElement("td");
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.dataset.index = String(index);
+      remove.setAttribute("aria-label", `Remove tracked register ${tags.find((tag) => tag.id === id)?.label || index + 1}`);
+      remove.textContent = "×";
+      removeCell.append(remove);
+      row.append(tagCell, removeCell);
+      registerOptions.append(row);
     }
     formatEl.value = config().format;
     offsetEl.value = config().offset.toString(16).toUpperCase();
@@ -100,7 +119,7 @@ export function createProgram({ getEditor }) {
       registerHighlightTimers.clear();
       registerValues.replaceChildren();
       renderedRegisters = key;
-      if (!tags.length) registerValues.textContent = "Select register tags in Program setup.";
+      if (!tags.length) registerValues.textContent = "Add register tracking in Program setup.";
       for (const tag of tags) {
         const row = document.createElement("div");
         row.className = "program-register-row";
@@ -214,8 +233,26 @@ export function createProgram({ getEditor }) {
     updatePc();
   }
   for (const key of Object.keys(fields)) selectEls[key].addEventListener("change", () => setConfig({ [key]: selectEls[key].value || null }));
-  registerOptions.addEventListener("change", () => {
-    setConfig({ registers: [...registerOptions.querySelectorAll("input:checked")].map((input) => input.value) });
+  addRegister.addEventListener("click", () => {
+    const selected = config().registers.filter((id) => component(id)?.t === "tag");
+    const available = components().find((item) => item.t === "tag" && !selected.includes(item.id));
+    if (available) setConfig({ registers: [...selected, available.id] });
+  });
+  registerOptions.addEventListener("change", (event) => {
+    const select = event.target.closest("select[data-index]");
+    if (!select) return;
+    const registers = config().registers.filter((id) => component(id)?.t === "tag");
+    const index = Number(select.dataset.index);
+    if (component(select.value)?.t !== "tag" || registers.includes(select.value)) return;
+    registers[index] = select.value;
+    setConfig({ registers });
+  });
+  registerOptions.addEventListener("click", (event) => {
+    const remove = event.target.closest("button[data-index]");
+    if (!remove) return;
+    const registers = config().registers.filter((id) => component(id)?.t === "tag");
+    registers.splice(Number(remove.dataset.index), 1);
+    setConfig({ registers });
   });
   formatEl.addEventListener("change", () => { renderedPage = ""; setConfig({ format: formatEl.value }); });
   function setOffset(value) {
