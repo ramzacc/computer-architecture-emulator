@@ -187,7 +187,6 @@
         </div>
         <div class="isa-editor">
           <div class="isa-actions"><button id="isa-add" type="button">+ Instruction</button><button id="isa-save" type="button">Save ISA</button><span id="isa-note" class="hint" role="status"></span></div>
-          <p class="hint">Click bits to cycle 0 → 1 → empty. Select a Register or Value to fill empty bits; select it again to stop. Click an operand bit to remove it. First assigned bit is highest.</p>
           <div id="isa-rules" class="isa-rules"></div>
         </div>
       </div>
@@ -227,7 +226,6 @@
           <section class="program-code" aria-labelledby="program-code-title">
             <div class="program-section-header"><h2 id="program-code-title">Assembly</h2></div>
             <div id="program-assembly" class="program-assembly">
-              <p class="hint">Each instruction uses one address; blank and comment lines are skipped · R7 is a Register · 5, 0x5, 0b101 are Values · ; starts a comment.</p>
               <div class="program-source-wrap"><div id="program-gutter" class="program-gutter" aria-label="Assembly addresses and breakpoints"></div><div id="program-current-line" class="program-current-line" aria-hidden="true"></div><div class="program-source-pane"><pre id="program-syntax" class="program-syntax" aria-hidden="true"></pre><textarea id="program-source" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Assembly source" placeholder="Link a ROM in Program setup, then write assembly here."></textarea></div></div>
               <div class="program-assembly-actions"><button id="program-assemble" type="button">Assemble to ROM</button><button id="program-reload-assembly" type="button">Disassemble ROM</button><span id="program-assembly-note" class="hint"></span></div>
             </div>
