@@ -1,0 +1,1 @@
+{"components":[["constant",-6,0,2,4,10,0,"Source"],["portal",1,0,0,4,"DATA"],["portal",9,0,2,4,"DATA"],["output",13,0,0,4,0,"Sink"]],"wires":[["H",-1,1,4,2],["H",12,1,4]],"junctions":[]}

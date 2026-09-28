@@ -154,13 +154,13 @@ test("portals with different labels observe separate buses", () => {
   assert.equal(addComponent(board, { id: "another", t: "portal", x: 20, y: 0, size: 1, label: "DATA" }), true);
 });
 
-test("duplicate portal labels survive saving without joining their buses", () => {
+test("duplicate portal labels survive saving and join their buses", () => {
   const board = createBoard();
   for (const component of [
     { id: "high", t: "constant", x: -3, y: 0, r: 2, value: 1 },
     { id: "a", t: "portal", x: 1, y: 0, label: "A" },
     { id: "b", t: "portal", x: 9, y: 0, r: 2, label: "B" },
-    { id: "low", t: "constant", x: 13, y: 0, r: 0, value: 0 },
+    { id: "sink", t: "output", x: 13, y: 0, r: 0 },
   ]) assert.equal(addComponent(board, component), true);
   assert.equal(addWireEdge(board, { o: "H", x: -1, y: 1 }), true);
   assert.equal(addWireEdge(board, { o: "H", x: 0, y: 1 }), true);
@@ -169,7 +169,59 @@ test("duplicate portal labels survive saving without joining their buses", () =>
   board.components[2].label = "A";
   const restored = parseDocument(serialize(board)).board;
   assert.deepEqual(restored.components.filter((component) => component.t === "portal").map((component) => component.label), ["A", "A"]);
-  assert.equal(computeNets(restored).size, 2);
+  assert.equal(computeNets(restored).size, 1);
+  assert.equal(evaluateBoard(restored).states.get("c4").value, 1);
+});
+
+test("matching portals join distant wires and survive a document round trip", () => {
+  const document = readFileSync(new URL("../fixtures/portal-bus.json", import.meta.url), "utf8");
+  const board = parseDocument(document).board;
+  const result = evaluateBoard(board);
+  assert.equal(result.states.get("c4").value, 10);
+  assert.equal(result.states.get("c2").inputs[0], 10);
+  assert.equal(result.states.get("c3").inputs[0], 10);
+  assert.equal(result.nets.size, 1);
+  assert.equal(netInfoByEdgeKey(board).get("H:12,1").value, 10);
+  board.components[0].value = 0;
+  assert.equal(evaluateBoard(board).states.get("c4").value, 0);
+  board.components[0].value = 10;
+  assert.equal(evaluateBoard(parseDocument(serialize(board)).board).states.get("c4").value, 10);
+});
+
+test("a portal bus fans out, while other labels remain isolated", () => {
+  const board = parseDocument(readFileSync(new URL("../fixtures/portal-bus.json", import.meta.url), "utf8")).board;
+  for (const component of [
+    { id: "third", t: "portal", x: 20, y: 0, r: 2, size: 4, label: "DATA" },
+    { id: "branch", t: "output", x: 24, y: 0, size: 4, label: "Branch" },
+    { id: "other", t: "portal", x: 30, y: 0, r: 2, size: 4, label: "OTHER" },
+    { id: "isolated", t: "output", x: 34, y: 0, size: 4, label: "Isolated" },
+  ]) assert.equal(addComponent(board, component), true);
+  for (const x of [23, 33]) assert.equal(addWireEdge(board, { o: "H", x, y: 1, size: 4 }), true);
+  const result = evaluateBoard(board);
+  assert.equal(result.states.get("branch").value, 10);
+  assert.equal(result.states.get("isolated").value, 0);
+  assert.equal(result.nets.size, 2);
+});
+
+test("portals reject conflicting drivers and mismatched connected bus widths", () => {
+  const board = parseDocument(readFileSync(new URL("../fixtures/portal-bus.json", import.meta.url), "utf8")).board;
+  assert.equal(addComponent(board, { id: "low", t: "constant", x: 15, y: 4, r: 2, size: 4, value: 0 }), true);
+  assert.equal(addWireEdge(board, { o: "H", x: 20, y: 5, size: 4 }), true);
+  assert.equal(addComponent(board, { id: "other", t: "portal", x: 21, y: 4, size: 4, label: "DATA" }), false);
+
+  const mismatch = createBoard();
+  assert.equal(addComponent(mismatch, { id: "a", t: "portal", x: 0, y: 0, size: 4, label: "BUS" }), true);
+  assert.equal(addComponent(mismatch, { id: "b", t: "portal", x: 8, y: 0, size: 8, label: "BUS" }), true);
+  assert.equal(addWireEdge(mismatch, { o: "H", x: -1, y: 1, size: 4 }), true);
+  assert.equal(addWireEdge(mismatch, { o: "H", x: 7, y: 1, size: 8 }), false);
+
+  const invalidWidth = JSON.parse(serialize(mismatch));
+  invalidWidth.wires.push(["H", 7, 1, 8]);
+  assert.throws(() => parseDocument(JSON.stringify(invalidWidth)), /Bus size mismatch/);
+
+  const invalidDrivers = JSON.parse(readFileSync(new URL("../fixtures/portal-bus.json", import.meta.url), "utf8"));
+  invalidDrivers.components[3] = ["constant", 13, 0, 0, 4, 0, 0, "Low"];
+  assert.throws(() => parseDocument(JSON.stringify(invalidDrivers)), /Short circuit/);
 });
 
 test("a button drives its one output HIGH only during an evaluation with its input pressed", () => {
