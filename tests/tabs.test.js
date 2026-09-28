@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createTabs } from "./public/tabs.js";
+import { createTabs } from "../public/tabs.js";
 
 function tabList(names) {
   const panels = new Map();

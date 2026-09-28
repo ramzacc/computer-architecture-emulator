@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { VALUE_FORMATS, formatValue, parseValue, validValueFormat } from "./public/value-format.js";
+import { VALUE_FORMATS, formatValue, parseValue, validValueFormat } from "../public/value-format.js";
 
 test("the three supported value formats are decimal, binary, and hex", () => {
   assert.deepEqual(VALUE_FORMATS, ["decimal", "binary", "hex"]);

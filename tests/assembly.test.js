@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, normalizeIsa, assignIsaCell, sourceLineAddresses } from "./public/assembly.js";
+import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, normalizeIsa, assignIsaCell, sourceLineAddresses } from "../public/assembly.js";
 
 const sampleIsa = `NOT | op 7-6=00 | address 5-4-3 | address 2-1-0
 ADD | op 7-6=01 | address 5-4-3 | address 2-1-0

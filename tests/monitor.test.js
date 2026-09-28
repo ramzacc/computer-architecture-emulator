@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createMonitor, dropPlacement, insertionIndex } from "./public/monitor.js";
-import { addComponent, createBoard, evaluateBoard, parseDocument, serialize } from "./public/model.js";
+import { createMonitor, dropPlacement, insertionIndex } from "../public/monitor.js";
+import { addComponent, createBoard, evaluateBoard, parseDocument, serialize } from "../public/model.js";
 
 function matchSimple(el, selector) {
   let rest = selector;

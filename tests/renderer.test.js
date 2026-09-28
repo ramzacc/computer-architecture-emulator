@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRenderer } from "./public/renderer.js";
-import { createBoard, edgeKey } from "./public/model.js";
-import { spec } from "./public/components.js";
+import { createRenderer } from "../public/renderer.js";
+import { createBoard, edgeKey } from "../public/model.js";
+import { spec } from "../public/components.js";
 
 test("ROM canvas art shows its label safely", () => {
   const { componentArt } = createRenderer(null, () => null, () => null, () => null, () => null);
