@@ -822,7 +822,7 @@ export function parseDocument(text, depth = 0) {
       if (!Array.isArray(raw) || raw.length !== 3) throw new Error(`${path} must be [component index, format, new row].`);
       const [componentIndex, format, newRow] = raw;
       const component = board.components[componentIndex];
-      if (!Number.isInteger(componentIndex) || !component || !["tag", "button", "switch", "clock", "input", "output"].includes(component.t) || seen.has(componentIndex))
+      if (!Number.isInteger(componentIndex) || !component || !["tag", "button", "switch", "clock", "input", "output", "register"].includes(component.t) || seen.has(componentIndex))
         throw new Error(`${path} must refer to a unique monitorable component.`);
       if (!validValueFormat(format)) throw new Error(`${path} has an invalid value format.`);
       if (typeof newRow !== "boolean") throw new Error(`${path} new row must be a boolean.`);
@@ -844,9 +844,9 @@ export function parseDocument(text, depth = 0) {
       program[key] = index === null ? null : board.components[index].id;
     }
     if (!Array.isArray(config.registers) || config.registers.some((index) =>
-      !Number.isInteger(index) || board.components[index]?.t !== "tag") ||
+      !Number.isInteger(index) || board.components[index]?.t !== "register") ||
       new Set(config.registers).size !== config.registers.length)
-      throw new Error("Document.program.registers must refer to unique tags.");
+      throw new Error("Document.program.registers must refer to unique registers.");
     if (!Number.isInteger(config.offset) || config.offset < 0 || config.offset > 65535)
       throw new Error("Document.program.offset must be an address from 0 to 65535.");
     if (!["hex", "binary"].includes(config.format)) throw new Error("Document.program.format must be hex or binary.");

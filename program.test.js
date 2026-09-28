@@ -12,7 +12,7 @@ test('program bindings survive save and load and reject invalid signal types', (
   const step = editor.place('button', 16, 0);
   const resetPc = editor.place('button', 20, 0);
   const resetRegisters = editor.place('button', 24, 0);
-  const register = editor.place('tag', 28, 0);
+  const register = editor.place('register', 28, 0);
   const config = { rom: rom.id, pc: pc.id, run: run.id, step: step.id,
     resetPc: resetPc.id, resetRegisters: resetRegisters.id, registers: [register.id], offset: 64, format: 'binary' };
   assert.equal(editor.setProgramConfig(config), true);
@@ -24,7 +24,11 @@ test('program bindings survive save and load and reject invalid signal types', (
   assert.throws(() => parseDocument(JSON.stringify(document)), /program.step/);
   document.program.step = 3;
   document.program.registers = [1, 1];
-  assert.throws(() => parseDocument(JSON.stringify(document)), /unique tags/);
+  assert.throws(() => parseDocument(JSON.stringify(document)), /unique registers/);
+  document.program.registers = [6];
+  document.components.push(['tag', 36, 0, 0, 1, 'Other tag']);
+  document.program.registers = [7];
+  assert.throws(() => parseDocument(JSON.stringify(document)), /unique registers/);
   document.program.registers = [6];
   document.components.push(['switch', 32, 0, 0, 0, 'Other switch']);
   document.program.run = 7;
