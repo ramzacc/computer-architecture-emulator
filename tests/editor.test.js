@@ -516,6 +516,18 @@ test('portal labels can match and widths edit independently', () => {
   assert.deepEqual(parseDocument(serialize(editor.board)).board.components.map((component) => component.label), ['DATA', 'DATA']);
 });
 
+test('editing a wired portal label disconnects and reconnects its bus', () => {
+  const { editor } = setup();
+  editor.importText(readFileSync(new URL('../fixtures/portal-bus.json', import.meta.url), 'utf8'));
+  assert.equal(editor.evaluation.states.get('c4').value, 10);
+  assert.equal(editor.setLabel('c3', 'OTHER'), true);
+  assert.equal(editor.evaluation.states.get('c4').value, 0);
+  assert.equal(editor.setLabel('c3', 'DATA'), true);
+  assert.equal(editor.evaluation.states.get('c4').value, 10);
+  assert.equal(editor.undo(), true);
+  assert.equal(editor.evaluation.states.get('c4').value, 0);
+});
+
 test('pasting a portal keeps its label', () => {
   const { editor } = setup();
   const portal = editor.place('portal', 0, 0);

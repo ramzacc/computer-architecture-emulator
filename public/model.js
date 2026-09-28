@@ -408,14 +408,29 @@ function buildUnionFind(board) {
       union(edgeKey(pair[0]), edgeKey(pair[1]));
     } else for (const edge of edges.slice(1)) union(edgeKey(edges[0]), edgeKey(edge));
   }
-  return { parent, find, atPoint };
+  // Portals connect their attached wire nets by label, like an invisible wire.
+  // Unwired portals do not define a net and may be resized independently.
+  const portals = new Map();
+  let portalWidthMismatch = false;
+  for (const component of board.components) {
+    if (component.t !== "portal") continue;
+    const pin = pinsFor(component)[0];
+    const edge = atPoint.get(`${pin.px},${pin.py}`)?.[0];
+    if (!edge) continue;
+    const previous = portals.get(component.label);
+    if (previous) {
+      if (previous.size !== pin.size) portalWidthMismatch = true;
+      else union(previous.edge, edgeKey(edge));
+    } else portals.set(component.label, { edge: edgeKey(edge), size: pin.size });
+  }
+  return { parent, find, atPoint, portalWidthMismatch };
 }
 
 // Solve the board to a fixed point: nets carry a value, each component's
 // output (or LED) follows from its inputs. Oscillating feedback is reported
 // to callers so edits can reject it.
 export function evaluateBoard(board, pressedButtons = new Set(), highClocks = new Set(), registerValues = new Map(), ramValues = new Map(), injectedInputs = new Map(), depth = 0, path = "") {
-  const { find, atPoint } = buildUnionFind(board);
+  const { find, atPoint, portalWidthMismatch } = buildUnionFind(board);
   const nets = new Map();
   for (const edge of board.wires.values()) {
     const root = find(edgeKey(edge));
@@ -566,14 +581,15 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     net.value = values.get(net.id) ?? 0;
     net.on = net.value !== 0;
   }
-  return { nets, states, settled };
+  return { nets, states, settled, portalWidthMismatch };
 }
 
 // Each splitter branch is electrically the corresponding bit of its bus.
 // Compare actual output drivers after evaluation, including drivers connected
 // through splitters; a driven zero must count just as much as a driven one.
 export function shortCircuitError(board, pressedButtons, highClocks, registerValues, ramValues) {
-  const { nets, states, settled } = evaluateBoard(board, pressedButtons, highClocks, registerValues, ramValues);
+  const { nets, states, settled, portalWidthMismatch } = evaluateBoard(board, pressedButtons, highClocks, registerValues, ramValues);
+  if (portalWidthMismatch) return "Bus size mismatch.";
   if (!settled) return "Short circuit: feedback loop does not settle.";
   const parent = new Map();
   const find = (key) => {
