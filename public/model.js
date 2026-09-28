@@ -1,6 +1,7 @@
 import { addressWidth, bitWidth, channelCount, DEFAULT_CLOCK_FREQUENCY, dimsOf, documentFields, modulePorts, pinsFor, spec, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRam, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { VALUE_FORMATS, validValueFormat } from "./value-format.js";
 import { normalizeIsa, parseIsa } from "./assembly.js";
+import { validProgramSource } from "./program-source.js";
 
 export function createBoard() {
   return { components: [], wires: new Map(), junctions: new Set(), monitor: { ids: [], formats: new Map(), breaks: new Set() }, program: null };
@@ -691,6 +692,8 @@ export function serialize(board) {
     format: board.program.format ?? "hex",
     ...(board.program.isa && Object.keys(board.program.isa).length ? { isa: Object.entries(board.program.isa)
       .filter(([id]) => componentIndexes.has(id)).map(([id, source]) => [componentIndexes.get(id), source]) } : {}),
+    ...(board.program.sources && Object.keys(board.program.sources).length ? { sources: Object.entries(board.program.sources)
+      .filter(([id]) => componentIndexes.has(id)).map(([id, source]) => [componentIndexes.get(id), source]) } : {}),
   };
   return JSON.stringify({
     components: board.components.map((component) => {
@@ -848,7 +851,7 @@ function parseDocumentData(data, depth) {
   }
   if (data.program !== undefined) {
     const config = data.program;
-    object(config, "Document.program", ["rom", "pc", "run", "step", "resetPc", "resetRegisters", "registers", "offset", "format", "isa"]);
+    object(config, "Document.program", ["rom", "pc", "run", "step", "resetPc", "resetRegisters", "registers", "offset", "format", "isa", "sources"]);
     const types = { rom: ["rom"], pc: ["tag"], run: ["clock"], step: ["button"], resetPc: ["button"], resetRegisters: ["button"] };
     const program = {};
     for (const [key, allowed] of Object.entries(types)) {
@@ -878,8 +881,21 @@ function parseDocumentData(data, depth) {
         isa[rom.id] = source;
       }
     }
+    const sources = {};
+    if (config.sources !== undefined) {
+      if (!Array.isArray(config.sources)) throw new Error("Document.program.sources must be an array.");
+      for (const entry of config.sources) {
+        if (!Array.isArray(entry) || entry.length !== 2 || !Number.isInteger(entry[0]) ||
+            board.components[entry[0]]?.t !== "rom")
+          throw new Error("Document.program.sources must contain ROM indexes and annotations.");
+        const rom = board.components[entry[0]];
+        if (Object.hasOwn(sources, rom.id) || !validProgramSource(entry[1], addressWidth(rom)))
+          throw new Error("Document.program.sources contains invalid annotations or a duplicate ROM.");
+        sources[rom.id] = entry[1];
+      }
+    }
     board.program = { ...program, registers: config.registers.map((index) => board.components[index].id), offset: config.offset, format: config.format,
-      ...(Object.keys(isa).length ? { isa } : {}) };
+      ...(Object.keys(isa).length ? { isa } : {}), ...(Object.keys(sources).length ? { sources } : {}) };
   }
   const blockedEdges = new Set();
   const pinSizes = new Map();

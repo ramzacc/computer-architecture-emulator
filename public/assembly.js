@@ -258,7 +258,7 @@ function decode(rule, value) {
   return `${rule.keyword}${operands.length ? ` ${operands.join(" ")}` : ""}`;
 }
 
-export function disassemble(data, wordBits, isa = "") {
+export function disassemble(data, wordBits, isa = "", length = 0) {
   const rules = parseIsa(isa, wordBits);
   const lines = [];
   let next = 0;
@@ -276,5 +276,6 @@ export function disassemble(data, wordBits, isa = "") {
       ?? `.word 0x${value.toString(16).toUpperCase().padStart(Math.ceil(wordBits / 4), "0")}`);
     next = address + 1;
   }
+  while (next < length) { lines.push(`.word 0x${"0".repeat(Math.ceil(wordBits / 4))}`); next++; }
   return lines.join("\n");
 }

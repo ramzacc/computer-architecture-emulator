@@ -1,6 +1,7 @@
 import { addressWidth, bitWidth } from "./components.js";
 import { formatValue } from "./value-format.js";
 import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, assignIsaCell, sourceLineAddresses } from "./assembly.js";
+import { restoreProgramSource } from "./program-source.js";
 
 const fields = { rom: "rom", pc: "tag", run: "clock", step: "button", resetPc: "button", resetRegisters: "button" };
 const names = { rom: "Program ROM", pc: "PC", run: "Main Clock", step: "Manual Clock", resetPc: "Reset PC", resetRegisters: "Reset Registers" };
@@ -66,7 +67,12 @@ export function createProgram({ getEditor }) {
   }
   function activeRom() { const item = component(config().rom); return item?.t === "rom" ? item : null; }
   function savedIsa(rom) { return config().isa?.[rom.id] ?? ""; }
-  function romKey(rom) { return JSON.stringify([rom.id, bitWidth(rom), addressWidth(rom), rom.data ?? [], savedIsa(rom)]); }
+  function romKey(rom) { return JSON.stringify([rom.id, bitWidth(rom), addressWidth(rom), rom.data ?? [], savedIsa(rom), config().sources?.[rom.id]]); }
+  function savedSource(rom) {
+    const source = config().sources?.[rom.id];
+    return source ? restoreProgramSource(source, rom.data ?? [], addressWidth(rom), bitWidth(rom), savedIsa(rom))
+      : disassemble(rom.data ?? [], bitWidth(rom), savedIsa(rom));
+  }
   function isaRom() { return activeRom(); }
   function isaDraft(rom) {
     let draft = isaDrafts.get(rom.id);
@@ -164,7 +170,7 @@ export function createProgram({ getEditor }) {
     if (!rom) return null;
     let draft = drafts.get(rom.id);
     if (!draft) {
-      draft = { text: disassemble(rom.data ?? [], bitWidth(rom), savedIsa(rom)), key: romKey(rom), dirty: false };
+      draft = { text: savedSource(rom), key: romKey(rom), dirty: false };
       drafts.set(rom.id, draft);
     }
     return draft;
@@ -185,7 +191,7 @@ export function createProgram({ getEditor }) {
     }
     const key = romKey(rom);
     if (!draft.dirty && draft.key !== key) {
-      draft.text = disassemble(rom.data ?? [], bitWidth(rom), savedIsa(rom));
+      draft.text = savedSource(rom);
       draft.key = key;
     }
     if (sourceEl.dataset.rom !== rom.id || sourceEl.value !== draft.text) sourceEl.value = draft.text;
@@ -507,9 +513,8 @@ export function createProgram({ getEditor }) {
     const draft = assemblyDraft(rom);
     try {
       const entries = assemble(draft.text, addressWidth(rom), bitWidth(rom), savedIsa(rom));
-      if (JSON.stringify(entries) !== JSON.stringify(rom.data ?? [])) {
-        if (!getEditor().setRomData(rom.id, entries)) throw new Error("ROM write could not be applied to the circuit.");
-      }
+      if (!getEditor().saveProgramSource(rom.id, entries, draft.text))
+        throw new Error("ROM write could not be applied to the circuit.");
       draft.key = romKey(rom);
       draft.dirty = false;
       render();

@@ -10,6 +10,8 @@ In **Program**, each physical source line maps to one ROM address, starting at 0
 
 The Program gutter shows each line’s ROM address and highlights the line selected by the PC. The linked run clock locks source and ROM writing while enabled. Saved ISAs from older text rules are converted when documents load.
 
+Saving Program source keeps the ROM words authoritative. The document stores only source lines that differ from disassembly, blank and comment-only lines, and the program length needed to display trailing zero words. If ROM contents or ISA rules change, a saved line is shown only while it still assembles to the ROM word at that address.
+
 ### Demo computer ISA
 
 The bundled 8-bit computer has four ISA cards preloaded. Bits 7–6 select the operation, bits 5–3 select RA, and bits 2–0 select RB. Both operands are **Register** fields, with bit order descending within each field. The result is written to RB.
