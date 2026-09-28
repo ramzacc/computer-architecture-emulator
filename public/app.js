@@ -1649,32 +1649,47 @@ btnPan.addEventListener("click", () => {
 
 /* ---------- Persistence ---------- */
 
-function loadFromText(text) {
-  try {
-    // Parse before changing any selection or visible state.
-    const { board } = parseDocument(text);
-    romTargetId = null;
-    layoutTargetId = null;
-    romDrafts.clear();
-    romPageStart = 0;
-    romRenderedKey = null;
-    romJumpEl.value = "";
-    romJumpEl.dataset.valid = "";
-    romStatus("");
-    monitor.reset();
-    setSelection([]);
-    placingType = null;
-    clearWireGesture();
-    mode = MODE.PAN;
-    editor.replaceBoard(board);
-    renderPalette();
-    syncPlacingCursor();
-    resetView();
-    return true;
-  } catch (error) {
-    alert(`Invalid document: ${error.message}`);
-    return false;
-  }
+function loadBoard(board) {
+  romTargetId = null;
+  layoutTargetId = null;
+  romDrafts.clear();
+  romPageStart = 0;
+  romRenderedKey = null;
+  romJumpEl.value = "";
+  romJumpEl.dataset.valid = "";
+  romStatus("");
+  monitor.reset();
+  setSelection([]);
+  placingType = null;
+  clearWireGesture();
+  mode = MODE.PAN;
+  editor.replaceBoard(board);
+  renderPalette();
+  syncPlacingCursor();
+  resetView();
+}
+
+function parseImport(text) {
+  return new Promise((resolve, reject) => {
+    let worker;
+    try { worker = new Worker(new URL("./import-worker.js", import.meta.url), { type: "module" }); }
+    catch (error) { reject(error); return; }
+    worker.onmessage = ({ data }) => {
+      worker.terminate();
+      if (data.error) reject(new Error(data.error));
+      else resolve(data.board);
+    };
+    worker.onerror = (event) => {
+      worker.terminate();
+      reject(new Error(event.message || "The document could not be validated."));
+    };
+    worker.onmessageerror = () => {
+      worker.terminate();
+      reject(new Error("The validated document could not be opened."));
+    };
+    try { worker.postMessage(text); }
+    catch (error) { worker.terminate(); reject(error); }
+  });
 }
 
 document.getElementById("btn-download").addEventListener("click", () => {
@@ -1687,13 +1702,49 @@ document.getElementById("btn-download").addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
-document.getElementById("file-input").addEventListener("change", (e) => {
-  const file = e.target.files[0];
+const fileInputEl = document.getElementById("file-input");
+const importScreenEl = document.getElementById("import-screen");
+const importDetailEl = document.getElementById("import-detail");
+const importNameEl = document.getElementById("import-name");
+const importErrorEl = document.getElementById("import-error");
+const headerEl = document.querySelector(".view-header");
+const mainEl = document.querySelector("main");
+let importing = false;
+
+fileInputEl.addEventListener("change", async (event) => {
+  const file = event.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => loadFromText(String(reader.result));
-  reader.readAsText(file);
-  e.target.value = "";
+  event.target.value = "";
+  if (importing) return;
+  importing = true;
+  fileInputEl.disabled = true;
+  importErrorEl.hidden = true;
+  importErrorEl.textContent = "";
+  importDetailEl.textContent = "Reading file…";
+  importNameEl.textContent = file.name;
+  importScreenEl.hidden = false;
+  headerEl.inert = true;
+  mainEl.inert = true;
+  importScreenEl.focus();
+  try {
+    const text = await file.text();
+    importDetailEl.textContent = "Validating document…";
+    const board = await parseImport(text);
+    importDetailEl.textContent = "Opening circuit…";
+    // Let the updated progress message paint before evaluation and rendering.
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    loadBoard(board);
+  } catch (error) {
+    importErrorEl.textContent = `Could not import ${file.name}: ${error.message}`;
+    importErrorEl.hidden = false;
+  } finally {
+    importScreenEl.hidden = true;
+    headerEl.inert = false;
+    mainEl.inert = false;
+    fileInputEl.disabled = false;
+    importing = false;
+    fileInputEl.focus();
+  }
 });
 
 /* ---------- Seeds ---------- */
