@@ -185,6 +185,16 @@ export function isaGrid(source, wordBits) {
 
 export function serializeIsaGrid(rules) { return JSON.stringify({ version: 2, rules }); }
 
+export function assignIsaCell(rule, selection, bit) {
+  const operandIndex = /^operand:(\d+)$/.exec(selection);
+  if (!Number.isInteger(bit) || bit < 0 || bit >= rule.cells.length ||
+      !(["0", "1", "clear"].includes(selection) || (operandIndex && rule.operands[Number(operandIndex[1])])))
+    throw new Error("Invalid ISA cell selection.");
+  for (const operand of rule.operands) operand.bits = operand.bits.filter((item) => item !== bit);
+  rule.cells[bit] = selection === "clear" ? null : operandIndex ? Number(operandIndex[1]) : selection;
+  if (operandIndex) rule.operands[Number(operandIndex[1])].bits.push(bit);
+}
+
 function sourceOperand(token) {
   const register = /^R(0x[0-9a-f]+|0b[01]+|[0-9]+)$/i.exec(token);
   if (register) return { kind: "register", value: number(register[1]) };

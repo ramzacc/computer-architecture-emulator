@@ -1,10 +1,11 @@
 import { addressWidth, bitWidth } from "./components.js";
 import { formatValue } from "./value-format.js";
-import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid } from "./assembly.js";
+import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, assignIsaCell } from "./assembly.js";
 
 const fields = { rom: "rom", pc: "tag", run: "clock", step: "button", resetPc: "button", resetRegisters: "button" };
 const names = { rom: "Program ROM", pc: "PC", run: "Main Clock", step: "Manual Clock", resetPc: "Reset PC", resetRegisters: "Reset Registers" };
 const $ = (id) => document.getElementById(`program-${id}`);
+const operandName = (index) => index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
 
 export function createProgram({ getEditor }) {
   const selectEls = Object.fromEntries(Object.keys(fields).map((key) => [key, $(key === "resetPc" ? "reset-pc" : key === "resetRegisters" ? "reset-registers" : key)]));
@@ -110,7 +111,7 @@ export function createProgram({ getEditor }) {
       const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "Remove"; remove.dataset.action = "remove-rule";
       head.append(keyword, remove); card.append(head);
       const palette = document.createElement("div"); palette.className = "isa-palette";
-      for (const [value, label] of [["0", "0"], ["1", "1"], ["clear", "Erase"], ...rule.operands.map((operand, index) => [String(index), `${operand.kind === "register" ? "Register" : "Value"} ${index + 1}`])]) {
+      for (const [value, label] of [["0", "0"], ["1", "1"], ["clear", "Erase"], ...rule.operands.map((operand, index) => [`operand:${index}`, `${operand.kind === "register" ? "Register" : "Value"} ${operandName(index)}`])]) {
         const button = document.createElement("button"); button.type = "button"; button.textContent = label;
         button.dataset.action = "select"; button.dataset.value = value;
         button.classList.toggle("selected", (draft.selected[ruleIndex] ?? "0") === value);
@@ -124,9 +125,9 @@ export function createProgram({ getEditor }) {
         const cell = rule.cells[bit]; const button = document.createElement("button"); button.type = "button";
         button.dataset.action = "cell"; button.dataset.bit = String(bit);
         const position = typeof cell === "number" ? rule.operands[cell]?.bits.indexOf(bit) ?? -1 : -1;
-        const label = cell === null ? "·" : typeof cell === "number" ? `${cell + 1}:${position + 1}` : cell;
+        const label = cell === null ? "·" : typeof cell === "number" ? `${operandName(cell)}${rule.operands[cell].bits.length - position - 1}` : cell;
         button.innerHTML = `<small>${bit}</small><strong>${label}</strong>`;
-        button.setAttribute("aria-label", `Bit ${bit}: ${typeof cell === "number" ? `${rule.operands[cell]?.kind} ${cell + 1}, order ${position + 1}` : cell ?? "unassigned"}`);
+        button.setAttribute("aria-label", `Bit ${bit}: ${typeof cell === "number" ? `${rule.operands[cell]?.kind} ${operandName(cell)} bit ${rule.operands[cell].bits.length - position - 1}` : cell ?? "unassigned"}`);
         grid.append(button);
       }
       card.append(grid);
@@ -136,7 +137,7 @@ export function createProgram({ getEditor }) {
         kind.replaceChildren(new Option("Register", "register"), new Option("Value", "value")); kind.value = operand.kind;
         const order = document.createElement("span"); order.className = "isa-order";
         operand.bits.forEach((bit, index) => {
-          const chip = document.createElement("span"); chip.textContent = `${bit}`;
+          const chip = document.createElement("span"); chip.textContent = `${operandName(operandIndex)}${operand.bits.length - index - 1} → bit ${bit}`;
           const left = document.createElement("button"); left.type = "button"; left.textContent = "←"; left.dataset.action = "move-left"; left.dataset.index = String(index); left.disabled = index === 0;
           const right = document.createElement("button"); right.type = "button"; right.textContent = "→"; right.dataset.action = "move-right"; right.dataset.index = String(index); right.disabled = index === operand.bits.length - 1;
           chip.append(left, right); order.append(chip);
@@ -359,12 +360,10 @@ export function createProgram({ getEditor }) {
     if (action === "remove-rule") { draft.rules.splice(ruleIndex, 1); draft.selected.splice(ruleIndex, 1); }
     else if (action === "add-register" || action === "add-value") {
       rule.operands.push({ kind: action === "add-register" ? "register" : "value", bits: [] });
-      draft.selected[ruleIndex] = String(rule.operands.length - 1);
+      draft.selected[ruleIndex] = `operand:${rule.operands.length - 1}`;
     } else if (action === "cell") {
       const bit = Number(button.dataset.bit); const selected = draft.selected[ruleIndex] ?? "0";
-      for (const operand of rule.operands) operand.bits = operand.bits.filter((item) => item !== bit);
-      rule.cells[bit] = selected === "clear" ? null : selected === "0" || selected === "1" ? selected : Number(selected);
-      if (typeof rule.cells[bit] === "number") rule.operands[rule.cells[bit]].bits.push(bit);
+      assignIsaCell(rule, selected, bit);
     } else {
       const operandIndex = Number(button.closest("[data-operand]").dataset.operand);
       if (action === "remove-operand") {

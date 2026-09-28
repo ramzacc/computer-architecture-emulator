@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, normalizeIsa } from "./public/assembly.js";
+import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, normalizeIsa, assignIsaCell } from "./public/assembly.js";
 
 const sampleIsa = `NOT | op 7-6=00 | address 5-4-3 | address 2-1-0
 ADD | op 7-6=01 | address 5-4-3 | address 2-1-0
@@ -87,4 +87,21 @@ test("visual rules reject unassigned operands and inconsistent cells", () => {
   assert.throws(() => parseIsa(empty, 8), /needs bits/);
   const wrong = serializeIsaGrid([{ keyword: "BAD", cells: Array(8).fill("0"), operands: [{ kind: "value", bits: [0] }] }]);
   assert.throws(() => parseIsa(wrong, 8), /disagree/);
+});
+
+test("visual ISA selectors keep literal 0/1 distinct from operands A/B", () => {
+  const rule = { keyword: "AND", cells: Array(8).fill(null), operands: [
+    { kind: "register", bits: [] }, { kind: "register", bits: [] },
+  ] };
+  assignIsaCell(rule, "1", 7);
+  assignIsaCell(rule, "0", 6);
+  for (const bit of [5, 4, 3]) assignIsaCell(rule, "operand:0", bit);
+  for (const bit of [2, 1, 0]) assignIsaCell(rule, "operand:1", bit);
+  assert.deepEqual(rule.cells, [1, 1, 1, 0, 0, 0, "0", "1"]);
+  assert.deepEqual(rule.operands.map((operand) => operand.bits), [[5, 4, 3], [2, 1, 0]]);
+  const isa = serializeIsaGrid([rule]);
+  assert.deepEqual(assemble("AND R2 R7", 8, 8, isa), [[0, 0x97]]);
+  assignIsaCell(rule, "0", 5);
+  assert.deepEqual(rule.operands[0].bits, [4, 3]);
+  assert.equal(rule.cells[5], "0");
 });
