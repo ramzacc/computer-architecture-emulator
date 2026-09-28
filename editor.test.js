@@ -815,7 +815,7 @@ test('a register captures its data on rising edges and holds it on falling edges
   const clock = editor.place('clock', 2, 0);
   const register = editor.place('register', 0, 5);
   assert.equal(register.size, 4);
-  assert.deepEqual(editor.evaluation.states.get(register.id).inputs, [0, 0]);
+  assert.deepEqual(editor.evaluation.states.get(register.id).inputs, [0, 0, 0]);
   assert.equal(editor.rotate(data.id), true);
   assert.equal(editor.resizeComponent(data.id, 4), true);
   assert.equal(editor.setConstantValue(data.id, 9), true);
@@ -836,6 +836,21 @@ test('a register captures its data on rising edges and holds it on falling edges
   assert.equal(editor.evaluation.states.get(register.id).value, 3);
   assert.equal(ctx.saves, saved + 1);
   assert.equal(editor.resizeComponent(register.id, 1), false); // connected four-bit data
+  const reset = editor.place('switch', -3, 4);
+  assert.deepEqual(pinsFor(register).map(({ name, size }) => [name, size]),
+    [['D', 4], ['CLK', 1], ['Q', 4], ['RESET', 1]]);
+  assert.equal(editor.addWire({ o: 'H', x: -2, y: 6 }), true);
+  assert.equal(editor.addWire({ o: 'H', x: -1, y: 6 }), true);
+  assert.equal(editor.toggleSwitch(reset.id), true);
+  assert.equal(editor.evaluation.states.get(register.id).value, 0);
+  assert.equal(editor.tickClock(clock.id), true);
+  assert.equal(editor.tickClock(clock.id), true);
+  assert.equal(editor.evaluation.states.get(register.id).value, 0);
+  assert.equal(editor.toggleSwitch(reset.id), true);
+  assert.equal(editor.evaluation.states.get(register.id).value, 0);
+  assert.equal(editor.tickClock(clock.id), true);
+  assert.equal(editor.tickClock(clock.id), true);
+  assert.equal(editor.evaluation.states.get(register.id).value, 3);
   editor.replaceBoard(parseDocument(serialize(editor.board)).board, { save: false });
   assert.equal(editor.evaluation.states.get(editor.board.components[2].id).value, 0);
 });

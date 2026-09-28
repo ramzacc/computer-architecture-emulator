@@ -37,6 +37,7 @@ export const COMPONENT_TYPES = {
       { x: 1, y: 0, dir: "N", role: "in", name: "D" },
       { x: 3, y: 0, dir: "N", role: "in", name: "CLK", size: 1 },
       { x: 2, y: 3, dir: "S", role: "out", name: "Q" },
+      { x: 0, y: 1, dir: "W", role: "in", name: "RESET", size: 1 },
     ],
   },
   rom: {

@@ -218,6 +218,8 @@ export class BoardEditor {
           const mask = width === 32 ? 0xffffffff : 2 ** width - 1;
           captured.set(id, (((this.registerValues.get(id) ?? 0) + 1) & mask) >>> 0);
         }
+      } else if (inputs[2]) {
+        captured.set(id, 0);
       } else if (captureEdges && (previous?.inputs[1] ?? 0) === 0 && inputs[1] !== 0) {
         captured.set(id, inputs[0] >>> 0);
       }
