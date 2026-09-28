@@ -137,7 +137,8 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
         <circle cx="${active ? 48 : 32}" cy="48" r="7" fill="${active ? partAccent(s) : muted}"/>`;
     } else {
       graphic = `<path d="M20 50 H31 V39 H46 V50 H60" fill="none" stroke="${partAccent(s)}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
-        <circle cx="57" cy="29" r="3" fill="${active ? partAccent(s) : muted}"/>`;
+        <circle cx="57" cy="29" r="3" fill="${active ? partAccent(s) : muted}"/>
+        ${textAt(40, 67, c.enable === false ? "OFF" : "ON", 9, c.enable === false ? muted : partAccent(s), 750)}`;
     }
     const name = s.shape === "switch" ? "SWITCH" : s.shape.toUpperCase();
     return svgWrap(frame(w, h, partAccent(s)) + textAt(40, 23, name, 9, partAccent(s), 750) + graphic +
