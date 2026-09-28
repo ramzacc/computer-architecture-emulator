@@ -20,6 +20,7 @@ test("ROM text uses the component's data width", () => {
   assert.throws(() => parseRomFile("GG", 8, 8), /uninterrupted line/);
   assert.throws(() => parseRomFile("00\n00", 8, 8), /uninterrupted line/);
   assert.throws(() => parseRomFile("\n00", 8, 8), /uninterrupted line/);
+  assert.throws(() => parseRomFile("2", 1, 1), /exceeds 1 bits/);
   assert.throws(() => parseRomFile("000000", 1, 8), /extends beyond/);
   assert.throws(() => parseRomFile("00".repeat(65_537), 16, 8), /extends beyond/);
   assert.throws(() => serializeRomFile([[0xFFFF, 1]], 32, 8), /at most 16 bits/);
