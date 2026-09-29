@@ -137,7 +137,7 @@
         <div id="monitor-signals" class="monitor-signals"></div>
       </section>
       <section class="tab-workspace" aria-label="Signal monitor">
-        <div id="monitor-no-tags" class="tab-empty" hidden>Add a tag, register, button, switch, input, or output on Canvas</div>
+        <div id="monitor-no-tags" class="tab-empty" hidden>Add a tag, register, RAM, button, switch, input, or output on Canvas</div>
         <div class="monitor-workspace">
           <h2>Monitor</h2>
           <div id="monitor-grid" class="monitor-grid" aria-label="Monitored signals and controls">
@@ -233,8 +233,12 @@
               <div class="program-assembly-actions"><button id="program-save-rom" type="button">Save to ROM</button><span id="program-assembly-note" class="hint"></span></div>
             </div>
           </section>
+          <section class="program-ram" aria-labelledby="program-ram-title">
+            <div class="program-ram-heading"><h2 id="program-ram-title">RAM</h2><select id="program-ram-select" aria-label="RAM to view"></select></div>
+            <div id="program-ram-view" class="program-ram-view"></div>
+          </section>
           <section class="program-registers" aria-labelledby="program-registers-title">
-            <div class="program-registers-heading"><h2 id="program-registers-title">Registers</h2><select id="program-format" aria-label="Register display format"><option value="hex">Hex</option><option value="binary">Binary</option></select></div>
+            <div class="program-registers-heading"><h2 id="program-registers-title">Registers</h2><select id="program-format" aria-label="Register display format"><option value="hex">Hex</option><option value="binary">Binary</option><option value="decimal">Decimal</option></select></div>
             <div id="program-register-values" class="program-register-values"></div>
           </section>
         </div>

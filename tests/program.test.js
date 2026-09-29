@@ -35,6 +35,13 @@ test('program bindings survive save and load and reject invalid signal types', (
   assert.throws(() => parseDocument(JSON.stringify(document)), /program.run/);
 });
 
+test('decimal register format survives save and load', () => {
+  const editor = new BoardEditor({ storage: { setItem() {} } });
+  editor.setProgramConfig({ rom: null, pc: null, run: null, step: null,
+    resetPc: null, resetRegisters: null, registers: [], offset: 0, format: 'decimal' });
+  assert.equal(parseDocument(serialize(editor.board)).board.program.format, 'decimal');
+});
+
 test('a ROM accepts one complete word per address at 8, 16, and 32 bits', () => {
   const editor = new BoardEditor({ storage: { setItem() {} } });
   const rom = editor.place('rom', 0, 0);

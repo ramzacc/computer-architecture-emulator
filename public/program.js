@@ -2,6 +2,7 @@ import { addressWidth, bitWidth } from "./components.js";
 import { formatValue } from "./value-format.js";
 import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, assignIsaCell, sourceLineAddresses } from "./assembly.js";
 import { restoreProgramSource } from "./program-source.js";
+import { createRamViewer } from "./ram-view.js";
 
 const fields = { rom: "rom", pc: "tag", run: "clock", step: "button", resetPc: "button", resetRegisters: "button" };
 const names = { rom: "Program ROM", pc: "PC", run: "Main Clock", step: "Manual Clock", resetPc: "Reset PC", resetRegisters: "Reset Registers" };
@@ -16,6 +17,14 @@ export function createProgram({ getEditor }) {
   const registerEmpty = $("register-empty");
   const registerValues = $("register-values");
   const formatEl = $("format");
+  const ramSelectEl = $("ram-select");
+  let ramFormat = "hex";
+  const ramViewer = createRamViewer($("ram-view"), {
+    getEditor,
+    getRam: () => component(ramSelectEl.value),
+    getFormat: () => ramFormat,
+    setFormat: (value) => { ramFormat = value; },
+  });
   const statusEl = $("status");
   const sourceEl = $("source");
   const syntaxContentEl = $("syntax-content");
@@ -331,6 +340,14 @@ export function createProgram({ getEditor }) {
       output.textContent = formatValue(value, bitWidth(register), config().format);
     }
   }
+  function updateRamOptions() {
+    const rams = components().filter((item) => item.t === "ram");
+    const selected = ramSelectEl.value;
+    ramSelectEl.replaceChildren(...rams.map((ram) => new Option(ram.label || "RAM", ram.id)));
+    if (rams.some((ram) => ram.id === selected)) ramSelectEl.value = selected;
+    ramSelectEl.hidden = rams.length < 2;
+    ramViewer.reset();
+  }
   function pcValue() {
     const tag = component(config().pc);
     return tag?.t === "tag" ? getEditor().evaluation.states.get(tag.id)?.value ?? 0 : null;
@@ -423,12 +440,15 @@ export function createProgram({ getEditor }) {
       renderedConfig = configKey;
       renderedRegisters = "";
       updateSelectors();
+      updateRamOptions();
     }
     formatEl.value = config().format;
     updateAssembly();
     updateRegisters();
+    ramViewer.render();
     updatePc();
   }
+  ramSelectEl.addEventListener("change", () => ramViewer.reset());
   for (const key of Object.keys(fields)) selectEls[key].addEventListener("change", () => setConfig({ [key]: selectEls[key].value || null }));
   isaRomEl.addEventListener("change", () => { setConfig({ rom: isaRomEl.value || null }); renderIsa(); });
   isaAddEl.addEventListener("click", () => {
