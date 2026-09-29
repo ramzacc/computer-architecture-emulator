@@ -23,7 +23,7 @@ Each `drafts` value is an array of `[componentIndex, value]` pairs. The index re
 | Field | Value | Meaning |
 | --- | --- | --- |
 | `rom` | Nonzero `[address, word]` pairs | ROM edits pending **Save ROM changes** |
-| `isa` | Array of visual ISA rules | ISA edits pending **Save ISA**, including incomplete rules |
+| `isa` | Array of visual assembly rules | Rule edits pending **Save assembly rules**, including incomplete rules |
 | `assembly` | Source string | Text pending **Save to ROM**, including incomplete source |
 | `breakpoints` | Array of ROM addresses | Program breakpoints |
 

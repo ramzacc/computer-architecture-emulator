@@ -22,7 +22,7 @@
         <button id="tab-module-layout" type="button" role="tab" aria-controls="module-layout-view" aria-selected="false" tabindex="-1">Module Layout</button>
         <button id="tab-monitor" type="button" role="tab" aria-controls="monitor-view" aria-selected="false" tabindex="-1">Monitor</button>
         <button id="tab-rom" type="button" role="tab" aria-controls="rom-view" aria-selected="false" tabindex="-1">ROM</button>
-        <button id="tab-isa" type="button" role="tab" aria-controls="isa-view" aria-selected="false" tabindex="-1">ISA</button>
+        <button id="tab-isa" type="button" role="tab" aria-controls="isa-view" aria-selected="false" tabindex="-1">Assembly</button>
         <button id="tab-program" type="button" role="tab" aria-controls="program-view" aria-selected="false" tabindex="-1">Program</button>
       </div>
       <div id="module-navigation" class="module-navigation" hidden>
@@ -185,11 +185,11 @@
     <section id="isa-view" class="isa-view" role="tabpanel" aria-labelledby="tab-isa" hidden>
       <div class="isa-workspace">
         <div class="isa-heading">
-          <h2>Instruction set</h2>
-          <label>Program ROM <select id="isa-rom" aria-label="ROM for ISA rules and Program"></select></label>
+          <h2>Assembly rules</h2>
+          <label>Program ROM <select id="isa-rom" aria-label="ROM for assembly rules and Program"></select></label>
         </div>
         <div class="isa-editor">
-          <div class="isa-actions"><button id="isa-add" type="button">+ Instruction</button><button id="isa-save" type="button">Save ISA</button><span id="isa-note" class="hint" role="status"></span></div>
+          <div class="isa-actions"><button id="isa-add" type="button">+ Instruction</button><button id="isa-save" type="button">Save assembly rules</button><span id="isa-note" class="hint" role="status"></span></div>
           <div id="isa-rules" class="isa-rules"></div>
         </div>
       </div>
