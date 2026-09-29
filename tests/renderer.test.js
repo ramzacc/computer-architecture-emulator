@@ -20,6 +20,14 @@ test("register canvas art shows its stored output and side reset port", () => {
   assert.match(componentArt(register, spec("register"), 9), /RESET/);
 });
 
+test("subtractor canvas art identifies its operation and borrow ports", () => {
+  const { componentArt } = createRenderer(null, () => null, () => null, () => null, () => null);
+  const art = componentArt({ t: "sub", x: 0, y: 0, r: 0, size: 4 }, spec("sub"));
+  assert.match(art, /SUBTRACTOR/);
+  assert.match(art, /DIFF/);
+  assert.match(art, /BO/);
+});
+
 test("tag canvas art keeps a 4x2 face and escaped label at every pin direction", () => {
   const { componentArt } = createRenderer(null, () => null, () => null, () => null, () => null);
   for (const r of [0, 1, 2, 3]) {

@@ -13,6 +13,7 @@ test("rotation normalizes negatives and fractions into zero through three", () =
 test("known component types expose a spec while unknown names do not", () => {
   assert.equal(spec("led").label, "LED");
   assert.equal(spec("mux").block, "mux");
+  assert.equal(spec("sub").block, "sub");
   for (const type of ["power", "alu", "__proto__", "constructor", ""]) assert.equal(spec(type), null);
 });
 
@@ -43,6 +44,7 @@ test("sizable and document fields agree per component type", () => {
   assert.deepEqual(documentFields("splitter"), ["size", "order", "label"]);
   assert.deepEqual(documentFields("mux"), ["size", "channels", "label"]);
   assert.deepEqual(documentFields("led"), ["label"]);
+  assert.deepEqual(documentFields("sub"), ["size", "label"]);
 });
 
 test("bit and address widths fall back to sane defaults", () => {

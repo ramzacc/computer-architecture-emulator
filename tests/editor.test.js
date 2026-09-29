@@ -1027,8 +1027,10 @@ test('new data-path parts start at four bits and keep control pins fixed while r
   const { editor } = setup();
   const mux = editor.place('mux', 0, 0);
   const adder = editor.place('adder', 8, 0);
+  const sub = editor.place('sub', 16, 0);
   assert.equal(mux.size, 4);
   assert.equal(adder.size, 4);
+  assert.equal(sub.size, 4);
   assert.equal(editor.addWire({ o: 'V', x: 5, y: -1, size: 1 }), true);
   assert.equal(editor.addWire({ o: 'V', x: 3, y: 3, size: 4 }), true);
   assert.equal(editor.resizeComponent(mux.id, 8), false);
