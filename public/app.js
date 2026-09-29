@@ -156,8 +156,10 @@ moduleLayoutOpenEl.addEventListener("click", () => {
   tabs.show("module-layout-view", { focus: true });
 });
 const busStatusEl = document.getElementById("bus-status");
+const circuitErrorEl = document.getElementById("circuit-error");
+let activeIssue = null;
 const { componentArt, renderComponents, renderPins, renderWires, edgeBox, applyBox } =
-  createRenderer(gridEl, () => state, () => editor.evaluation, () => selectedIds, () => selectedWires);
+  createRenderer(gridEl, () => state, () => editor.evaluation, () => selectedIds, () => selectedWires, () => activeIssue);
 
 function setSelection(ids, wires = []) {
   selectedIds = new Set(ids);
@@ -177,10 +179,28 @@ function syncActionButtons() {
   btnDelete.disabled = selectedIds.size === 0 && selectedWires.size === 0;
 }
 
-function busStatus(message, error = false) {
+function busStatus(message, error = false, issue = null) {
   busStatusEl.textContent = message;
   busStatusEl.hidden = !message;
   busStatusEl.classList.toggle("error", error);
+  activeIssue = error ? issue : null;
+  if (error) {
+    const names = (issue?.componentIds ?? []).map((id) => state.components.find((c) => c.id === id))
+      .filter(Boolean).map((c) => c.label?.trim() || spec(c.t)?.label || c.t);
+    const details = names.length ? ` Check ${[...new Set(names)].join(", ")}${issue?.wireKeys?.length ? " and the highlighted net" : ""}.`
+      : issue?.wireKeys?.length ? " Check the highlighted net." : "";
+    circuitErrorEl.textContent = `${message}${details}`;
+  }
+  circuitErrorEl.hidden = !error;
+  renderWires();
+  renderComponents();
+}
+
+function reportRuntimeIssue(issue) {
+  if (activeIssue?.message === issue.message &&
+      activeIssue.componentIds.join(",") === issue.componentIds.join(",") &&
+      activeIssue.wireKeys.join(",") === issue.wireKeys.join(",")) return;
+  busStatus(issue.message, true, issue);
 }
 
 function renderProperties() {
@@ -559,7 +579,7 @@ constantValueEl.addEventListener("change", () => {
   if (value !== null && editor.setConstantValue(selectedId, value)) {
     busStatus(`Constant set to ${value}.`);
   } else {
-    busStatus(`Enter a valid ${component.format ?? "decimal"} whole number from 0 to ${2 ** bitWidth(component) - 1}; the value must not short circuit another output.`, true);
+    if (!activeIssue) busStatus(`Enter a valid ${component.format ?? "decimal"} whole number from 0 to ${2 ** bitWidth(component) - 1}; the value must not short circuit another output.`, true);
     renderProperties();
   }
 });
@@ -1030,7 +1050,7 @@ function openModule(id) {
   clearWireGesture();
   moduleStack.push({ editor, id, name: component.label || "Module" });
   editor = new BoardEditor({ storage: { setItem() {} },
-    onChange: boardChanged });
+    onChange: boardChanged, onRuntimeError: reportRuntimeIssue });
   editor.replaceBoard(board, { save: false });
   state = editor.board;
   romTargetId = null;
@@ -1107,7 +1127,7 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       busStatus("Click to place a corner or endpoint. Shift-click a crossing to join or separate it. Double-click or right-click to finish; Esc cancels.");
     } else if (point.x !== wireStart.x || point.y !== wireStart.y) {
       const result = editor.addWireRoute(wireStart, point, newWireSize);
-      if (result.error) busStatus(result.error, true);
+      if (result.error) busStatus(result.error, true, result.issue);
       else {
         wireStart = point;
         busStatus("Corner placed. Click to continue, or double-click/right-click to finish.");
@@ -1169,17 +1189,17 @@ canvasWrapEl.addEventListener("pointerdown", (e) => {
       const id = `${comp.id}/${faceButton.dataset.faceButton}`;
       pressedButton = { id, pointerId: e.pointerId };
       canvasWrapEl.setPointerCapture(e.pointerId);
-      if (!editor.setButtonPressed(id, true)) busStatus("Button cannot press: conflicting outputs share a net.", true);
+      if (!editor.setButtonPressed(id, true) && !activeIssue) busStatus("Button cannot press: conflicting outputs share a net.", true);
       return;
     }
     const tile = e.target.closest?.(".bit-tile[data-bit]");
     if (comp.t === "input" && tile && !placingType && !e.shiftKey) {
-      if (!editor.toggleInputBit(comp.id, Number(tile.dataset.bit)))
+      if (!editor.toggleInputBit(comp.id, Number(tile.dataset.bit)) && !activeIssue)
         busStatus("Input bit cannot toggle: conflicting outputs share a net.", true);
       return;
     }
     if (comp.t === "switch" && !placingType && !e.shiftKey) {
-      if (!editor.toggleSwitch(comp.id)) busStatus("Switch cannot toggle: conflicting outputs share a net.", true);
+      if (!editor.toggleSwitch(comp.id) && !activeIssue) busStatus("Switch cannot toggle: conflicting outputs share a net.", true);
       return;
     }
     if (comp.t === "clock" && !placingType && !e.shiftKey) {
@@ -1905,6 +1925,7 @@ function boardChanged(board) {
 let editor = new BoardEditor({
   storage: getStorage(),
   onChange: boardChanged,
+  onRuntimeError: reportRuntimeIssue,
   onStorageError: (error) => {
     console.warn("Could not save board:", error);
     queueMicrotask(() => busStatus("Board changed, but browser storage is unavailable. Download a copy to keep it.", true));

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { dimsOf, moduleFaceParts, pinsFor, spec } from "../public/components.js";
-import { addComponent, addWireEdge, buttonsInBoard, canPlaceEdge, clocksInBoard, computeNets, createBoard,
+import { addComponent, addWireEdge, buttonsInBoard, canPlaceEdge, circuitIssue, clocksInBoard, computeNets, createBoard,
   edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netInfoByEdgeKey, parseDocument, resizeNet,
   sanitizeWires, serialize, storedInBoard, wireRoute } from "../public/model.js";
 
@@ -337,6 +337,10 @@ test("a wire cannot join HIGH and LOW drivers, including driven zero bits", () =
   for (const wire of wires) assert.equal(addWireEdge(board, wire), true);
   const last = { o: "H", x: 4, y: 3 };
   assert.match(edgePlacementError(board, last), /Short circuit/);
+  const route = wireRoute(board, { x: 4, y: 3 }, { x: 5, y: 3 }, 1);
+  assert.match(route.error, /Short circuit/);
+  assert.deepEqual(route.issue.componentIds, ["low", "high"]);
+  assert.ok(route.issue.wireKeys.includes("H:3,3"));
   assert.equal(addWireEdge(board, last), false);
   assert.equal(board.wires.size, wires.length);
 
@@ -372,6 +376,12 @@ test("an inverter cannot feed its own output back into its input", () => {
   const last = { o: "H", x: 1, y: 2 };
   // The final segment joins the return path to the output pin.
   assert.match(edgePlacementError(board, last), /feedback loop/);
+  const trial = { ...board, wires: new Map(board.wires) };
+  trial.wires.set(edgeKey(last), last);
+  const issue = circuitIssue(trial);
+  assert.match(issue.message, /feedback loop/);
+  assert.ok(issue.componentIds.includes("inverter"));
+  assert.ok(issue.wireKeys.length > 0);
   assert.equal(addWireEdge(board, last), false);
 });
 

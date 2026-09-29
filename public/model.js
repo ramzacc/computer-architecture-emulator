@@ -261,6 +261,7 @@ export function wireRoute(board, start, end, size) {
   };
 
   let firstError = null;
+  let firstIssue = null;
   const blocked = blockedEdgeKeys(board);
   for (const horizontalFirst of [true, false]) {
     const edges = build(horizontalFirst);
@@ -279,9 +280,12 @@ export function wireRoute(board, start, end, size) {
     for (const key of junctions) trial.junctions.add(key);
     if (!error) error = wireLayoutError(trial, blocked);
     if (!error) return { edges, junctions: [...junctions], error: null };
-    firstError ??= error;
+    if (!firstError) {
+      firstError = error;
+      if (error.startsWith("Short circuit:")) firstIssue = circuitIssue(trial);
+    }
   }
-  return { edges: build(true), error: firstError };
+  return { edges: build(true), error: firstError, issue: firstIssue };
 }
 
 export function sanitizeWires(board) {
@@ -556,6 +560,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
 
   let values = new Map();
   let settled = false;
+  let changingNets = new Set();
   for (let round = 0; round <= board.components.length; round++) {
     const next = new Map();
     const drive = (root, output) => {
@@ -584,6 +589,8 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     if (stable) for (const [root, value] of next) {
       if (values.get(root) !== value) { stable = false; break; }
     }
+    changingNets = new Set([...new Set([...values.keys(), ...next.keys()])]
+      .filter((root) => (values.get(root) ?? 0) !== (next.get(root) ?? 0)));
     values = next;
     if (stable) { settled = true; break; }
   }
@@ -609,16 +616,25 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     net.value = values.get(net.id) ?? 0;
     net.on = net.value !== 0;
   }
-  return { nets, states, settled, portalWidthMismatch };
+  return { nets, states, settled, changingNets, portalWidthMismatch };
 }
 
 // Each splitter branch is electrically the corresponding bit of its bus.
 // Compare actual output drivers after evaluation, including drivers connected
 // through splitters; a driven zero must count just as much as a driven one.
-export function shortCircuitError(board, pressedButtons, highClocks, registerValues, ramValues) {
-  const { nets, states, settled, portalWidthMismatch } = evaluateBoard(board, pressedButtons, highClocks, registerValues, ramValues);
-  if (portalWidthMismatch) return "Bus size mismatch.";
-  if (!settled) return "Short circuit: feedback loop does not settle.";
+export function circuitIssue(board, pressedButtons, highClocks, registerValues, ramValues) {
+  const { nets, states, settled, changingNets, portalWidthMismatch } = evaluateBoard(board, pressedButtons, highClocks, registerValues, ramValues);
+  if (portalWidthMismatch) return { message: "Bus size mismatch.", componentIds: [], wireKeys: [] };
+  const wireKeysFor = (netIds) => [...nets.values()].filter((net) => netIds.has(net.id))
+    .flatMap((net) => net.edges.map(edgeKey));
+  if (!settled) {
+    const wireKeys = wireKeysFor(changingNets);
+    const points = new Set([...nets.values()].filter((net) => changingNets.has(net.id))
+      .flatMap((net) => net.edges.flatMap((edge) => edgePoints(edge).map((point) => point.join(",")))));
+    const componentIds = board.components.filter((component) => pinsFor(component)
+      .some((pin) => points.has(`${pin.px},${pin.py}`))).map((component) => component.id);
+    return { message: "Short circuit: feedback loop does not settle.", componentIds, wireKeys };
+  }
   const parent = new Map();
   const find = (key) => {
     if (!parent.has(key)) parent.set(key, key);
@@ -654,19 +670,24 @@ export function shortCircuitError(board, pressedButtons, highClocks, registerVal
         const key = find(bitKey(net, bit));
         const level = (outputs[index] >>> bit) & 1;
         const previous = driven.get(key);
-        if (previous?.level !== undefined && previous.level !== level)
-          return "Short circuit: HIGH and LOW outputs are connected.";
-        if (previous && (previous.clock || entry.clock))
-          return "Short circuit: a clock output cannot share a driven net.";
-        if (previous && (previous.register || entry.register))
-          return "Short circuit: a register output cannot share a driven net.";
-        if (previous && (previous.counter || entry.counter))
-          return "Short circuit: a counter output cannot share a driven net.";
-        driven.set(key, { level, clock: !!entry.clock, register: !!entry.register, counter: !!entry.counter });
+        const message = previous?.level !== undefined && previous.level !== level
+          ? "Short circuit: HIGH and LOW outputs are connected."
+          : previous && (previous.clock || entry.clock)
+            ? "Short circuit: a clock output cannot share a driven net."
+            : previous && (previous.register || entry.register)
+              ? "Short circuit: a register output cannot share a driven net."
+              : previous && (previous.counter || entry.counter)
+                ? "Short circuit: a counter output cannot share a driven net." : null;
+        if (message) return { message, componentIds: [previous.id, component.id], wireKeys: wireKeysFor(new Set([previous.net, net])) };
+        driven.set(key, { id: component.id, net, level, clock: !!entry.clock, register: !!entry.register, counter: !!entry.counter });
       }
     }
   }
   return null;
+}
+
+export function shortCircuitError(board, pressedButtons, highClocks, registerValues, ramValues) {
+  return circuitIssue(board, pressedButtons, highClocks, registerValues, ramValues)?.message ?? null;
 }
 
 export function computeNets(board) {

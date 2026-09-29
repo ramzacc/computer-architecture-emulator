@@ -67,6 +67,31 @@ test("wire boxes follow orientation and widen for buses", () => {
   assert.deepEqual(el.style, { left: "1px", top: "2px", width: "3px", height: "4px" });
 });
 
+test("an affected net is marked on the canvas until the issue clears", () => {
+  const originalDocument = globalThis.document;
+  const grid = { children: [], appendChild(el) { this.children.push(el); el.parent = this; } };
+  globalThis.document = {
+    createElement() {
+      return { style: {}, dataset: {}, className: "", title: "", remove() {} };
+    },
+  };
+  try {
+    const board = createBoard();
+    const edge = { o: "H", x: 1, y: 2, size: 1 };
+    board.wires.set(edgeKey(edge), edge);
+    const logic = { nets: new Map([["net", { id: "net", edges: [edge], on: true, value: 1 }]]) };
+    let issue = { wireKeys: [edgeKey(edge)], componentIds: [] };
+    const renderer = createRenderer(grid, () => board, () => logic, () => new Set(), () => new Set(), () => issue);
+    renderer.renderWires();
+    assert.match(grid.children[0].className, /circuit-error/);
+    issue = null;
+    renderer.renderWires();
+    assert.doesNotMatch(grid.children[0].className, /circuit-error/);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
 test("splitter art keeps its proportions in the component palette", () => {
   const { componentArt } = createRenderer(null, () => null, () => null, () => null, () => null);
   const art = componentArt({ t: "splitter", x: 0, y: 0, r: 0, size: 4 }, spec("splitter"));
