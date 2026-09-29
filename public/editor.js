@@ -1,6 +1,6 @@
 import { bitWidth, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePinLayout, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
 import { addComponent, addWireEdge, buttonsInBoard, clocksInBoard, createBoard, crossingAt, edgeKey, isValidComponent, labelAvailable, nextLabel,
-  evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, storedInBoard, wireLayoutError, wireRoute } from "./model.js";
+  circuitIssue, evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, storedInBoard, wireLayoutError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
 import { assemble } from "./assembly.js";
 import { captureProgramSource, reconcileProgramSource } from "./program-source.js";
@@ -106,7 +106,7 @@ function extendMovedPins(original, trial, moved, movingWireKeys = new Set()) {
 
 // Board edits live here so the browser only has to manage gestures and selection.
 export class BoardEditor {
-  constructor({ storage = null, onChange = () => {}, onStorageError = () => {} } = {}) {
+  constructor({ storage = null, onChange = () => {}, onStorageError = () => {}, onRuntimeError = () => {} } = {}) {
     this.board = createBoard();
     this.pressedButtons = new Set();
     this.highClocks = new Set();
@@ -116,6 +116,7 @@ export class BoardEditor {
     this.storage = storage;
     this.onChange = onChange;
     this.onStorageError = onStorageError;
+    this.onRuntimeError = onRuntimeError;
     this.nextComponentId = 1;
     this.undoStack = [];
     this.redoStack = [];
@@ -227,17 +228,28 @@ export class BoardEditor {
         captured.set(id, inputs[0] >>> 0);
       }
     }
-    for (const [id, value] of captured) this.registerValues.set(id, value);
+    const nextRegisters = captured.size ? new Map(this.registerValues) : this.registerValues;
+    for (const [id, value] of captured) nextRegisters.set(id, value);
+    let nextRam = this.ramValues;
     let wroteRam = false;
     if (captureEdges) for (const [id, component] of stored) {
       if (component.t !== "ram") continue;
       const inputs = stateAt(next, id).inputs;
       if ((stateAt(this.evaluation, id)?.inputs[2] ?? 0) === 0 && inputs[2] !== 0) {
-        this.ramValues.get(id).set(inputs[0], inputs[1] >>> 0);
+        if (!wroteRam) nextRam = new Map(this.ramValues);
+        if (nextRam.get(id) === this.ramValues.get(id)) nextRam.set(id, new Map(this.ramValues.get(id)));
+        nextRam.get(id).set(inputs[0], inputs[1] >>> 0);
         wroteRam = true;
       }
     }
-    this.evaluation = captured.size || wroteRam
+    const issue = captured.size || wroteRam
+      ? circuitIssue(this.board, this.pressedButtons, this.highClocks, nextRegisters, nextRam) : null;
+    if (issue) this.onRuntimeError(issue);
+    else {
+      this.registerValues = nextRegisters;
+      this.ramValues = nextRam;
+    }
+    this.evaluation = (captured.size || wroteRam) && !issue
       ? evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues, this.ramValues)
       : next;
     this.onChange(this.board, this.evaluation);
@@ -249,7 +261,8 @@ export class BoardEditor {
     const next = new Set(this.pressedButtons);
     if (pressed) next.add(id);
     else next.delete(id);
-    if (shortCircuitError(this.board, next, this.highClocks, this.registerValues, this.ramValues)) return false;
+    const issue = circuitIssue(this.board, next, this.highClocks, this.registerValues, this.ramValues);
+    if (issue) { this.onRuntimeError(issue); return false; }
     this.pressedButtons = next;
     this.evaluate(true);
     return true;
@@ -261,7 +274,8 @@ export class BoardEditor {
     const next = new Set(this.highClocks);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    if (shortCircuitError(this.board, this.pressedButtons, next, this.registerValues, this.ramValues)) return false;
+    const issue = circuitIssue(this.board, this.pressedButtons, next, this.registerValues, this.ramValues);
+    if (issue) { this.onRuntimeError(issue); return false; }
     this.highClocks = next;
     this.evaluate(true);
     return true;
@@ -308,10 +322,12 @@ export class BoardEditor {
     const previous = { ...component };
     Object.assign(component, changes);
     if (!labelAvailable(this.board, component) || !validate(this.board, component)) {
+      const issue = circuitIssue(this.board, this.pressedButtons, this.highClocks, this.registerValues, this.ramValues);
       for (const key of Object.keys(changes)) {
         if (!Object.hasOwn(previous, key)) delete component[key];
         else component[key] = previous[key];
       }
+      if (issue) this.onRuntimeError(issue);
       return false;
     }
     if (component.t === "rom" && changes.size !== undefined && changes.size !== previous.size && this.board.program?.isa?.[component.id]) {

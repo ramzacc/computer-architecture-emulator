@@ -462,6 +462,14 @@ main > [role="tabpanel"][hidden] { display: none; }
 .wire-junction.on { background: var(--wire-on); box-shadow: 0 0 5px var(--wire-glow); }
 .wire-junction.selected { box-shadow: 0 0 0 2px var(--wire-selection); }
 .wire-junction.on.selected { box-shadow: 0 0 0 2px var(--wire-selection), 0 0 5px var(--wire-glow); }
+.wire.circuit-error, .wire.on.circuit-error, .wire.off.circuit-error {
+  background: var(--status-error);
+  box-shadow: 0 0 0 3px rgba(229, 72, 77, .3), 0 0 12px var(--status-error);
+}
+.wire-junction.circuit-error, .wire-junction.on.circuit-error {
+  background: var(--status-error);
+  box-shadow: 0 0 0 3px rgba(229, 72, 77, .3);
+}
 .wire.invalid {
   background: rgba(229, 72, 77, .5);
 }
@@ -543,7 +551,27 @@ main > [role="tabpanel"][hidden] { display: none; }
 
 .comp.selected { box-shadow: 0 0 0 2px var(--component-selection), 0 0 0 4px var(--accent); }
 .comp.invalid { box-shadow: 0 0 0 2px var(--danger); }
+.comp.circuit-error { box-shadow: 0 0 0 3px var(--status-error), 0 0 15px rgba(229, 72, 77, .6); }
 .comp:active { cursor: grabbing; }
+
+.circuit-error {
+  position: absolute;
+  z-index: 12;
+  top: 16px;
+  left: 50%;
+  width: max-content;
+  max-width: min(680px, calc(100% - 32px));
+  padding: 10px 14px;
+  transform: translateX(-50%);
+  border: 1px solid var(--status-error);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--status-error);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+.circuit-error[hidden] { display: none; }
 
 .canvas-wrap.placing { cursor: crosshair; }
 .canvas-wrap.wire-mode { cursor: crosshair; }

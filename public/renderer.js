@@ -10,7 +10,7 @@ export function wireTitle(wire, value) {
   return `${wireSize(wire)} bit(s), value ${value}`;
 }
 
-export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, getSelectedWires) {
+export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, getSelectedWires, getIssue = () => null) {
   const componentEls = new Map();
   const wireEls = new Map();
   const junctionEls = new Map();
@@ -323,6 +323,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   function renderComponents(logic = getEvaluation()) {
     const state = getBoard();
     const selectedIds = getSelectedIds();
+    const issueIds = new Set(getIssue()?.componentIds ?? []);
     const present = new Set();
     const pending = document.createDocumentFragment?.();
     for (const c of state.components) {
@@ -353,7 +354,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       }
       const className = "comp shaped" + (["button", "switch"].includes(c.t) || s.splitter ? ` ${c.t}` : "") +
         (selectedIds.has(c.id) ? " selected" : "") + (c.t === "button" && st?.value === 1 ? " pressed" : "") +
-        (c.t === "led" && st?.lit ? " lit" : "");
+        (c.t === "led" && st?.lit ? " lit" : "") + (issueIds.has(c.id) ? " circuit-error" : "");
       if (el.className !== className) el.className = className;
     }
     for (const [id, entry] of componentEls) if (!present.has(id)) {
@@ -421,6 +422,7 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
   function renderWires(logic = getEvaluation()) {
     const state = getBoard();
     const selectedWires = getSelectedWires();
+    const issueWires = new Set(getIssue()?.wireKeys ?? []);
     const pending = document.createDocumentFragment?.();
     const presentWires = new Set();
     const presentJunctions = new Set();
@@ -443,7 +445,8 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
       }
       const { el } = entry;
       const selected = selectedNetIds.has(i.netId);
-      const className = "wire " + (i.on ? "on" : "off") + (wireSize(w) > 1 ? " bus" : "") + (selected ? " selected" : "");
+      const className = "wire " + (i.on ? "on" : "off") + (wireSize(w) > 1 ? " bus" : "") +
+        (selected ? " selected" : "") + (issueWires.has(key) ? " circuit-error" : "");
       if (el.className !== className) el.className = className;
       const title = wireTitle(w, i.value);
       if (el.title !== title) el.title = title;
@@ -478,7 +481,8 @@ export function createRenderer(gridEl, getBoard, getEvaluation, getSelectedIds, 
         junctionEls.set(point, el);
       }
       const className = "wire-junction " + (net?.on ? "on" : "off") +
-        (selectedNetIds.has(net?.netId) ? " selected" : "");
+        (selectedNetIds.has(net?.netId) ? " selected" : "") +
+        (wires.some((wire) => issueWires.has(edgeKey(wire))) ? " circuit-error" : "");
       if (el.className !== className) el.className = className;
     }
     for (const [point, el] of junctionEls) if (!presentJunctions.has(point)) {

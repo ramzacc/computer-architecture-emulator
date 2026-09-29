@@ -33,6 +33,26 @@ test('registers inside separate wrapper instances capture and retain their value
   assert.deepEqual([...editor.registerValues.values()], [0, 0, 0, 0]);
 });
 
+test('a clock conflict reports its drivers and net during execution', () => {
+  const issues = [];
+  const editor = new BoardEditor({ onRuntimeError: (issue) => issues.push(issue) });
+  for (const component of [
+    { id: 'clk', t: 'clock', x: 0, y: 0, enable: true },
+    { id: 'inv', t: 'not', x: 4, y: 4 },
+    { id: 'one', t: 'constant', x: 8, y: 5, r: 0, value: 1 },
+  ]) editor.board.components.push(component);
+  for (const edge of [
+    { o: 'V', x: 1, y: 2 }, { o: 'V', x: 1, y: 3 },
+    ...[1, 2, 3, 4].map((x) => ({ o: 'H', x, y: 4 })),
+    ...[5, 6, 7].map((x) => ({ o: 'H', x, y: 6 })),
+  ]) editor.board.wires.set(edgeKey(edge), edge);
+  editor.evaluate();
+  assert.equal(editor.tickClock('clk'), false);
+  assert.equal(editor.highClocks.has('clk'), false);
+  assert.deepEqual(issues[0].componentIds, ['inv', 'one']);
+  assert.deepEqual(issues[0].wireKeys, ['H:5,6', 'H:6,6', 'H:7,6']);
+});
+
 test('module edits save atomically and reject incompatible parent wiring', () => {
   const ctx = setup();
   const module = ctx.editor.place('module', 0, 0);
