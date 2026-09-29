@@ -4,7 +4,7 @@ import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, assignIsaCe
 import { restoreProgramSource } from "./program-source.js";
 import { createRamViewer } from "./ram-view.js";
 
-const fields = { rom: "rom", pc: "tag", run: "clock", step: "button", resetPc: "button", resetRegisters: "button" };
+const fields = { rom: "rom", ram: "ram", pc: "tag", run: "clock", step: "button", resetPc: "button", resetRegisters: "button" };
 const names = { rom: "Program ROM", pc: "PC", run: "Main Clock", step: "Manual Clock", resetPc: "Reset PC", resetRegisters: "Reset Registers" };
 const $ = (id) => document.getElementById(`program-${id}`);
 const operandName = (index) => index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
@@ -17,13 +17,13 @@ export function createProgram({ getEditor }) {
   const registerEmpty = $("register-empty");
   const registerValues = $("register-values");
   const formatEl = $("format");
-  const ramSelectEl = $("ram-select");
   let ramFormat = "hex";
   const ramViewer = createRamViewer($("ram-view"), {
     getEditor,
-    getRam: () => component(ramSelectEl.value),
+    getRam: () => { const item = component(config().ram); return item?.t === "ram" ? item : null; },
     getFormat: () => ramFormat,
     setFormat: (value) => { ramFormat = value; },
+    emptyMessage: "Link a RAM in Program setup to view its memory.",
   });
   const statusEl = $("status");
   const sourceEl = $("source");
@@ -45,6 +45,7 @@ export function createProgram({ getEditor }) {
   let renderedComponents = "";
   let renderedConfig = "";
   let renderedRegisters = "";
+  let renderedRamId = null;
   const previousRegisterValues = new Map();
   const registerHighlightTimers = new Map();
   let defaultConfig = null;
@@ -63,7 +64,7 @@ export function createProgram({ getEditor }) {
     if (defaultBoard !== board) {
       defaultBoard = board;
       defaultConfig = Object.fromEntries(Object.keys(fields).map((key) =>
-        [key, components().find((item) => item.label === names[key] && [].concat(fields[key]).includes(item.t))?.id ?? null]));
+        [key, key === "ram" ? null : components().find((item) => item.label === names[key] && [].concat(fields[key]).includes(item.t))?.id ?? null]));
       defaultConfig.registers = [];
       defaultConfig.offset = 0;
       defaultConfig.format = "hex";
@@ -340,14 +341,6 @@ export function createProgram({ getEditor }) {
       output.textContent = formatValue(value, bitWidth(register), config().format);
     }
   }
-  function updateRamOptions() {
-    const rams = components().filter((item) => item.t === "ram");
-    const selected = ramSelectEl.value;
-    ramSelectEl.replaceChildren(...rams.map((ram) => new Option(ram.label || "RAM", ram.id)));
-    if (rams.some((ram) => ram.id === selected)) ramSelectEl.value = selected;
-    ramSelectEl.hidden = rams.length < 2;
-    ramViewer.reset();
-  }
   function pcValue() {
     const tag = component(config().pc);
     return tag?.t === "tag" ? getEditor().evaluation.states.get(tag.id)?.value ?? 0 : null;
@@ -440,15 +433,14 @@ export function createProgram({ getEditor }) {
       renderedConfig = configKey;
       renderedRegisters = "";
       updateSelectors();
-      updateRamOptions();
     }
+    if (renderedRamId !== config().ram) { renderedRamId = config().ram; ramViewer.reset(); }
     formatEl.value = config().format;
     updateAssembly();
     updateRegisters();
     ramViewer.render();
     updatePc();
   }
-  ramSelectEl.addEventListener("change", () => ramViewer.reset());
   for (const key of Object.keys(fields)) selectEls[key].addEventListener("change", () => setConfig({ [key]: selectEls[key].value || null }));
   isaRomEl.addEventListener("change", () => { setConfig({ rom: isaRomEl.value || null }); renderIsa(); });
   isaAddEl.addEventListener("click", () => {
@@ -640,9 +632,10 @@ export function createProgram({ getEditor }) {
     for (const timer of registerHighlightTimers.values()) clearTimeout(timer);
     registerHighlightTimers.clear();
     previousRegisterValues.clear();
-    renderedEditor = null; renderedComponents = ""; renderedConfig = ""; renderedIsaRoms = "";
+    renderedEditor = null; renderedComponents = ""; renderedConfig = ""; renderedIsaRoms = ""; renderedRamId = null;
     drafts.clear(); isaDrafts.clear(); breakpoints.clear(); skipBreakpointAt = null; draftBoard = null; sourceEl.dataset.rom = "";
     renderedSyntax = "";
     defaultBoard = null;
+    ramViewer.reset();
   } };
 }

@@ -13,7 +13,7 @@ export function parseRamAddress(text) {
   return Number.isSafeInteger(value) ? value : null;
 }
 
-export function createRamViewer(root, { getEditor, getRam, getFormat, setFormat }) {
+export function createRamViewer(root, { getEditor, getRam, getFormat, setFormat, emptyMessage = "Add a RAM on Canvas to view its memory." }) {
   let start = 0;
   let renderedKey = "";
   const controls = document.createElement("div");
@@ -59,7 +59,7 @@ export function createRamViewer(root, { getEditor, getRam, getFormat, setFormat 
     const ram = getRam();
     const count = ram ? 2 ** addressWidth(ram) : 0;
     if (!count) {
-      lines.textContent = "Add a RAM on Canvas to view its memory.";
+      lines.textContent = emptyMessage;
       renderedKey = "";
       navigation.hidden = true;
       controls.hidden = true;

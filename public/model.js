@@ -752,6 +752,7 @@ export function serialize(board) {
   const program = board.program && {
     ...Object.fromEntries(["rom", "pc", "run", "step", "resetPc", "resetRegisters"]
       .map((key) => [key, componentIndexes.get(board.program[key]) ?? null])),
+    ...(board.program.ram ? { ram: componentIndexes.get(board.program.ram) ?? null } : {}),
     registers: (board.program.registers ?? []).map((id) => componentIndexes.get(id)).filter((index) => index !== undefined),
     offset: board.program.offset ?? 0,
     format: board.program.format ?? "hex",
@@ -916,10 +917,11 @@ function parseDocumentData(data, depth) {
   }
   if (data.program !== undefined) {
     const config = data.program;
-    object(config, "Document.program", ["rom", "pc", "run", "step", "resetPc", "resetRegisters", "registers", "offset", "format", "isa", "sources"]);
-    const types = { rom: ["rom"], pc: ["tag"], run: ["clock"], step: ["button"], resetPc: ["button"], resetRegisters: ["button"] };
+    object(config, "Document.program", ["rom", "ram", "pc", "run", "step", "resetPc", "resetRegisters", "registers", "offset", "format", "isa", "sources"]);
+    const types = { rom: ["rom"], ram: ["ram"], pc: ["tag"], run: ["clock"], step: ["button"], resetPc: ["button"], resetRegisters: ["button"] };
     const program = {};
     for (const [key, allowed] of Object.entries(types)) {
+      if (key === "ram" && !Object.hasOwn(config, key)) continue;
       const index = config[key] ?? null;
       if (index !== null && (!Number.isInteger(index) || !allowed.includes(board.components[index]?.t)))
         throw new Error(`Document.program.${key} must refer to a ${allowed.join(" or ")}.`);
