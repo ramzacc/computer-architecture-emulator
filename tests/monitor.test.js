@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createMonitor, dropPlacement, insertionIndex } from "../public/monitor.js";
 import { addComponent, createBoard, evaluateBoard, parseDocument, serialize } from "../public/model.js";
+import { parseRamAddress } from "../public/ram-view.js";
 
 function matchSimple(el, selector) {
   let rest = selector;
@@ -216,6 +217,45 @@ test("the monitor renders signal groups, cards, and live values, then edits the 
   } finally {
     dom.restore();
   }
+});
+
+test("RAM monitoring shows live paged words and persists its display format", () => {
+  const dom = makeDom();
+  try {
+    const board = createBoard();
+    assert.equal(addComponent(board, { id: "ram1", t: "ram", x: 0, y: 0, size: 8, addressSize: 8, label: "Data RAM" }), true);
+    const editor = monitorEditor(board);
+    editor.ramValues = new Map([["ram1", new Map([[0x50, 42], [0x51, 255]])]]);
+    const monitor = createMonitor({ getEditor: () => editor, ...dom.elements });
+    monitor.render();
+    const signal = dom.elements.signalsEl.querySelector("[data-id]");
+    fire(dom.elements.signalsEl, "click", signal);
+    const card = dom.elements.gridEl.querySelector(".ram-card");
+    const form = card.querySelector("form");
+    const address = card.querySelector("input");
+    address.value = "0x50";
+    fire(form, "submit", address);
+    assert.equal(card.querySelector(".ram-line-address").textContent, "0x50");
+    assert.equal(card.querySelector(".ram-word").textContent, "0x2A");
+    const format = card.querySelector("select");
+    format.value = "decimal";
+    fire(format, "change", format);
+    assert.equal(card.querySelector(".ram-word").textContent, "42");
+    const restored = parseDocument(serialize(board)).board;
+    assert.equal(restored.monitor.formats.get(restored.components[0].id), "decimal");
+    editor.ramValues.get("ram1").set(0x50, 7);
+    monitor.render();
+    assert.equal(card.querySelector(".ram-word").textContent, "7");
+  } finally {
+    dom.restore();
+  }
+});
+
+test("RAM Go addresses accept decimal, hex, and binary", () => {
+  assert.equal(parseRamAddress(" 80 "), 80);
+  assert.equal(parseRamAddress("0x50"), 80);
+  assert.equal(parseRamAddress("0b1010000"), 80);
+  assert.equal(parseRamAddress("0xGG"), null);
 });
 
 test("dragging a signal reorders the monitor and blank grid space drops at the end", () => {

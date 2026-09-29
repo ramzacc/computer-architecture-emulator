@@ -1,5 +1,6 @@
 import { bitWidth } from "./components.js";
 import { formatValue, validValueFormat } from "./value-format.js";
+import { createRamViewer } from "./ram-view.js";
 
 // Cards stay in reading order across responsive rows. Blank space in a row
 // maps to its end; space below the final row maps to the end of the list.
@@ -39,6 +40,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
   let renderedScope = null;
   let renderedItems = "";
   let renderedLayout = "";
+  const ramViewers = new Map();
 
   function layout() {
     return getEditor().board.monitor;
@@ -50,7 +52,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
   }
 
   function items() {
-    return getEditor().board.components.filter((component) => ["tag", "button", "switch", "clock", "input", "output", "register"].includes(component.t));
+    return getEditor().board.components.filter((component) => ["tag", "button", "switch", "clock", "input", "output", "register", "ram"].includes(component.t));
   }
 
   function add(id, index = layout().ids.length, newRow = false) {
@@ -77,6 +79,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
     const groups = [
       { title: "Tags and outputs", items: available.filter((item) => ["tag", "output"].includes(item.t)) },
       { title: "Registers", items: available.filter((item) => item.t === "register") },
+      { title: "RAM", items: available.filter((item) => item.t === "ram") },
       { title: "Controls", items: available.filter((item) => ["input", "button", "switch", "clock"].includes(item.t)) },
     ];
     for (const group of groups) {
@@ -93,7 +96,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
         button.draggable = true;
         button.dataset.id = item.id;
         button.textContent = item.label || item.t;
-        button.title = `${["tag", "input", "output", "register"].includes(item.t) ? `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"} ${item.t}` : item.t === "button" ? "Button" : item.t === "clock" ? "Clock" : "Switch"} · Click or drag to monitor`;
+        button.title = `${["tag", "input", "output", "register", "ram"].includes(item.t) ? `${bitWidth(item)} bit${bitWidth(item) === 1 ? "" : "s"} ${item.t}` : item.t === "button" ? "Button" : item.t === "clock" ? "Clock" : "Switch"} · Click or drag to monitor`;
         section.append(button);
       }
       signalsEl.append(section);
@@ -109,6 +112,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       ids.splice(index, 1);
     }
     gridEl.replaceChildren();
+    ramViewers.clear();
     emptyEl.hidden = ids.length > 0;
     gridEl.classList.toggle("is-empty", ids.length === 0);
     if (!ids.length) gridEl.append(emptyEl);
@@ -116,6 +120,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       const item = available.get(id);
       const card = document.createElement("article");
       card.className = "monitor-card";
+      card.classList.toggle("ram-card", item.t === "ram");
       card.classList.toggle("new-row", breaks.has(id));
       card.dataset.id = id;
       card.draggable = true;
@@ -131,7 +136,17 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
       remove.title = "Remove from monitor";
       remove.textContent = "×";
       header.append(name, remove);
-      if (["tag", "input", "output", "register"].includes(item.t)) {
+      if (item.t === "ram") {
+        const view = document.createElement("div");
+        view.className = "monitor-ram-view";
+        card.append(header, view);
+        ramViewers.set(id, createRamViewer(view, {
+          getEditor,
+          getRam: () => getEditor().component(id),
+          getFormat: () => layout().formats.get(id) ?? "hex",
+          setFormat: (format) => { layout().formats.set(id, format); renderedLayout = layoutKey(); getEditor().save(); },
+        }));
+      } else if (["tag", "input", "output", "register"].includes(item.t)) {
         const value = document.createElement("output");
         value.className = "monitor-value";
         value.dataset.value = id;
@@ -194,6 +209,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
   function updateValues() {
     const editor = getEditor();
     const available = new Map(items().map((item) => [item.id, item]));
+    for (const viewer of ramViewers.values()) viewer.render();
     for (const value of gridEl.querySelectorAll("[data-value]")) {
       const item = available.get(value.dataset.value);
       if (!item) continue;
@@ -323,7 +339,7 @@ export function createMonitor({ getEditor, signalsEl, noTagsEl, workspaceEl, gri
 
   for (const source of [signalsEl, gridEl]) {
     source.addEventListener("dragstart", (event) => {
-      if (event.target.closest(".monitor-control, .monitor-bits, .monitor-remove, select")) {
+    if (event.target.closest(".monitor-control, .monitor-bits, .monitor-remove, .monitor-ram-view, select")) {
         event.preventDefault();
         return;
       }
