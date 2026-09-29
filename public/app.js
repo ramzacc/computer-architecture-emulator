@@ -1947,10 +1947,10 @@ try {
     editor.replaceBoard(restored.board, { save: false });
   } else {
     importDetailEl.textContent = "Loading default example…";
-    importNameEl.textContent = "8-bit computer";
+    importNameEl.textContent = "Demo computer";
     let board;
     try {
-      const response = await fetch(new URL("../examples/8-bit-computer.json", import.meta.url));
+      const response = await fetch(new URL("../demo-computer.json", import.meta.url));
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       board = parseProject(await response.text()).board;
     } catch (error) {
