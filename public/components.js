@@ -183,6 +183,16 @@ export const COMPONENT_TYPES = {
       { x: 3, y: 3, dir: "S", role: "out", name: "SUM" },
     ],
   },
+  sub: {
+    label: "Subtractor", w: 6, h: 3, color: "#aaa8b1", shape: "sub", block: "sub",
+    pins: [
+      { x: 1, y: 0, dir: "N", role: "in", name: "A" },
+      { x: 3, y: 0, dir: "N", role: "in", name: "B" },
+      { x: 5, y: 0, dir: "N", role: "in", name: "BI", size: 1 },
+      { x: 1, y: 3, dir: "S", role: "out", name: "BO", size: 1 },
+      { x: 3, y: 3, dir: "S", role: "out", name: "DIFF" },
+    ],
+  },
   twos: {
     label: "Two's complement", w: 2, h: 2, color: "#aaa8b1", shape: "twos", block: "twos",
     pins: [

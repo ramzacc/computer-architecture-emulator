@@ -665,6 +665,20 @@ test("adder wraps its sum and reports carry, including carry in", () => {
   assert.equal(evaluateBoard(board).states.get("block").value, 11);
 });
 
+test("subtractor wraps its difference and reports borrow, including borrow in", () => {
+  const { board, block, sources, outputValues } = wiredBlock("sub", 4, [3, 5, 0]);
+  assert.deepEqual(pinsFor(block).map((pin) => pin.size), [4, 4, 1, 1, 4]);
+  assert.deepEqual(outputValues(), [1, 14]);
+  assert.equal(evaluateBoard(board).states.get("block").value, 14);
+  sources[0].value = 9;
+  sources[1].value = 5;
+  sources[2].value = 1;
+  assert.deepEqual(outputValues(), [0, 3]);
+  sources[0].value = 5;
+  assert.deepEqual(outputValues(), [1, 15]);
+  assert.equal(parseDocument(serialize(board)).board.components[0].t, "sub");
+});
+
 test("two's complement, unsigned comparator, and logical shifts evaluate buses", () => {
   const twos = wiredBlock("twos", 4, [3]);
   assert.deepEqual(twos.outputValues(), [13]);

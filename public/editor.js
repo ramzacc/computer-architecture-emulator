@@ -37,6 +37,7 @@ function newComponent(type, id, x, y, board) {
     case "mux":
     case "demux": return { ...base, size: 4, channels: 2 };
     case "adder":
+    case "sub":
     case "twos":
     case "comparator":
     case "shl":

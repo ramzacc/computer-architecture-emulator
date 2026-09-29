@@ -369,6 +369,10 @@ function blockOutputs(kind, inputs, size, channels = 2) {
       const sum = left + right + (control & 1);
       return [Number(sum > mask), (sum & mask) >>> 0];
     }
+    case "sub": {
+      const difference = left - right - (control & 1);
+      return [Number(difference < 0), (difference & mask) >>> 0];
+    }
     case "twos": return [(-left & mask) >>> 0];
     case "comparator": return [Number(left < right), Number(left === right), Number(left > right)];
     case "shl": return [((left << (b & 31)) & mask) >>> 0];
@@ -493,7 +497,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
     if (part.block) {
       const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
       const outputs = blockOutputs(part.block, inputs, part.size, part.channels);
-      return outputs[part.block === "adder" ? 1 : 0];
+      return outputs[part.block === "adder" || part.block === "sub" ? 1 : 0];
     }
     if (part.splitter) {
       const bus = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
