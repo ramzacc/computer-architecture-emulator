@@ -349,6 +349,31 @@ test('RAM width rules match ROM and resizing trims simulation contents', () => {
   assert.throws(() => parseDocument(JSON.stringify({ components: [['ram', 0, 0, 0, 3, 8, 'RAM 1']], wires: [], junctions: [] })), /power of two/);
 });
 
+test('manual clock releases when a ROM instruction changes bits on a splitter branch', () => {
+  const { editor } = setup();
+  const counter = editor.place('counter', 0, 0);
+  const rom = editor.place('rom', 0, 6);
+  const splitter = editor.place('splitter', 1, 12);
+  const button = editor.place('button', 0, -4);
+  assert.equal(editor.resizeComponent(counter.id, 8), true);
+  assert.equal(editor.resizeComponent(rom.id, 16), true);
+  assert.equal(editor.resizeComponent(splitter.id, 16), true);
+  assert.equal(editor.setRomData(rom.id, [[0, 0x6000], [3, 0x6FC0], [4, 0x1100]]), true);
+  for (const [x, start, end, size] of [[1, -2, 0, 1], [2, 3, 6, 8], [2, 9, 12, 16]]) {
+    for (let y = start; y < end; y++) assert.equal(editor.addWire({ o: 'V', x, y, size }), true);
+  }
+  assert.equal(editor.addWire({ o: 'H', x: 3, y: 26, size: 1 }), true);
+
+  editor.registerValues.set(counter.id, 3);
+  assert.equal(editor.evaluate().settled, true);
+  assert.equal(editor.setButtonPressed(button.id, true), true);
+  assert.equal(editor.evaluation.states.get(counter.id).value, 4);
+  assert.equal(editor.evaluation.settled, true);
+  assert.equal(editor.setButtonPressed(button.id, false), true);
+  assert.equal(editor.evaluation.states.get(rom.id).value, 0x1100);
+  assert.equal(editor.pressedButtons.has(button.id), false);
+});
+
 test('moving a selection translates components and complete wire nets in one edit', () => {
   const ctx = setup();
   const first = ctx.editor.place('led', 0, 0);

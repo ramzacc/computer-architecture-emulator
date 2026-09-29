@@ -317,6 +317,30 @@ function innerBoard(document, depth) {
   return board;
 }
 
+function splitterBitGroups(parts) {
+  const parent = new Map();
+  const key = (net, bit) => `${net}|${bit}`;
+  const find = (item) => {
+    if (!parent.has(item)) parent.set(item, item);
+    if (parent.get(item) !== item) parent.set(item, find(parent.get(item)));
+    return parent.get(item);
+  };
+  for (const part of parts) {
+    if (!part.splitter || part.ins[0] === null) continue;
+    part.outs.forEach((net, bit) => {
+      if (net !== null) parent.set(find(key(net, 0)), find(key(part.ins[0], bit)));
+    });
+  }
+  const groups = new Map();
+  for (const item of parent.keys()) {
+    const root = find(item);
+    if (!groups.has(root)) groups.set(root, []);
+    const separator = item.lastIndexOf("|");
+    groups.get(root).push([item.slice(0, separator), Number(item.slice(separator + 1))]);
+  }
+  return [...groups.values()];
+}
+
 export function clocksInBoard(board, prefix = "", depth = 0) {
   const clocks = new Map();
   for (const component of board.components) {
@@ -480,6 +504,7 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
         .sort((a, b) => (a.bit ?? 0) - (b.bit ?? 0)).map(netAt),
     };
   });
+  const splitterGroups = splitterBitGroups(parts);
   const outputOf = (part, values) => {
     if (part.constant) return part.injectedValue ?? part.constantValue;
     if (part.rom) {
@@ -537,16 +562,8 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       if (root !== null && output) next.set(root, ((next.get(root) ?? 0) | output) >>> 0);
     };
     for (const part of parts) {
-      if (part.splitter) {
-        const bus = part.ins[0] === null ? 0 : (values.get(part.ins[0]) ?? 0);
-        let combined = 0;
-        part.outs.forEach((root, bit) => {
-          const branch = root === null ? 0 : (values.get(root) ?? 0);
-          combined |= (branch & 1) << bit;
-          drive(root, (bus >>> bit) & 1);
-        });
-        drive(part.ins[0], combined >>> 0);
-      } else if (part.module) {
+      if (part.splitter) continue;
+      if (part.module) {
         moduleEvaluation(part, values).outputs.forEach((output, index) => drive(part.outs[index], output));
       } else if (part.block) {
         const inputs = part.ins.map((root) => root === null ? 0 : (values.get(root) ?? 0));
@@ -554,6 +571,13 @@ export function evaluateBoard(board, pressedButtons = new Set(), highClocks = ne
       } else {
         const output = outputOf(part, values);
         for (const root of part.outs) drive(root, output);
+      }
+    }
+    // Splitter pins are the same electrical bits. Resolve them in this round;
+    // feeding last round's branch values back into the bus can retain stale bits.
+    for (const group of splitterGroups) {
+      if (group.some(([net, bit]) => ((next.get(net) ?? 0) >>> bit) & 1)) {
+        for (const [net, bit] of group) next.set(net, ((next.get(net) ?? 0) | (1 << bit)) >>> 0);
       }
     }
     let stable = next.size === values.size;
