@@ -42,6 +42,22 @@ test('decimal register format survives save and load', () => {
   assert.equal(parseDocument(serialize(editor.board)).board.program.format, 'decimal');
 });
 
+test('a linked Program RAM survives save and load and must refer to RAM', () => {
+  const editor = new BoardEditor({ storage: { setItem() {} } });
+  const ram = editor.place('ram', 0, 0);
+  const rom = editor.place('rom', 8, 0);
+  editor.setProgramConfig({ rom: rom.id, ram: ram.id, pc: null, run: null, step: null,
+    resetPc: null, resetRegisters: null, registers: [], offset: 0, format: 'hex' });
+  const saved = serialize(editor.board);
+  const loaded = parseDocument(saved).board;
+  assert.equal(loaded.program.ram, loaded.components.find((item) => item.t === 'ram').id);
+  const invalid = JSON.parse(saved);
+  invalid.program.ram = 1;
+  assert.throws(() => parseDocument(JSON.stringify(invalid)), /program.ram/);
+  delete invalid.program.ram;
+  assert.equal(parseDocument(JSON.stringify(invalid)).board.program.ram, undefined);
+});
+
 test('a ROM accepts one complete word per address at 8, 16, and 32 bits', () => {
   const editor = new BoardEditor({ storage: { setItem() {} } });
   const rom = editor.place('rom', 0, 0);
