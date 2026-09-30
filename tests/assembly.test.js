@@ -15,7 +15,7 @@ test("keyword and numeric operands map through explicit bit positions", () => {
     "ADD 0x2 0x1\nAND 0x2 0x7\nINC 0x1 0x0");
 });
 
-test("the ISA tab's example rules can be saved together", () => {
+test("the Assembly tab's example rules can be saved together", () => {
   assert.equal(parseIsa(`ADD | op 7-6=01 | address 5-4-3 | address 2-1-0
 LDI | op 7-6-5=110 | address 4-3 | immediate 2-1-0
 JMP | op 7-6=10 | address *`, 8).length, 3);

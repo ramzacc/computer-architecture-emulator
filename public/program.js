@@ -97,7 +97,7 @@ export function createProgram({ getEditor }) {
     }
     return draft;
   }
-  function markIsaDirty(draft) { draft.dirty = true; isaNoteEl.textContent = "Unsaved ISA rules."; isaNoteEl.classList.remove("error"); }
+  function markIsaDirty(draft) { draft.dirty = true; isaNoteEl.textContent = "Unsaved assembly rules."; isaNoteEl.classList.remove("error"); }
   function renderIsa() {
     ensureBoard();
     const roms = components().filter((item) => item.t === "rom");
@@ -119,7 +119,7 @@ export function createProgram({ getEditor }) {
     let draft;
     try { draft = isaDraft(rom); }
     catch (error) { isaNoteEl.textContent = error.message; isaNoteEl.classList.add("error"); return; }
-    isaNoteEl.textContent = draft.dirty ? "Unsaved ISA rules." : `${bitWidth(rom)}-bit ROM · rules saved.`;
+    isaNoteEl.textContent = draft.dirty ? "Unsaved assembly rules." : `${bitWidth(rom)}-bit ROM · rules saved.`;
     isaNoteEl.classList.remove("error");
     draft.rules.forEach((rule, ruleIndex) => {
       const card = document.createElement("section");
@@ -213,7 +213,7 @@ export function createProgram({ getEditor }) {
     updateSyntax();
     updateGutter();
     assemblyNoteEl.textContent = draft.dirty
-      ? draft.key === key ? "Unsaved assembly edits." : "ROM or ISA rules changed since this draft. Assembling will replace ROM contents."
+      ? draft.key === key ? "Unsaved assembly edits." : "ROM or assembly rules changed since this draft. Assembling will replace ROM contents."
       : "Assembly matches the linked ROM.";
   }
   function updateSyntax() {
@@ -495,7 +495,7 @@ export function createProgram({ getEditor }) {
       if (draft.rules.length) isa[rom.id] = source; else delete isa[rom.id];
       draft.dirty = false; draft.saved = isa[rom.id] ?? "";
       if (draft.saved !== savedIsa(rom)) setConfig({ isa });
-      renderIsa(); isaNoteEl.textContent = "ISA saved.";
+      renderIsa(); isaNoteEl.textContent = "Assembly rules saved.";
     } catch (error) { isaNoteEl.textContent = error.message; isaNoteEl.classList.add("error"); }
   });
   sourceEl.addEventListener("scroll", () => {
