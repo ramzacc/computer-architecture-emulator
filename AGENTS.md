@@ -23,6 +23,8 @@ Computer Architecture Tool is a desktop browser teaching app for designing digit
 
 ## Important conventions
 
+- Do not create or update documentation unless the user explicitly asks for it.
+- Treat code as the finished implementation of its current behavior. Comments should explain current intent or constraints, never narrate edits, previous behavior, or change history. Leave placeholders or TODOs only when the user explicitly requests them.
 - Keep circuit logic independent of the DOM; use `BoardEditor` operations for UI edits so validation, history, evaluation, and persistence stay consistent. Validate trial edits before publishing them.
 - Runtime boards use a component array, a wire `Map` keyed by `edgeKey`, and a junction `Set`. Wires are unit grid edges (`H`/`V`); use model helpers for geometry and connectivity.
 - Component definitions, pins, evaluation, rendering, and serialization are coupled. When adding a component/property, inspect all of those paths and their tests.
