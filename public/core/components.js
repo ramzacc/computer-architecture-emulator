@@ -10,6 +10,18 @@
 // A pin must sit on the interior of one side, never on a corner (a corner has
 // no single outward normal). Concretely: N/S pins need 0 < x < w; E/W pins
 // need 0 < y < h. So 1-tall parts carry N/S pins and 1-wide parts carry W/E.
+
+// The two-input gates differ only in their operator and artwork name.
+const TWO_INPUT_GATE_PINS = [
+  { x: 1, y: 0, dir: "N", role: "in" },
+  { x: 3, y: 0, dir: "N", role: "in" },
+  { x: 2, y: 2, dir: "S", role: "out" },
+];
+
+function gate(label, op) {
+  return { label, w: 4, h: 2, color: "#b9bec8", shape: op, op, pins: TWO_INPUT_GATE_PINS };
+}
+
 export const COMPONENT_TYPES = {
   module: {
     label: "Module", w: 4, h: 3, color: "#aaa8b1", shape: "module", module: true,
@@ -106,30 +118,9 @@ export const COMPONENT_TYPES = {
     label: "Debug display", w: 4, h: 4, color: "#c8b49b", shape: "debugdisplay", debug: true,
     pins: [{ x: 2, y: 0, dir: "N", role: "in", name: "HEX", size: 4 }],
   },
-  and: {
-    label: "AND", w: 4, h: 2, color: "#b9bec8", shape: "and", op: "and",
-    pins: [
-      { x: 1, y: 0, dir: "N", role: "in" },
-      { x: 3, y: 0, dir: "N", role: "in" },
-      { x: 2, y: 2, dir: "S", role: "out" },
-    ],
-  },
-  or: {
-    label: "OR", w: 4, h: 2, color: "#b9bec8", shape: "or", op: "or",
-    pins: [
-      { x: 1, y: 0, dir: "N", role: "in" },
-      { x: 3, y: 0, dir: "N", role: "in" },
-      { x: 2, y: 2, dir: "S", role: "out" },
-    ],
-  },
-  xor: {
-    label: "XOR", w: 4, h: 2, color: "#b9bec8", shape: "xor", op: "xor",
-    pins: [
-      { x: 1, y: 0, dir: "N", role: "in" },
-      { x: 3, y: 0, dir: "N", role: "in" },
-      { x: 2, y: 2, dir: "S", role: "out" },
-    ],
-  },
+  and: gate("AND", "and"),
+  or: gate("OR", "or"),
+  xor: gate("XOR", "xor"),
   not: {
     label: "NOT", w: 2, h: 2, color: "#b9bec8", shape: "not", op: "not",
     pins: [
@@ -141,30 +132,9 @@ export const COMPONENT_TYPES = {
     label: "Splitter", w: 2, h: 2, color: "#afb2b9", shape: "splitter", splitter: true,
     pins: [],
   },
-  nand: {
-    label: "NAND", w: 4, h: 2, color: "#b9bec8", shape: "nand", op: "nand",
-    pins: [
-      { x: 1, y: 0, dir: "N", role: "in" },
-      { x: 3, y: 0, dir: "N", role: "in" },
-      { x: 2, y: 2, dir: "S", role: "out" },
-    ],
-  },
-  nor: {
-    label: "NOR", w: 4, h: 2, color: "#b9bec8", shape: "nor", op: "nor",
-    pins: [
-      { x: 1, y: 0, dir: "N", role: "in" },
-      { x: 3, y: 0, dir: "N", role: "in" },
-      { x: 2, y: 2, dir: "S", role: "out" },
-    ],
-  },
-  xnor: {
-    label: "XNOR", w: 4, h: 2, color: "#b9bec8", shape: "xnor", op: "xnor",
-    pins: [
-      { x: 1, y: 0, dir: "N", role: "in" },
-      { x: 3, y: 0, dir: "N", role: "in" },
-      { x: 2, y: 2, dir: "S", role: "out" },
-    ],
-  },
+  nand: gate("NAND", "nand"),
+  nor: gate("NOR", "nor"),
+  xnor: gate("XNOR", "xnor"),
   mux: {
     label: "Multiplexer", w: 6, h: 3, color: "#aaa8b1", shape: "mux", block: "mux",
     pins: [], // Generated from the instance's channel count in pinsFor.
@@ -239,6 +209,8 @@ export function normalizeRotation(r) {
 
 const MAX_BUS_WIDTH = 32;
 export const MAX_PLEXER_CHANNELS = 16;
+export const MAX_LABEL_LENGTH = 80;
+export const MAX_MODULE_DEPTH = 8;
 export const DEFAULT_CLOCK_FREQUENCY = 1;
 
 export function validClockFrequency(frequency) {
@@ -257,9 +229,23 @@ export function selectWidth(component) {
   return Math.max(1, Math.ceil(Math.log2(channelCount(component))));
 }
 
+// Parts whose behaviour depends on a bus width. The rest have fixed geometry.
+const UNSIZABLE_TYPES = new Set(["module", "button", "switch", "clock", "led", "sevenseg", "debugdisplay"]);
+
 export function isSizable(component) {
-  const entry = spec(component.t);
-  return !!(entry?.op || entry?.block || entry?.register || entry?.rom || entry?.ram || entry?.counter || entry?.splitter || entry?.constant || entry?.input || entry?.output || entry?.portal || entry?.tag);
+  return !!spec(component.t) && !UNSIZABLE_TYPES.has(component.t);
+}
+
+// Parts that never count as independent net drivers: pins-less monitors,
+// sinks, and splitters, whose branch bits are already unioned with their bus.
+const NON_DRIVING_TYPES = new Set(["output", "portal", "tag", "led", "sevenseg", "debugdisplay", "splitter"]);
+
+export function drivesOutputs(component) {
+  return !!spec(component.t) && !NON_DRIVING_TYPES.has(component.t);
+}
+
+export function bitMask(size) {
+  return size === 32 ? 0xffffffff : 2 ** size - 1;
 }
 
 const DOCUMENT_FIELDS = {
@@ -473,64 +459,99 @@ function outwardEdge(px, py, dir) {
   }
 }
 
+const TAG_PIN_SIDES = [[0, 1, "W"], [2, 0, "N"], [4, 1, "E"], [2, 2, "S"]];
+
+function placePins(component, localPins, { rotate = true, localW, localH, sizeOf } = {}) {
+  const r = normalizeRotation(component.r);
+  return localPins.map((pin) => {
+    const [lx, ly] = rotate ? rotatePoint(pin.x, pin.y, localW, localH, r) : [pin.x, pin.y];
+    const px = component.x + lx;
+    const py = component.y + ly;
+    const dir = rotate ? rotateDir(pin.dir, r) : pin.dir;
+    return { px, py, dir, role: pin.role, name: pin.name, size: sizeOf(pin), bit: pin.bit,
+      edge: outwardEdge(px, py, dir) };
+  });
+}
+
+function tagPins(component, width) {
+  const [x, y, dir] = TAG_PIN_SIDES[normalizeRotation(component.r)];
+  const px = component.x + x;
+  const py = component.y + y;
+  return [{ px, py, dir, role: "in", size: width, edge: outwardEdge(px, py, dir) }];
+}
+
+function modulePins(component) {
+  const r = normalizeRotation(component.r);
+  const ports = modulePorts(component);
+  const { w: localW, h: localH } = dimsOf({ ...component, r: 0 });
+  const layout = modulePinLayout(component);
+  let inputs = 0, outputs = 0;
+  return ports.map((port, index) => {
+    const incoming = port.role === "in";
+    const [side, position] = layout[index];
+    const x = side === "W" ? 0 : side === "E" ? localW : position;
+    const y = side === "N" ? 0 : side === "S" ? localH : position;
+    const [lx, ly] = rotatePoint(x, y, localW, localH, r);
+    const px = component.x + lx;
+    const py = component.y + ly;
+    const dir = rotateDir(side, r);
+    if (incoming) inputs++; else outputs++;
+    return { px, py, dir, role: port.role, name: port.name || (incoming ? `IN${inputs}` : `OUT${outputs}`),
+      size: port.size, edge: outwardEdge(px, py, dir) };
+  });
+}
+
+function plexerPins(component) {
+  const localW = dimsOf({ ...component, r: 0 }).w;
+  const channels = channelCount(component);
+  const select = { x: localW - 1, y: 0, dir: "N", role: "in", name: "S", size: selectWidth(component) };
+  if (component.t === "mux") {
+    return [
+      ...Array.from({ length: channels }, (_, index) =>
+        ({ x: 2 * index + 1, y: 0, dir: "N", role: "in", name: `D${index}` })),
+      select,
+      { x: Math.floor(localW / 2), y: 3, dir: "S", role: "out", name: "Y" },
+    ];
+  }
+  return [
+    { x: 1, y: 0, dir: "N", role: "in", name: "D" },
+    select,
+    ...Array.from({ length: channels }, (_, index) =>
+      ({ x: 2 * index + 1, y: 3, dir: "S", role: "out", name: `Y${index}` })),
+  ];
+}
+
+function splitterPins(component, width) {
+  return [
+    { x: 1, y: 0, dir: "N", role: "in", size: width },
+    ...Array.from({ length: width }, (_, index) =>
+      ({ x: 2, y: index + 1, dir: "E", role: "out", size: 1,
+        bit: component.order === "descendant" ? width - 1 - index : index })),
+  ];
+}
+
+function bitRowPins(component, entry, width) {
+  const r = normalizeRotation(component.r);
+  return [{ x: r === 2 ? width + 1 : 0, y: 1, dir: r === 2 ? "E" : "W",
+    role: entry.output ? "in" : "out" }];
+}
+
 export function pinsFor(component) {
   const entry = spec(component.t);
   if (!entry) return [];
-  const r = normalizeRotation(component.r);
   const width = bitWidth(component);
-  if (entry.tag) {
-    const [x, y, dir] = [[0, 1, "W"], [2, 0, "N"], [4, 1, "E"], [2, 2, "S"]][r];
-    const px = component.x + x, py = component.y + y;
-    return [{ px, py, dir, role: "in", size: width, edge: outwardEdge(px, py, dir) }];
-  }
-  const plexer = component.t === "mux" || component.t === "demux";
-  if (entry.module) {
-    const ports = modulePorts(component);
-    const { w: localW, h: localH } = dimsOf({ ...component, r: 0 });
-    const layout = modulePinLayout(component);
-    let inputs = 0, outputs = 0;
-    return ports.map((port, index) => {
-      const incoming = port.role === "in";
-      const [side, position] = layout[index];
-      const x = side === "W" ? 0 : side === "E" ? localW : position;
-      const y = side === "N" ? 0 : side === "S" ? localH : position;
-      const [lx, ly] = rotatePoint(x, y, localW, localH, r);
-      const px = component.x + lx, py = component.y + ly;
-      const dir = rotateDir(side, r);
-      if (incoming) inputs++; else outputs++;
-      return { px, py, dir, role: port.role, name: port.name || (incoming ? `IN${inputs}` : `OUT${outputs}`),
-        size: port.size, edge: outwardEdge(px, py, dir) };
-    });
-  }
-  const bitRow = !!(entry.constant || entry.input || entry.output);
-  const localW = plexer ? dimsOf({ ...component, r: 0 }).w : entry.w;
-  const localH = entry.splitter ? width + 1 : entry.h;
-  const channels = plexer ? channelCount(component) : 0;
-  const localPins = plexer
-    ? component.t === "mux"
-      ? [...Array.from({ length: channels }, (_, index) =>
-          ({ x: 2 * index + 1, y: 0, dir: "N", role: "in", name: `D${index}` })),
-        { x: localW - 1, y: 0, dir: "N", role: "in", name: "S", size: selectWidth(component) },
-        { x: Math.floor(localW / 2), y: 3, dir: "S", role: "out", name: "Y" }]
-      : [{ x: 1, y: 0, dir: "N", role: "in", name: "D" },
-        { x: localW - 1, y: 0, dir: "N", role: "in", name: "S", size: selectWidth(component) },
-        ...Array.from({ length: channels }, (_, index) =>
-          ({ x: 2 * index + 1, y: 3, dir: "S", role: "out", name: `Y${index}` }))]
-    : entry.splitter
-    ? [{ x: 1, y: 0, dir: "N", role: "in", size: width },
-      ...Array.from({ length: width }, (_, index) =>
-        ({ x: 2, y: index + 1, dir: "E", role: "out", size: 1,
-          bit: component.order === "descendant" ? width - 1 - index : index }))]
-    : bitRow
-    ? [{ x: r === 2 ? width + 1 : 0, y: 1, dir: r === 2 ? "E" : "W", role: entry.output ? "in" : "out" }]
-    : entry.pins;
-  return localPins.map((pin) => {
-    const [lx, ly] = bitRow
-      ? [pin.x, pin.y] : rotatePoint(pin.x, pin.y, localW, localH, r);
-    const px = component.x + lx;
-    const py = component.y + ly;
-    const dir = bitRow ? pin.dir : rotateDir(pin.dir, r);
-    const size = (entry.rom || entry.ram) && pin.name === "ADDR" ? addressWidth(component) : pin.size ?? width;
-    return { px, py, dir, role: pin.role, name: pin.name, size, bit: pin.bit, edge: outwardEdge(px, py, dir) };
+  if (entry.tag) return tagPins(component, width);
+  if (entry.module) return modulePins(component);
+  const byWidth = (pin) => pin.size ?? width;
+  if (component.t === "mux" || component.t === "demux")
+    return placePins(component, plexerPins(component), { localW: dimsOf({ ...component, r: 0 }).w, localH: 3, sizeOf: byWidth });
+  if (entry.splitter) return placePins(component, splitterPins(component, width), { localW: 2, localH: width + 1, sizeOf: byWidth });
+  if (entry.constant || entry.input || entry.output)
+    return placePins(component, bitRowPins(component, entry, width), { rotate: false, sizeOf: byWidth });
+  const addressPin = entry.rom || entry.ram;
+  return placePins(component, entry.pins, {
+    localW: entry.w,
+    localH: entry.h,
+    sizeOf: (pin) => addressPin && pin.name === "ADDR" ? addressWidth(component) : byWidth(pin),
   });
 }
