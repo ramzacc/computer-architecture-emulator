@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseProject } from '../public/project-file.js';
-import { BoardEditor } from '../public/editor.js';
+import { parseProject } from '../public/core/project-file.js';
+import { BoardEditor } from '../public/core/editor.js';
 
 const projectText = readFileSync(new URL('../examples/odd-even-sorter.json', import.meta.url), 'utf8');
 

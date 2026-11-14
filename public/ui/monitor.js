@@ -1,5 +1,5 @@
-import { bitWidth } from "./components.js";
-import { formatValue, validValueFormat } from "./value-format.js";
+import { bitWidth } from "../core/components.js";
+import { formatValue, validValueFormat } from "../core/value-format.js";
 import { createRamViewer } from "./ram-view.js";
 
 // Cards stay in reading order across responsive rows. Blank space in a row

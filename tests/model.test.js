@@ -1,13 +1,13 @@
-import { assemble, disassemble } from "../public/assembly.js";
-import { restoreProgramSource } from "../public/program-source.js";
-import { parseProject } from "../public/project-file.js";
+import { assemble, disassemble } from "../public/core/assembly.js";
+import { restoreProgramSource } from "../public/core/program-source.js";
+import { parseProject } from "../public/core/project-file.js";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dimsOf, moduleFaceParts, pinsFor, spec } from "../public/components.js";
+import { dimsOf, moduleFaceParts, pinsFor, spec } from "../public/core/components.js";
 import { addComponent, addWireEdge, buttonsInBoard, canPlaceEdge, circuitIssue, clocksInBoard, computeNets, createBoard,
   edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netInfoByEdgeKey, parseDocument, resizeNet,
-  sanitizeWires, serialize, storedInBoard, wireRoute } from "../public/model.js";
+  sanitizeWires, serialize, storedInBoard, wireRoute } from "../public/core/model.js";
 
 test("modules expose named ports and carry parent inputs through nested circuitry", () => {
   const inner = createBoard();

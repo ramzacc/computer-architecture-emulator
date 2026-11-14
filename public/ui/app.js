@@ -1,13 +1,13 @@
-import { COMPONENT_TYPES, DEFAULT_CLOCK_FREQUENCY, addressWidth, bitWidth, channelCount, dimsOf, isSizable, moduleFaceParts, modulePinLayout, modulePorts, pinsFor, selectWidth, spec, validBitWidth } from "./components.js";
-import { addComponent, addWireEdge, clocksInBoard, createBoard, edgeKey, edgePlacementError, evaluateBoard, netContaining, parseDocument, serialize, wireRoute } from "./model.js";
-import { BoardEditor } from "./editor.js";
+import { COMPONENT_TYPES, DEFAULT_CLOCK_FREQUENCY, addressWidth, bitWidth, channelCount, dimsOf, isSizable, moduleFaceParts, modulePinLayout, modulePorts, pinsFor, selectWidth, spec, validBitWidth } from "../core/components.js";
+import { addComponent, addWireEdge, clocksInBoard, createBoard, edgeKey, edgePlacementError, evaluateBoard, netContaining, parseDocument, serialize, wireRoute } from "../core/model.js";
+import { BoardEditor } from "../core/editor.js";
 import { createRenderer } from "./renderer.js";
-import { formatValue, parseValue } from "./value-format.js";
-import { parseRomFile, serializeRomFile, validHexWord } from "./rom-format.js";
+import { formatValue, parseValue } from "../core/value-format.js";
+import { parseRomFile, serializeRomFile, validHexWord } from "../core/rom-format.js";
 import { createTabs } from "./tabs.js";
 import { createMonitor } from "./monitor.js";
 import { createProgram } from "./program.js";
-import { parseProject, serializeProject } from "./project-file.js";
+import { parseProject, serializeProject } from "../core/project-file.js";
 
 const CELL = 48;
 const GAP = 3;
@@ -1728,7 +1728,7 @@ function loadBoard(board, drafts = { rom: [], isa: [], assembly: [], breakpoints
 function parseImport(text) {
   return new Promise((resolve, reject) => {
     let worker;
-    try { worker = new Worker(new URL("./import-worker.js", import.meta.url), { type: "module" }); }
+    try { worker = new Worker(new URL("../core/import-worker.js", import.meta.url), { type: "module" }); }
     catch (error) { reject(error); return; }
     worker.onmessage = ({ data }) => {
       worker.terminate();
@@ -1950,7 +1950,7 @@ try {
     importNameEl.textContent = "Demo computer";
     let board;
     try {
-      const response = await fetch(new URL("../demo-computer.json", import.meta.url));
+      const response = await fetch(new URL("../../demo-computer.json", import.meta.url));
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       board = parseProject(await response.text()).board;
     } catch (error) {

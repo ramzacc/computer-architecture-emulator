@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createMonitor, dropPlacement, insertionIndex } from "../public/monitor.js";
-import { addComponent, createBoard, evaluateBoard, parseDocument, serialize } from "../public/model.js";
-import { parseRamAddress } from "../public/ram-view.js";
+import { createMonitor, dropPlacement, insertionIndex } from "../public/ui/monitor.js";
+import { addComponent, createBoard, evaluateBoard, parseDocument, serialize } from "../public/core/model.js";
+import { parseRamAddress } from "../public/ui/ram-view.js";
 
 function matchSimple(el, selector) {
   let rest = selector;

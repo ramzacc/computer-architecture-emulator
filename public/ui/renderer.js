@@ -1,6 +1,6 @@
-import { bitWidth, channelCount, dimsOf, moduleFaceParts, modulePorts, pinsFor, spec } from "./components.js";
-import { edgeKey, edgePoints, wireSize } from "./model.js";
-import { formatValue } from "./value-format.js";
+import { bitWidth, channelCount, dimsOf, moduleFaceParts, modulePorts, pinsFor, spec } from "../core/components.js";
+import { edgeKey, edgePoints, wireSize } from "../core/model.js";
+import { formatValue } from "../core/value-format.js";
 
 const CELL = 48;
 const WIRE_W = 4;

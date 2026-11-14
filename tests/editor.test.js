@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { BoardEditor, STORAGE_KEY } from '../public/editor.js';
-import { dimsOf, pinsFor, spec } from '../public/components.js';
-import { edgeKey, parseDocument, serialize } from '../public/model.js';
-import { createRenderer, wireTitle } from '../public/renderer.js';
-import { formatValue, parseValue } from '../public/value-format.js';
+import { BoardEditor, STORAGE_KEY } from '../public/core/editor.js';
+import { dimsOf, pinsFor, spec } from '../public/core/components.js';
+import { edgeKey, parseDocument, serialize } from '../public/core/model.js';
+import { createRenderer, wireTitle } from '../public/ui/renderer.js';
+import { formatValue, parseValue } from '../public/core/value-format.js';
 
 function setup() {
   const data = new Map();

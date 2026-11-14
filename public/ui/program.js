@@ -1,7 +1,7 @@
-import { addressWidth, bitWidth } from "./components.js";
-import { formatValue } from "./value-format.js";
-import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, assignIsaCell, sourceLineAddresses } from "./assembly.js";
-import { restoreProgramSource } from "./program-source.js";
+import { addressWidth, bitWidth } from "../core/components.js";
+import { formatValue } from "../core/value-format.js";
+import { assemble, disassemble, parseIsa, isaGrid, serializeIsaGrid, assignIsaCell, sourceLineAddresses } from "../core/assembly.js";
+import { restoreProgramSource } from "../core/program-source.js";
 import { createRamViewer } from "./ram-view.js";
 
 const fields = { rom: "rom", ram: "ram", pc: "tag", run: "clock", step: "button", resetPc: "button", resetRegisters: "button" };

@@ -1,5 +1,5 @@
-import { addressWidth, bitWidth } from "./components.js";
-import { formatValue } from "./value-format.js";
+import { addressWidth, bitWidth } from "../core/components.js";
+import { formatValue } from "../core/value-format.js";
 
 const WORDS_PER_ROW = 4;
 const ROWS_PER_PAGE = 8;
