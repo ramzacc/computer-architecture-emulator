@@ -41,7 +41,7 @@ test("ROM address and data widths use powers of two", () => {
   assert.throws(() => parseDocument(wide), /1–16/);
   const storage = { getItem: () => wide };
   assert.throws(() => new BoardEditor({ storage }).loadSaved(), /1–16/);
-  assert.throws(() => new BoardEditor().importText(wide), /1–16/);
+  assert.throws(() => new BoardEditor().replaceBoard(parseDocument(wide).board), /1–16/);
 });
 
 test("ROM value cells accept only hex digits that fit their data width", () => {

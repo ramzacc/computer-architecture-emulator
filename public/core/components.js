@@ -237,7 +237,7 @@ export function normalizeRotation(r) {
   return q < 0 ? q + 4 : q;
 }
 
-export const MAX_BUS_WIDTH = 32;
+const MAX_BUS_WIDTH = 32;
 export const MAX_PLEXER_CHANNELS = 16;
 export const DEFAULT_CLOCK_FREQUENCY = 1;
 
@@ -295,7 +295,7 @@ export function modulePorts(component) {
   });
 }
 
-export const MODULE_FACE_TYPES = new Set(["led", "sevenseg", "debugdisplay", "output", "button"]);
+const MODULE_FACE_TYPES = new Set(["led", "sevenseg", "debugdisplay", "output", "button"]);
 
 export function moduleFaceParts(component) {
   return (component.module?.components ?? []).flatMap((part, index) =>
@@ -429,7 +429,7 @@ function rotateDir(dir, r) {
   return i < 0 ? dir : DIRECTIONS[(i + r) % 4];
 }
 
-export function dimsFor(type, r = 0) {
+function dimsFor(type, r = 0) {
   const component = spec(type);
   if (!component) return null;
   if (component.tag) return { w: component.w, h: component.h };

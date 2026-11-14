@@ -25,7 +25,7 @@ function validEdgeCoordinates(edge) {
     Number.isSafeInteger(edge.o === "H" ? edge.x + 1 : edge.y + 1);
 }
 
-export function componentAt(board, x, y, ignoreId) {
+function componentAt(board, x, y, ignoreId) {
   return board.components.find((component) => {
     if (component.id === ignoreId) return false;
     const { w, h } = dimsOf(component);
@@ -195,7 +195,7 @@ export function edgePlacementError(board, edge) {
   return null;
 }
 
-export function canPlaceEdge(board, edge) {
+function canPlaceEdge(board, edge) {
   return edgePlacementError(board, edge) === null;
 }
 
@@ -690,10 +690,6 @@ export function shortCircuitError(board, pressedButtons, highClocks, registerVal
   return circuitIssue(board, pressedButtons, highClocks, registerValues, ramValues)?.message ?? null;
 }
 
-export function computeNets(board) {
-  return evaluateBoard(board).nets;
-}
-
 export function netContaining(board, key, evaluation = evaluateBoard(board)) {
   for (const net of evaluation.nets.values()) {
     if (net.edges.some((edge) => edgeKey(edge) === key)) return net;
@@ -713,14 +709,6 @@ export function resizeNet(board, key, size) {
     return false;
   }
   return true;
-}
-
-export function netInfoByEdgeKey(board) {
-  const info = new Map();
-  for (const net of computeNets(board).values()) {
-    for (const edge of net.edges) info.set(edgeKey(edge), { on: net.on, value: net.value, size: net.size, netId: net.id });
-  }
-  return info;
 }
 
 function documentValue(component, field) {

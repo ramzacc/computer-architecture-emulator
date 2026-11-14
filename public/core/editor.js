@@ -313,11 +313,6 @@ export class BoardEditor {
     return true;
   }
 
-  commitComponentEdit() {
-    sanitizeWires(this.board);
-    this.commit();
-  }
-
   editComponent(component, changes, { validate = isValidComponent, sanitize = false, captureEdges = false } = {}) {
     const previous = { ...component };
     Object.assign(component, changes);
@@ -339,7 +334,7 @@ export class BoardEditor {
       if (next) this.board.program.sources[component.id] = next;
       else delete this.board.program.sources[component.id];
     }
-    if (sanitize) this.commitComponentEdit();
+    if (sanitize) { sanitizeWires(this.board); this.commit(); }
     else this.commit(captureEdges);
     return true;
   }
@@ -366,12 +361,6 @@ export class BoardEditor {
     if (save) this.save();
   }
 
-  importText(text) {
-    const result = parseDocument(text);
-    this.replaceBoard(result.board);
-    return result;
-  }
-
   component(id) { return this.board.components.find((c) => c.id === id); }
 
   place(type, x, y) {
@@ -379,7 +368,8 @@ export class BoardEditor {
     do { id = `c${this.nextComponentId++}`; } while (this.component(id));
     const component = newComponent(type, id, x, y, this.board);
     if (!addComponent(this.board, component)) return null;
-    this.commitComponentEdit();
+    sanitizeWires(this.board);
+    this.commit();
     return component;
   }
 
@@ -682,14 +672,6 @@ export class BoardEditor {
     return true;
   }
 
-  deleteComponent(id) {
-    return this.deleteSelection([id], []);
-  }
-
-  deleteComponents(ids) {
-    return this.deleteSelection(ids, []);
-  }
-
   deleteSelection(ids, wireKeys) {
     const selected = new Set(ids);
     const edges = new Set();
@@ -703,14 +685,6 @@ export class BoardEditor {
     if (this.board.components.length === before && !edges.size) return false;
     this.commit();
     return true;
-  }
-
-  copyComponents(ids) {
-    return this.copySelection(ids, []).components;
-  }
-
-  pasteComponents(copies) {
-    return this.pasteSelection({ components: copies, wires: [], wireKeys: [] })?.components ?? [];
   }
 
   copySelection(ids, wireKeys) {
@@ -814,9 +788,5 @@ export class BoardEditor {
       }
     }
     return null;
-  }
-
-  deleteNet(key) {
-    return this.deleteSelection([], [key]);
   }
 }

@@ -1,8 +1,8 @@
 import { bitWidth, addressWidth, validRom } from "./components.js";
 import { parseDocument, serialize } from "./model.js";
 
-export const PROJECT_VERSION = 1;
-export const PROJECT_FORMAT = "computer-architecture-project";
+const PROJECT_VERSION = 1;
+const PROJECT_FORMAT = "computer-architecture-project";
 
 function object(value, name, keys) {
   if (!value || typeof value !== "object" || Array.isArray(value) ||

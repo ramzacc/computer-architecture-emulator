@@ -5,9 +5,19 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { dimsOf, moduleFaceParts, pinsFor, spec } from "../public/core/components.js";
-import { addComponent, addWireEdge, buttonsInBoard, canPlaceEdge, circuitIssue, clocksInBoard, computeNets, createBoard,
-  edgeKey, edgePlacementError, evaluateBoard, isValidComponent, netInfoByEdgeKey, parseDocument, resizeNet,
+import { addComponent, addWireEdge, buttonsInBoard, circuitIssue, clocksInBoard, createBoard,
+  edgeKey, edgePlacementError, evaluateBoard, isValidComponent, parseDocument, resizeNet,
   sanitizeWires, serialize, storedInBoard, wireRoute } from "../public/core/model.js";
+
+const canPlaceEdge = (board, edge) => edgePlacementError(board, edge) === null;
+
+function netInfoByEdgeKey(board) {
+  const info = new Map();
+  for (const net of evaluateBoard(board).nets.values()) {
+    for (const edge of net.edges) info.set(edgeKey(edge), { on: net.on, value: net.value, size: net.size, netId: net.id });
+  }
+  return info;
+}
 
 test("modules expose named ports and carry parent inputs through nested circuitry", () => {
   const inner = createBoard();
@@ -147,7 +157,7 @@ test("portals with different labels observe separate buses", () => {
     { o: "H", x: 12, y: 1, size: 4 },
   ]) assert.equal(addWireEdge(board, edge), true);
   assert.equal(evaluateBoard(board).states.get("sink").value, 0);
-  assert.equal(computeNets(board).size, 2);
+  assert.equal(evaluateBoard(board).nets.size, 2);
   const restored = parseDocument(serialize(board)).board;
   assert.equal(restored.components[1].label, "DATA");
   assert.equal(evaluateBoard(restored).states.get(restored.components[3].id).value, 0);
@@ -165,11 +175,11 @@ test("duplicate portal labels survive saving and join their buses", () => {
   assert.equal(addWireEdge(board, { o: "H", x: -1, y: 1 }), true);
   assert.equal(addWireEdge(board, { o: "H", x: 0, y: 1 }), true);
   assert.equal(addWireEdge(board, { o: "H", x: 12, y: 1 }), true);
-  assert.equal(computeNets(board).size, 2);
+  assert.equal(evaluateBoard(board).nets.size, 2);
   board.components[2].label = "A";
   const restored = parseDocument(serialize(board)).board;
   assert.deepEqual(restored.components.filter((component) => component.t === "portal").map((component) => component.label), ["A", "A"]);
-  assert.equal(computeNets(restored).size, 1);
+  assert.equal(evaluateBoard(restored).nets.size, 1);
   assert.equal(evaluateBoard(restored).states.get("c4").value, 1);
 });
 
@@ -404,10 +414,10 @@ test("orthogonal crossings stay separate, while explicit junctions join them", (
     { o: "H", x: 0, y: 1, size: 1 }, { o: "H", x: 1, y: 1, size: 1 },
     { o: "V", x: 1, y: 0, size: 1 }, { o: "V", x: 1, y: 1, size: 1 },
   ]) assert.equal(addWireEdge(board, edge), true);
-  assert.equal(computeNets(board).size, 2);
+  assert.equal(evaluateBoard(board).nets.size, 2);
   assert.deepEqual(parseDocument(serialize(board)).board.junctions, new Set());
   board.junctions.add("1,1");
-  assert.equal(computeNets(board).size, 1);
+  assert.equal(evaluateBoard(board).nets.size, 1);
   assert.deepEqual(parseDocument(serialize(board)).board.junctions, new Set(["1,1"]));
   const withoutJunctions = JSON.stringify({ components: [], wires: JSON.parse(serialize(board)).wires });
   assert.throws(() => parseDocument(withoutJunctions), /junctions/);
@@ -419,13 +429,13 @@ test("extending a connected three-way branch into a cross keeps its junction", (
     { o: "H", x: 0, y: 1 }, { o: "H", x: 1, y: 1 },
     { o: "V", x: 1, y: 1 },
   ]) assert.equal(addWireEdge(board, edge), true);
-  assert.equal(computeNets(board).size, 1);
+  assert.equal(evaluateBoard(board).nets.size, 1);
   const extension = wireRoute(board, { x: 1, y: -1 }, { x: 1, y: 1 }, 1);
   assert.equal(extension.error, null);
   assert.deepEqual(extension.junctions, ["1,1"]);
   for (const edge of extension.edges) board.wires.set(edgeKey(edge), edge);
   for (const key of extension.junctions) board.junctions.add(key);
-  assert.equal(computeNets(board).size, 1);
+  assert.equal(evaluateBoard(board).nets.size, 1);
   assert.deepEqual(parseDocument(serialize(board)).board.junctions, new Set(["1,1"]));
 });
 
@@ -436,8 +446,8 @@ test("a whole route can cross a different width wire without joining it", () => 
   assert.equal(route.error, null);
   assert.deepEqual(route.junctions, []);
   for (const edge of route.edges) board.wires.set(edgeKey(edge), edge);
-  assert.equal(computeNets(board).size, 2);
-  assert.deepEqual([...computeNets(board).values()].map((net) => net.size).sort(), [1, 2]);
+  assert.equal(evaluateBoard(board).nets.size, 2);
+  assert.deepEqual([...evaluateBoard(board).nets.values()].map((net) => net.size).sort(), [1, 2]);
   assert.equal(parseDocument(serialize(board)).board.wires.size, 4);
   board.junctions.add("1,1");
   assert.throws(() => parseDocument(serialize(board)), /bus size mismatch/);
@@ -476,7 +486,7 @@ test("a high constant drives an LED and sanitizes after edits", () => {
   addComponent(board, { id: "l", t: "led", x: 1, y: 3, r: 0 });   // in edge V:2,2
   assert.equal(canPlaceEdge(board, { o: "H", x: 6, y: 6 }), true);
   assert.equal(addWireEdge(board, { o: "V", x: 2, y: 2 }), true);
-  const [net] = computeNets(board).values();
+  const [net] = evaluateBoard(board).nets.values();
   assert.equal(net.on, true);
   assert.equal(net.edges.length, 1);
   assert.equal(evaluateBoard(board).states.get("l").lit, true);
@@ -898,7 +908,7 @@ test("NOT is a rotatable 2x2 gate and inverts every bit of its selected width", 
   assert.equal(addWireEdge(board, { o: "V", x: 1, y: 3, size: 4 }), true);
   assert.equal(addWireEdge(board, { o: "V", x: 1, y: 6, size: 4 }), true);
   assert.equal(evaluateBoard(board).states.get("n").value, 0b1010);
-  assert.equal([...computeNets(board).values()].find((net) => net.edges.some((edge) => edge.y === 6)).value, 0b1010);
+  assert.equal([...evaluateBoard(board).nets.values()].find((net) => net.edges.some((edge) => edge.y === 6)).value, 0b1010);
   assert.equal(addWireEdge(board, { o: "V", x: 1, y: 7, size: 1 }), false);
   const saved = JSON.parse(serialize(board));
   assert.deepEqual(saved.components[1], ["not", 0, 4, 0, 4, "NOT 1"]);
@@ -923,7 +933,7 @@ test("constant drives its configured value and enforces its width and range", ()
   assert.equal(addWireEdge(board, { o: "H", x: 1, y: 2, size: 1 }), false);
   assert.equal(addWireEdge(board, { o: "H", x: 1, y: 2, size: 8 }), true);
   assert.equal(evaluateBoard(board).states.get("k").value, 173);
-  assert.equal([...computeNets(board).values()][0].value, 173);
+  assert.equal([...evaluateBoard(board).nets.values()][0].value, 173);
   const saved = JSON.parse(serialize(board));
   assert.deepEqual(saved.components[0], ["constant", -8, 1, 2, 8, 173, 0, "Constant 1"]);
   assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
@@ -954,7 +964,7 @@ test("output reads a matching bus without driving it and survives serialization"
   assert.equal(addWireEdge(board, { o: "V", x: 1, y: 3, size: 1 }), false);
   for (const y of [2, 3]) assert.equal(addWireEdge(board, { o: "V", x: 1, y, size: 8 }), true);
   assert.equal(evaluateBoard(board).states.get("out").value, 173);
-  assert.equal([...computeNets(board).values()][0].value, 173);
+  assert.equal([...evaluateBoard(board).nets.values()][0].value, 173);
   const saved = JSON.parse(serialize(board));
   assert.deepEqual(saved.components[1], ["output", 1, 3, 0, 8, 0, "Output 1"]);
   assert.deepEqual(JSON.parse(serialize(parseDocument(JSON.stringify(saved)).board)), saved);
@@ -1029,7 +1039,7 @@ test("descendant splitter order reverses branch bits and persists", () => {
     { o: "V", x: 1, y: 2, size: 4 }, { o: "V", x: 1, y: 3, size: 4 },
     ...[5, 6, 7, 8].map((y) => ({ o: "H", x: 2, y, size: 1 })),
   ]) assert.equal(addWireEdge(board, wire), true);
-  const nets = computeNets(board);
+  const nets = evaluateBoard(board).nets;
   for (const y of [5, 6, 7, 8]) {
     const net = [...nets.values()].find((item) => item.edges.some((edge) => edgeKey(edge) === `H:2,${y}`));
     assert.equal(net.value, y === 8 ? 1 : 0);

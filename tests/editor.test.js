@@ -21,7 +21,7 @@ function setup() {
 
 test('registers inside separate wrapper instances capture and retain their values', () => {
   const { editor } = setup();
-  editor.importText(readFileSync(new URL('../fixtures/register-wrappers.json', import.meta.url), 'utf8'));
+  editor.replaceBoard(parseDocument(readFileSync(new URL('../fixtures/register-wrappers.json', import.meta.url), 'utf8')).board);
   assert.deepEqual([...editor.registerValues.values()], [0, 0, 0, 0]);
   assert.equal(editor.setButtonPressed('c7', true), true);
   assert.deepEqual([...editor.registerValues.values()], [124, 0, 0, 0]);
@@ -29,7 +29,7 @@ test('registers inside separate wrapper instances capture and retain their value
   assert.equal(editor.setButtonPressed('c7', false), true);
   assert.equal(editor.evaluation.states.get('c6').value, 124);
   assert.equal(editor.registerValues.get('c1/c8'), 124);
-  editor.importText(readFileSync(new URL('../fixtures/register-wrappers.json', import.meta.url), 'utf8'));
+  editor.replaceBoard(parseDocument(readFileSync(new URL('../fixtures/register-wrappers.json', import.meta.url), 'utf8')).board);
   assert.deepEqual([...editor.registerValues.values()], [0, 0, 0, 0]);
 });
 
@@ -176,7 +176,7 @@ test('successful edits render and save once, while rejected edits do neither', (
   assert.equal(ctx.saves, 4);
   assert.equal(editor.removeWire('H:-1,1'), true);
   assert.equal(ctx.saves, 5);
-  assert.equal(editor.deleteComponent(constant.id), true);
+  assert.equal(editor.deleteSelection([constant.id], []), true);
   assert.equal(ctx.saves, 6);
   assert.equal(ctx.renders, ctx.saves);
 });
@@ -527,7 +527,7 @@ test('property edits validate width, value, order and connected wires', () => {
   assert.equal(editor.addWire(wire), true);
   assert.equal(editor.resizeComponent(constant.id, 1), false);
   assert.equal(editor.component(constant.id).size, 2);
-  assert.equal(editor.deleteNet(edgeKey(wire)), true);
+  assert.equal(editor.deleteSelection([], [edgeKey(wire)]), true);
 });
 
 test('output width is configurable and must match its connected net', () => {
@@ -538,7 +538,7 @@ test('output width is configurable and must match its connected net', () => {
   assert.equal(editor.addWire({ o: 'H', x: -1, y: 1, size: 32 }), true);
   assert.equal(editor.resizeComponent(output.id, 8), false);
   assert.equal(editor.component(output.id).size, 32);
-  assert.equal(editor.deleteNet('H:-1,1'), true);
+  assert.equal(editor.deleteSelection([], ['H:-1,1']), true);
   assert.equal(editor.resizeComponent(output.id, 8), true);
 });
 
@@ -563,7 +563,7 @@ test('portal labels can match and widths edit independently', () => {
 
 test('editing a wired portal label disconnects and reconnects its bus', () => {
   const { editor } = setup();
-  editor.importText(readFileSync(new URL('../fixtures/portal-bus.json', import.meta.url), 'utf8'));
+  editor.replaceBoard(parseDocument(readFileSync(new URL('../fixtures/portal-bus.json', import.meta.url), 'utf8')).board);
   assert.equal(editor.evaluation.states.get('c4').value, 10);
   assert.equal(editor.setLabel('c3', 'OTHER'), true);
   assert.equal(editor.evaluation.states.get('c4').value, 0);
@@ -577,7 +577,8 @@ test('pasting a portal keeps its label', () => {
   const { editor } = setup();
   const portal = editor.place('portal', 0, 0);
   assert.equal(editor.setLabel(portal.id, 'DATA'), true);
-  const [copy] = editor.pasteComponents(editor.copyComponents([portal.id]));
+  const copies = editor.copySelection([portal.id], []).components;
+  const [copy] = editor.pasteSelection({ components: copies, wires: [], wireKeys: [] })?.components ?? [];
   assert.ok(copy);
   assert.equal(copy.label, 'DATA');
   assert.deepEqual(parseDocument(serialize(editor.board)).board.components.map((component) => component.label), ['DATA', 'DATA']);
@@ -641,7 +642,7 @@ test('constant and output formats convert existing values and survive saving', (
   assert.equal(restored[0].format, 'hex');
   assert.equal(restored[0].value, 173);
   assert.equal(restored[1].format, 'hex');
-  const copies = editor.copyComponents([constant.id, output.id]);
+  const copies = editor.copySelection([constant.id, output.id], []).components;
   assert.deepEqual(copies.map(({ format }) => format), ['hex', 'hex']);
 });
 
@@ -667,7 +668,8 @@ test('constant and output canvas art uses the selected value format', () => {
 test('imports save only after a complete valid document is parsed', () => {
   const ctx = setup();
   const document = JSON.stringify({ components: [['constant', 0, 0, 0, 1, 1, 0, 'Constant 1']], wires: [['V', 1, 2, 1]], junctions: [] });
-  const result = ctx.editor.importText(document);
+  const result = parseDocument(document);
+  ctx.editor.replaceBoard(result.board);
   assert.equal(result.board.components[0].y, 0);
   assert.equal(result.board.components[0].t, 'constant');
   assert.equal(result.board.components[0].value, 1);
@@ -675,8 +677,8 @@ test('imports save only after a complete valid document is parsed', () => {
   assert.equal(ctx.saves, 1);
   assert.equal(parseDocument(ctx.data.get(STORAGE_KEY)).board.wires.size, 1);
   const before = serialize(ctx.editor.board);
-  assert.throws(() => ctx.editor.importText('{'));
-  assert.throws(() => ctx.editor.importText(JSON.stringify({ components: [['led', 0, 0, 0]], wires: [['X', 0, 0, 1]] })));
+  assert.throws(() => ctx.editor.replaceBoard(parseDocument('{').board));
+  assert.throws(() => ctx.editor.replaceBoard(parseDocument(JSON.stringify({ components: [['led', 0, 0, 0]], wires: [['X', 0, 0, 1]] })).board));
   assert.equal(serialize(ctx.editor.board), before);
   assert.equal(ctx.saves, 1);
   assert.equal(ctx.editor.loadSaved().board.components.length, 1);
@@ -784,7 +786,7 @@ test('accepted events publish a fresh evaluation; explicit evaluation does not s
   assert.equal([...powered.nets.values()][0].value, 1);
   assert.equal(published.at(-1).evaluation, powered);
 
-  editor.deleteComponent(constant.id);
+  editor.deleteSelection([constant.id], []);
   assert.equal(editor.evaluation.states.get(led.id).lit, false);
   assert.equal(powered.states.get(led.id).lit, true); // prior snapshot stays valid
   const before = saves;
@@ -1079,7 +1081,7 @@ test('new data-path parts start at four bits and keep control pins fixed while r
   assert.equal(editor.addWire({ o: 'V', x: 5, y: -1, size: 1 }), true);
   assert.equal(editor.addWire({ o: 'V', x: 3, y: 3, size: 4 }), true);
   assert.equal(editor.resizeComponent(mux.id, 8), false);
-  assert.equal(editor.deleteNet('V:3,3'), true);
+  assert.equal(editor.deleteSelection([], ['V:3,3']), true);
   assert.equal(editor.resizeComponent(mux.id, 8), true);
   assert.equal(editor.addWire({ o: 'V', x: 5, y: -2, size: 8 }), false);
   assert.equal(editor.addWire({ o: 'V', x: 9, y: 3, size: 1 }), true);
@@ -1172,23 +1174,23 @@ test('copy and paste preserve component properties and relative positions', () =
   editor.resizeComponent(constant.id, 3);
   editor.setConstantValue(constant.id, 5);
   const led = editor.place('led', 5, 1);
-  const copies = editor.copyComponents([constant.id, led.id]);
+  const copies = editor.copySelection([constant.id, led.id], []).components;
   assert.deepEqual(copies.map(({ x, y }) => [x, y]), [[0, 0], [5, 1]]);
   const saves = ctx.saves;
-  const first = editor.pasteComponents(copies);
+  const first = editor.pasteSelection({ components: copies, wires: [], wireKeys: [] })?.components ?? [];
   assert.equal(first.length, 2);
   assert.deepEqual(first.map(({ x, y }) => [x, y]), [[1, 2], [6, 3]]);
   assert.equal(first[0].size, 3);
   assert.equal(first[0].value, 5);
   assert.equal(new Set(first.map((c) => c.id)).size, 2);
   assert.equal(ctx.saves, saves + 1);
-  const second = editor.pasteComponents(copies);
+  const second = editor.pasteSelection({ components: copies, wires: [], wireKeys: [] })?.components ?? [];
   assert.deepEqual(second.map(({ x, y }) => [x, y]), [[2, 4], [7, 5]]);
   assert.equal(ctx.saves, saves + 2);
-  assert.equal(editor.deleteComponents(first.map((c) => c.id)), true);
+  assert.equal(editor.deleteSelection(first.map((c) => c.id), []), true);
   assert.equal(ctx.saves, saves + 3);
   assert.equal(editor.board.components.length, 4);
-  assert.equal(editor.deleteComponents(first.map((c) => c.id)), false);
+  assert.equal(editor.deleteSelection(first.map((c) => c.id), []), false);
   assert.equal(ctx.saves, saves + 3);
 });
 
@@ -1270,10 +1272,10 @@ test('a failed group paste does not add some components or save', () => {
   const ctx = setup();
   const before = serialize(ctx.editor.board);
   const saves = ctx.saves;
-  const pasted = ctx.editor.pasteComponents([
+  const pasted = ctx.editor.pasteSelection({ components: [
     { t: 'constant', value: 1, x: 0, y: 0, r: 0 },
     { t: 'led', x: 0, y: 0, r: 0 },
-  ]);
+  ], wires: [], wireKeys: [] })?.components ?? [];
   assert.deepEqual(pasted, []);
   assert.equal(serialize(ctx.editor.board), before);
   assert.equal(ctx.saves, saves);

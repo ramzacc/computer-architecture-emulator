@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MAX_PLEXER_CHANNELS, addressWidth, bitWidth, channelCount, dimsFor, documentFields,
+import { MAX_PLEXER_CHANNELS, addressWidth, bitWidth, channelCount, dimsOf, documentFields,
   isSizable, normalizeRotation, selectWidth, spec, validBitWidth, validChannelCount,
   validClockFrequency, validConstant, validRam, validRom, validRomAddressWidth, validRomWidth,
   validSplitterOrder } from "../public/core/components.js";
@@ -93,12 +93,12 @@ test("ROM data needs unique in-range addresses and nonzero words that fit", () =
   assert.equal(validRam({ t: "ram", size: 3, addressSize: 8 }), false);
 });
 
-test("dimsFor swaps width and height on quarter turns but pins tags upright", () => {
-  assert.deepEqual([0, 1, 2, 3].map((r) => dimsFor("and", r)),
+test("dimsOf swaps width and height on quarter turns but pins tags upright", () => {
+  assert.deepEqual([0, 1, 2, 3].map((r) => dimsOf({ t: "and", r })),
     [{ w: 4, h: 2 }, { w: 2, h: 4 }, { w: 4, h: 2 }, { w: 2, h: 4 }]);
-  assert.deepEqual([0, 1, 2, 3].map((r) => dimsFor("sevenseg", r)),
+  assert.deepEqual([0, 1, 2, 3].map((r) => dimsOf({ t: "sevenseg", r })),
     [{ w: 6, h: 5 }, { w: 5, h: 6 }, { w: 6, h: 5 }, { w: 5, h: 6 }]);
-  for (const r of [0, 1, 2, 3]) assert.deepEqual(dimsFor("tag", r), { w: 4, h: 2 });
-  assert.deepEqual(dimsFor("not", 1), { w: 2, h: 2 });
-  assert.equal(dimsFor("missing"), null);
+  for (const r of [0, 1, 2, 3]) assert.deepEqual(dimsOf({ t: "tag", r }), { w: 4, h: 2 });
+  assert.deepEqual(dimsOf({ t: "not", r: 1 }), { w: 2, h: 2 });
+  assert.equal(dimsOf({ t: "missing" }), null);
 });
