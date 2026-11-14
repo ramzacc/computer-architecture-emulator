@@ -1,0 +1,13 @@
+{
+  "worktree": {
+    "setup": ["npm ci"]
+  },
+  "scripts": {
+    "check": { "command": "npm run check" },
+    "test": { "command": "npm test" },
+    "dev": {
+      "type": "service",
+      "command": "npx wrangler dev --ip \"$HOST\" --port \"$PASEO_PORT\""
+    }
+  }
+}
