@@ -1,5 +1,13 @@
 export const byId = (id) => document.getElementById(id);
 
+/** Look up several ids at once, keyed by their camelCased id. */
+export function byIds(...ids) {
+  return Object.fromEntries(ids.map((id) => [
+    id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()),
+    document.getElementById(id),
+  ]));
+}
+
 /** Build an element with properties, attributes, and children in one call. */
 export function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
