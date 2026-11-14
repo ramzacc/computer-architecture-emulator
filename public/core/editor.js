@@ -1,4 +1,5 @@
-import { bitWidth, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, modulePinLayout, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
+import { bitMask, bitWidth, DEFAULT_CLOCK_FREQUENCY, dimsOf, isSizable, MAX_LABEL_LENGTH, modulePinLayout, pinsFor, validBitWidth, validChannelCount, validClockFrequency, validConstant, validModuleFaceLayout, validModulePinLayout, validModuleSize, validRom, validRomAddressWidth, validRomWidth, validSplitterOrder } from "./components.js";
+import { edgesAtPoint } from "./board.js";
 import { addComponent, addWireEdge, buttonsInBoard, clocksInBoard, createBoard, crossingAt, edgeKey, isValidComponent, labelAvailable, nextLabel,
   circuitIssue, evaluateBoard, netContaining, parseDocument, pruneJunctions, resizeNet, sanitizeWires, serialize, shortCircuitError, storedInBoard, wireLayoutError, wireRoute } from "./model.js";
 import { validValueFormat } from "./value-format.js";
@@ -7,10 +8,25 @@ import { captureProgramSource, reconcileProgramSource } from "./program-source.j
 
 export const STORAGE_KEY = "grid-canvas-document";
 
+const sameJson = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+
+// ROM words are stored ordered by address.
+const sortedRomData = (data) => data.map(([address, value]) => [address, value])
+  .sort((a, b) => a[0] - b[0]);
+
+// Read a component state from an evaluation, following module paths ("id/inner").
+function stateAt(evaluation, path) {
+  let states = evaluation.states;
+  let state;
+  for (const id of path.split("/")) {
+    state = states?.get(id);
+    states = state?.faceStates;
+  }
+  return state;
+}
+
 function attachedWires(board, pin) {
-  const { px: x, py: y } = pin;
-  return [`H:${x - 1},${y}`, `H:${x},${y}`, `V:${x},${y - 1}`, `V:${x},${y}`]
-    .filter((key) => board.wires.has(key));
+  return edgesAtPoint(pin.px, pin.py).filter((key) => board.wires.has(key));
 }
 
 function movesConnectedPin(board, component, next) {
@@ -144,13 +160,17 @@ export class BoardEditor {
   get canUndo() { return this.undoStack.length > 0; }
   get canRedo() { return this.redoStack.length > 0; }
 
-  restoreHistory(board) {
-    this.board = structuredClone(board);
+  resetRuntime() {
     this.pressedButtons.clear();
     this.highClocks.clear();
     this.registerValues.clear();
     this.ramValues.clear();
     this.nextComponentId = this.board.components.length + 1;
+  }
+
+  restoreHistory(board) {
+    this.board = structuredClone(board);
+    this.resetRuntime();
     this.evaluate();
     this.save();
   }
@@ -174,28 +194,23 @@ export class BoardEditor {
 
   // An accepted edit produces one snapshot for every reader of circuit state.
   // Trial boards used by validation remain separate from this published result.
-  evaluate(captureEdges = false) {
+  prunePressedButtons() {
     const buttonIds = new Set(buttonsInBoard(this.board).keys());
     for (const id of this.pressedButtons) if (!buttonIds.has(id)) this.pressedButtons.delete(id);
-    const clockIds = new Set([...clocksInBoard(this.board)].filter(([, clock]) => clock.enable !== false)
-      .map(([id]) => id));
+  }
+
+  pruneHighClocks() {
+    const clockIds = new Set([...clocksInBoard(this.board)]
+      .filter(([, clock]) => clock.enable !== false).map(([id]) => id));
     for (const id of this.highClocks) if (!clockIds.has(id)) this.highClocks.delete(id);
-    const stored = storedInBoard(this.board);
-    const stateAt = (evaluation, path) => {
-      let states = evaluation.states;
-      let state;
-      for (const id of path.split("/")) {
-        state = states?.get(id);
-        states = state?.faceStates;
-      }
-      return state;
-    };
+  }
+
+  // Register and RAM state survives edits while the part remains; widths may change.
+  pruneStoredValues(stored) {
     for (const id of this.registerValues.keys()) if (!stored.has(id)) this.registerValues.delete(id);
     for (const [id, component] of stored) {
       if (component.t === "ram") continue;
-      const width = bitWidth(component);
-      const mask = width === 32 ? 0xffffffff : 2 ** width - 1;
-      this.registerValues.set(id, ((this.registerValues.get(id) ?? 0) & mask) >>> 0);
+      this.registerValues.set(id, ((this.registerValues.get(id) ?? 0) & bitMask(bitWidth(component))) >>> 0);
     }
     for (const id of this.ramValues.keys()) if (stored.get(id)?.t !== "ram") this.ramValues.delete(id);
     for (const [id, component] of stored) {
@@ -209,7 +224,11 @@ export class BoardEditor {
       }
       this.ramValues.set(id, words);
     }
-    const next = evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues, this.ramValues);
+  }
+
+  // Registers latch their data input on a rising write edge; counters increment
+  // on their clock edge and reset while the reset input is high.
+  captureRegisters(stored, next, captureEdges) {
     const captured = new Map();
     for (const [id, component] of stored) {
       if (component.t === "ram") continue;
@@ -218,9 +237,7 @@ export class BoardEditor {
       if (component.t === "counter") {
         if (inputs[1]) captured.set(id, 0);
         else if (captureEdges && (previous?.inputs[0] ?? 0) === 0 && inputs[0] !== 0) {
-          const width = bitWidth(component);
-          const mask = width === 32 ? 0xffffffff : 2 ** width - 1;
-          captured.set(id, (((this.registerValues.get(id) ?? 0) + 1) & mask) >>> 0);
+          captured.set(id, (((this.registerValues.get(id) ?? 0) + 1) & bitMask(bitWidth(component))) >>> 0);
         }
       } else if (inputs[2]) {
         captured.set(id, 0);
@@ -228,28 +245,48 @@ export class BoardEditor {
         captured.set(id, inputs[0] >>> 0);
       }
     }
-    const nextRegisters = captured.size ? new Map(this.registerValues) : this.registerValues;
-    for (const [id, value] of captured) nextRegisters.set(id, value);
-    let nextRam = this.ramValues;
-    let wroteRam = false;
+    return captured;
+  }
+
+  // RAM writes on the rising edge of the write input, at the current address.
+  captureRam(stored, next, captureEdges) {
+    let ramValues = this.ramValues;
+    let wrote = false;
     if (captureEdges) for (const [id, component] of stored) {
       if (component.t !== "ram") continue;
       const inputs = stateAt(next, id).inputs;
       if ((stateAt(this.evaluation, id)?.inputs[2] ?? 0) === 0 && inputs[2] !== 0) {
-        if (!wroteRam) nextRam = new Map(this.ramValues);
-        if (nextRam.get(id) === this.ramValues.get(id)) nextRam.set(id, new Map(this.ramValues.get(id)));
-        nextRam.get(id).set(inputs[0], inputs[1] >>> 0);
-        wroteRam = true;
+        if (!wrote) ramValues = new Map(this.ramValues);
+        if (ramValues.get(id) === this.ramValues.get(id)) ramValues.set(id, new Map(this.ramValues.get(id)));
+        ramValues.get(id).set(inputs[0], inputs[1] >>> 0);
+        wrote = true;
       }
     }
-    const issue = captured.size || wroteRam
-      ? circuitIssue(this.board, this.pressedButtons, this.highClocks, nextRegisters, nextRam) : null;
+    return { ramValues, wrote };
+  }
+
+  evaluate(captureEdges = false) {
+    this.prunePressedButtons();
+    this.pruneHighClocks();
+    const stored = storedInBoard(this.board);
+    this.pruneStoredValues(stored);
+    const next = evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues, this.ramValues);
+    const captured = this.captureRegisters(stored, next, captureEdges);
+    const ram = this.captureRam(stored, next, captureEdges);
+    const changed = captured.size || ram.wrote;
+    let registerValues = this.registerValues;
+    if (captured.size) {
+      registerValues = new Map(this.registerValues);
+      for (const [id, value] of captured) registerValues.set(id, value);
+    }
+    const issue = changed
+      ? circuitIssue(this.board, this.pressedButtons, this.highClocks, registerValues, ram.ramValues) : null;
     if (issue) this.onRuntimeError(issue);
     else {
-      this.registerValues = nextRegisters;
-      this.ramValues = nextRam;
+      this.registerValues = registerValues;
+      this.ramValues = ram.ramValues;
     }
-    this.evaluation = (captured.size || wroteRam) && !issue
+    this.evaluation = changed && !issue
       ? evaluateBoard(this.board, this.pressedButtons, this.highClocks, this.registerValues, this.ramValues)
       : next;
     this.onChange(this.board, this.evaluation);
@@ -300,7 +337,7 @@ export class BoardEditor {
   }
 
   setProgramConfig(config) {
-    if (JSON.stringify(this.board.program) === JSON.stringify(config)) return false;
+    if (sameJson(this.board.program, config)) return false;
     this.board.program = structuredClone(config);
     for (const [id, source] of Object.entries(this.board.program.sources ?? {})) {
       const rom = this.component(id);
@@ -352,11 +389,7 @@ export class BoardEditor {
     this.undoStack = [];
     this.redoStack = [];
     this.snapshot = structuredClone(board);
-    this.pressedButtons.clear();
-    this.highClocks.clear();
-    this.registerValues.clear();
-    this.ramValues.clear();
-    this.nextComponentId = board.components.length + 1;
+    this.resetRuntime();
     this.evaluate();
     if (save) this.save();
   }
@@ -417,15 +450,20 @@ export class BoardEditor {
     return true;
   }
 
+  // Publish a validated trial board in one step.
+  applyTrial(trial) {
+    this.board.components = trial.components;
+    this.board.wires = trial.wires;
+    this.board.junctions = trial.junctions;
+    this.commit();
+  }
+
   move(id, x, y) {
     const component = this.component(id);
     if (!component || (component.x === x && component.y === y)) return false;
     const trial = this.previewMove(id, x, y);
     if (!trial) return false;
-    this.board.components = trial.components;
-    this.board.wires = trial.wires;
-    this.board.junctions = trial.junctions;
-    this.commit();
+    this.applyTrial(trial);
     return true;
   }
 
@@ -463,8 +501,7 @@ export class BoardEditor {
     };
     for (const key of this.board.junctions) {
       const [x, y] = key.split(",").map(Number);
-      if ([`H:${x - 1},${y}`, `H:${x},${y}`, `V:${x},${y - 1}`, `V:${x},${y}`]
-        .every((edgeKey) => edges.has(edgeKey))) {
+      if (edgesAtPoint(x, y).every((edgeKey) => edges.has(edgeKey))) {
         trial.junctions.delete(key);
         trial.junctions.add(`${x + dx},${y + dy}`);
       }
@@ -484,10 +521,7 @@ export class BoardEditor {
   moveSelection(ids, wireKeys, dx, dy) {
     const trial = this.translatedSelection(ids, wireKeys, dx, dy);
     if (!trial) return false;
-    this.board.components = trial.components;
-    this.board.wires = trial.wires;
-    this.board.junctions = trial.junctions;
-    this.commit();
+    this.applyTrial(trial);
     return true;
   }
 
@@ -522,22 +556,22 @@ export class BoardEditor {
   setRomData(id, data) {
     const component = this.component(id);
     if (component?.t !== "rom" || !validRom({ ...component, data })) return false;
-    const sorted = data.map(([address, value]) => [address, value]).sort((a, b) => a[0] - b[0]);
-    if (JSON.stringify(component.data ?? []) === JSON.stringify(sorted)) return false;
+    const sorted = sortedRomData(data);
+    if (sameJson(component.data ?? [], sorted)) return false;
     return this.editComponent(component, { data: sorted }, { validate: (board) => !shortCircuitError(board) });
   }
 
   saveProgramSource(id, data, source) {
     const component = this.component(id);
     if (component?.t !== "rom" || !validRom({ ...component, data })) return false;
-    const sorted = data.map(([address, value]) => [address, value]).sort((a, b) => a[0] - b[0]);
-    if (JSON.stringify(assemble(source, component.addressSize ?? 8, bitWidth(component),
-      this.board.program?.isa?.[id] ?? "")) !== JSON.stringify(sorted))
+    const sorted = sortedRomData(data);
+    if (!sameJson(assemble(source, component.addressSize ?? 8, bitWidth(component),
+      this.board.program?.isa?.[id] ?? ""), sorted))
       throw new Error("Program source does not match the ROM words.");
     const annotations = captureProgramSource(source, sorted, component.addressSize ?? 8,
       bitWidth(component), this.board.program?.isa?.[id] ?? "");
-    if (JSON.stringify(this.board.program?.sources?.[id] ?? null) === JSON.stringify(annotations) &&
-        JSON.stringify(component.data ?? []) === JSON.stringify(sorted)) return true;
+    if (sameJson(this.board.program?.sources?.[id] ?? null, annotations ?? null) &&
+        sameJson(component.data ?? [], sorted)) return true;
     const previousData = component.data;
     component.data = sorted;
     if (shortCircuitError(this.board)) {
@@ -602,7 +636,7 @@ export class BoardEditor {
 
   setLabel(id, label) {
     const component = this.component(id);
-    if (!component || typeof label !== "string" || label.length > 80 || component.label === label) return false;
+    if (!component || typeof label !== "string" || label.length > MAX_LABEL_LENGTH || component.label === label) return false;
     return this.editComponent(component, { label });
   }
 
@@ -610,13 +644,13 @@ export class BoardEditor {
     const component = this.component(id);
     if (component?.t !== "module") return false;
     const module = JSON.parse(serialize(board));
-    if (JSON.stringify(module) === JSON.stringify(component.module)) return true;
+    if (sameJson(module, component.module)) return true;
     const changes = { module };
     if (!validModulePinLayout({ ...component, module })) changes.pinLayout = undefined;
     if (component.faceLayout) changes.faceLayout = component.faceLayout.filter(([index]) =>
       component.module.components[index]?.[0] === module.components[index]?.[0] &&
       (component.module.components.length === module.components.length ||
-        JSON.stringify(component.module.components[index]) === JSON.stringify(module.components[index])));
+        sameJson(component.module.components[index], module.components[index])));
     return this.editComponent(component, changes, { captureEdges: true });
   }
 
@@ -703,8 +737,7 @@ export class BoardEditor {
     }
     const junctions = [...this.board.junctions].filter((key) => {
       const [x, y] = key.split(",").map(Number);
-      return [`H:${x - 1},${y}`, `H:${x},${y}`, `V:${x},${y - 1}`, `V:${x},${y}`]
-        .every((edgeKey) => wires.has(edgeKey));
+      return edgesAtPoint(x, y).every((edgeKey) => wires.has(edgeKey));
     });
     return { components, wires: [...wires.values()], wireKeys: netKeys, junctions };
   }
@@ -777,10 +810,7 @@ export class BoardEditor {
         }
         if (wireLayoutError(trial)) continue;
         this.nextComponentId = nextId;
-        this.board.components = trial.components;
-        this.board.wires = trial.wires;
-        this.board.junctions = trial.junctions;
-        this.commit();
+        this.applyTrial(trial);
         return { components, wires, wireKeys: (copies.wireKeys ?? []).map((key) => {
           const source = copies.wires.find((wire) => edgeKey(wire) === key);
           return source ? edgeKey({ ...source, x: source.x + offsetX, y: source.y + offsetY }) : null;
