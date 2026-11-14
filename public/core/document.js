@@ -17,122 +17,100 @@ import { shortCircuitError } from "./issues.js";
 import { normalizeIsa, parseIsa } from "./assembly.js";
 import { validProgramSource } from "./program-source.js";
 
-const FIELD_CODECS = {
-  size: {
-    encode: (component) => component.size ?? 1,
-    decode(component, value, path) {
-      const powerOfTwo = component.t === "rom" || component.t === "ram";
-      if (!(powerOfTwo ? validRomWidth(value) : validBitWidth(value)))
-        throw new Error(`${path} must be ${powerOfTwo ? "a power of two from 1–32" : "1–32"}.`);
-      component.size = value;
-    },
+const fail = (path, message) => {
+  throw new Error(`${path} ${message}`);
+};
+
+// One table per direction: document fields encode to a tuple slot and parse
+// from it, so the written and parsed shapes cannot drift apart.
+const FIELD_ENCODERS = {
+  size: (component) => component.size ?? 1,
+  value: (component) => component.value ?? 0,
+  data: (component) => component.data ?? [],
+  addressSize: (component) => addressWidth(component),
+  frequency: (component) => component.frequency ?? DEFAULT_CLOCK_FREQUENCY,
+  enable: (component) => component.enable !== false,
+  order: (component) => (component.order === "descendant" ? 1 : 0),
+  channels: (component) => component.channels ?? 2,
+  format: (component) => VALUE_FORMATS.indexOf(component.format ?? "decimal"),
+  label: (component) => component.label ?? "",
+  module: (component) => component.module,
+  pinLayout: (component) => component.pinLayout ?? null,
+  faceLayout: (component) => component.faceLayout ?? null,
+  moduleWidth: (component) => component.moduleWidth ?? 4,
+  moduleHeight: (component) => component.moduleHeight ?? 3,
+};
+
+const FIELD_PARSERS = {
+  size(component, value, path) {
+    const powerOfTwo = component.t === "rom" || component.t === "ram";
+    if (!(powerOfTwo ? validRomWidth(value) : validBitWidth(value)))
+      fail(path, `must be ${powerOfTwo ? "a power of two from 1–32" : "1–32"}.`);
+    component.size = value;
   },
-  value: {
-    encode: (component) => component.value ?? 0,
-    decode(component, value, path) {
-      if (!Number.isInteger(value)) throw new Error(`${path} must be an integer.`);
-      component.value = value;
-    },
+  value(component, value, path) {
+    if (!Number.isInteger(value)) fail(path, "must be an integer.");
+    component.value = value;
   },
-  data: {
-    encode: (component) => component.data ?? [],
-    decode(component, value, path) {
-      if (!validRom({ t: component.t, size: component.size, addressSize: component.addressSize, data: value }))
-        throw new Error(`${path} must contain unique addresses fitting the address width and values fitting the ROM width.`);
-      component.data = value;
-    },
+  data(component, value, path) {
+    if (!validRom({ t: component.t, size: component.size, addressSize: component.addressSize, data: value }))
+      fail(path, "must contain unique addresses fitting the address width and values fitting the ROM width.");
+    component.data = value;
   },
-  addressSize: {
-    encode: (component) => addressWidth(component),
-    decode(component, value, path) {
-      if (!validRomAddressWidth(value)) throw new Error(`${path} must be a power of two from 1–16.`);
-      component.addressSize = value;
-    },
+  addressSize(component, value, path) {
+    if (!validRomAddressWidth(value)) fail(path, "must be a power of two from 1–16.");
+    component.addressSize = value;
   },
-  frequency: {
-    encode: (component) => component.frequency ?? DEFAULT_CLOCK_FREQUENCY,
-    decode(component, value, path) {
-      if (!validClockFrequency(value)) throw new Error(`${path} is an invalid frequency.`);
-      component.frequency = value;
-    },
+  frequency(component, value, path) {
+    if (!validClockFrequency(value)) fail(path, "is an invalid frequency.");
+    component.frequency = value;
   },
-  enable: {
-    encode: (component) => component.enable !== false,
-    decode(component, value, path) {
-      if (typeof value !== "boolean") throw new Error(`${path} must be a boolean.`);
-      component.enable = value;
-    },
+  enable(component, value, path) {
+    if (typeof value !== "boolean") fail(path, "must be a boolean.");
+    component.enable = value;
   },
-  order: {
-    encode: (component) => (component.order === "descendant" ? 1 : 0),
-    decode(component, value, path) {
-      if (value !== 0 && value !== 1) throw new Error(`${path} is an invalid order.`);
-      component.order = value ? "descendant" : "ascendant";
-    },
+  order(component, value, path) {
+    if (value !== 0 && value !== 1) fail(path, "is an invalid order.");
+    component.order = value ? "descendant" : "ascendant";
   },
-  channels: {
-    encode: (component) => component.channels ?? 2,
-    decode(component, value, path) {
-      if (!validChannelCount(value)) throw new Error(`${path} is an invalid channel count.`);
-      component.channels = value;
-    },
+  channels(component, value, path) {
+    if (!validChannelCount(value)) fail(path, "is an invalid channel count.");
+    component.channels = value;
   },
-  format: {
-    encode: (component) => VALUE_FORMATS.indexOf(component.format ?? "decimal"),
-    decode(component, value, path) {
-      if (!Number.isInteger(value) || value < 0 || value >= VALUE_FORMATS.length)
-        throw new Error(`${path} is an invalid value format.`);
-      if (value) component.format = VALUE_FORMATS[value];
-    },
+  format(component, value, path) {
+    if (!Number.isInteger(value) || value < 0 || value >= VALUE_FORMATS.length)
+      fail(path, "is an invalid value format.");
+    if (value) component.format = VALUE_FORMATS[value];
   },
-  label: {
-    encode: (component) => component.label ?? "",
-    decode(component, value, path) {
-      if (typeof value !== "string" || value.length > MAX_LABEL_LENGTH)
-        throw new Error(`${path} must be a string of at most ${MAX_LABEL_LENGTH} characters.`);
-      component.label = value;
-    },
+  label(component, value, path) {
+    if (typeof value !== "string" || value.length > MAX_LABEL_LENGTH)
+      fail(path, `must be a string of at most ${MAX_LABEL_LENGTH} characters.`);
+    component.label = value;
   },
-  module: {
-    encode: (component) => component.module,
-    decode(component, value, path) {
-      if (!value || typeof value !== "object" || Array.isArray(value))
-        throw new Error(`${path} must be a module document.`);
-      component.module = value;
-    },
+  module(component, value, path) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) fail(path, "must be a module document.");
+    component.module = value;
   },
-  pinLayout: {
-    encode: (component) => component.pinLayout ?? null,
-    decode(component, value, path) {
-      if (value !== null && !Array.isArray(value)) throw new Error(`${path} must be a pin layout array or null.`);
-      if (value !== null) component.pinLayout = value;
-    },
+  pinLayout(component, value, path) {
+    if (value !== null && !Array.isArray(value)) fail(path, "must be a pin layout array or null.");
+    if (value !== null) component.pinLayout = value;
   },
-  faceLayout: {
-    encode: (component) => component.faceLayout ?? null,
-    decode(component, value, path) {
-      if (value !== null && !Array.isArray(value)) throw new Error(`${path} must be a face layout array or null.`);
-      if (value !== null) component.faceLayout = value;
-    },
+  faceLayout(component, value, path) {
+    if (value !== null && !Array.isArray(value)) fail(path, "must be a face layout array or null.");
+    if (value !== null) component.faceLayout = value;
   },
-  moduleWidth: {
-    encode: (component) => component.moduleWidth ?? 4,
-    decode(component, value, path) {
-      if (!Number.isInteger(value) || value < 4 || value > 20) throw new Error(`${path} must be 4–20.`);
-      component.moduleWidth = value;
-    },
+  moduleWidth(component, value, path) {
+    if (!Number.isInteger(value) || value < 4 || value > 20) fail(path, "must be 4–20.");
+    component.moduleWidth = value;
   },
-  moduleHeight: {
-    encode: (component) => component.moduleHeight ?? 3,
-    decode(component, value, path) {
-      if (!Number.isInteger(value) || value < 3 || value > 32) throw new Error(`${path} must be 3–32.`);
-      component.moduleHeight = value;
-    },
+  moduleHeight(component, value, path) {
+    if (!Number.isInteger(value) || value < 3 || value > 32) fail(path, "must be 3–32.");
+    component.moduleHeight = value;
   },
 };
 
 function documentValue(component, field) {
-  return FIELD_CODECS[field].encode(component);
+  return FIELD_ENCODERS[field](component);
 }
 
 export function serialize(board) {
@@ -237,7 +215,7 @@ function parseComponents(board, components, depth) {
     if (!Number.isInteger(r) || r < 0 || r > 3) throw new Error(`${path}[3] must be 0–3.`);
     const component = { id: `c${index + 1}`, t, x, y, r };
     for (const [offset, field] of fields.entries())
-      FIELD_CODECS[field].decode(component, raw[4 + offset], `${path}[${4 + offset}]`);
+      FIELD_PARSERS[field](component, raw[4 + offset], `${path}[${4 + offset}]`);
     if (!validComponentProperties(component, depth, true)) throw new Error(`${path} is invalid.`);
     const labelKey = JSON.stringify([t, component.label]);
     if (t !== "portal" && labels.has(labelKey)) throw new Error(`${path} duplicates a ${t} label.`);
