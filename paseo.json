@@ -1,10 +1,11 @@
 {
   "worktree": {
-    "setup": ["npm ci"]
+    "setup": ["npm ci", "npx playwright install chromium"]
   },
   "scripts": {
     "check": { "command": "npm run check" },
     "test": { "command": "npm test" },
+    "e2e": { "command": "npm run e2e" },
     "dev": {
       "type": "service",
       "command": "npx wrangler dev --ip \"$HOST\" --port \"$PASEO_PORT\""
