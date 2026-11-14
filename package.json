@@ -6,9 +6,11 @@
     "deploy": "wrangler deploy",
     "preview": "wrangler preview",
     "test": "node --test tests/*.js",
-    "check": "for file in public/*.js tests/*.test.js; do node --check \"$file\" || exit; done"
+    "check": "for file in public/*.js tests/*.test.js; do node --check \"$file\" || exit; done",
+    "e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "wrangler": "^4.137.0"
   }
 }
